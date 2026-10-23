@@ -1,10 +1,13 @@
 import unittest
 from subprocess import Popen, PIPE
-import shlex
+import sys
 import os
 import requests
 import time
 import json
+
+import testenv
+from freedata_server.constants import API_VERSION
 
 
 # API Server integration testst
@@ -14,10 +17,11 @@ class TestIntegration(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cmd = "python3 freedata_server/server.py"
+        # run with the interpreter running the tests (not whatever "python3" is on PATH)
+        cmd = [sys.executable, "-m", "freedata_server.server"]
         my_env = os.environ.copy()
-        my_env["FREEDATA_CONFIG"] = "freedata_server/config.ini.example"
-        cls.process = Popen(shlex.split(cmd), stdin=PIPE, env=my_env)
+        my_env["FREEDATA_CONFIG"] = testenv.config_path()
+        cls.process = Popen(cmd, stdin=PIPE, env=my_env)
         cls.wait_for_server(cls.url)
         time.sleep(5)
 
@@ -45,7 +49,7 @@ class TestIntegration(unittest.TestCase):
         self.assertEqual(r.status_code, 200)
 
         data = r.json()
-        self.assertEqual(data["api_version"], 3)
+        self.assertEqual(data["api_version"], API_VERSION)
 
     def test_config_get(self):
         r = requests.get(self.url + "/config")
@@ -61,7 +65,8 @@ class TestIntegration(unittest.TestCase):
         self.assertIn("RADIO", config)
 
     def test_config_post(self):
-        config = {"STATION": {"mygrid": "JN48ea"}}
+        # the API requires a valid mycall and mygrid in every config update
+        config = {"STATION": {"mycall": "AA1AAA", "mygrid": "JN48ea"}}
         r = requests.post(
             self.url + "/config",
             headers={"Content-type": "application/json"},
@@ -73,6 +78,35 @@ class TestIntegration(unittest.TestCase):
         self.assertEqual(r.status_code, 200)
         config = r.json()
         self.assertEqual(config["NETWORK"]["modemport"], 5000)
+
+    def test_message_unknown_id_404(self):
+        r = requests.get(self.url + "/freedata/messages/does-not-exist")
+        self.assertEqual(r.status_code, 404)
+
+    def test_broadcast_delete_unknown_404(self):
+        r = requests.delete(self.url + "/freedata/broadcasts/does-not-exist")
+        self.assertEqual(r.status_code, 404)
+
+    def test_broadcast_post_groupchat_disabled_409(self):
+        # the test config (config.ini.example) has EXP.enable_groupchat = False
+        payload = {
+            "origin": "AA1AAA-0",
+            "domain": "BB1BBB-0",
+            "gridsquare": "JN48ea",
+            "type": "MESSAGE",
+            "priority": 1,
+            "data": "aGVsbG8=",
+        }
+        r = requests.post(self.url + "/freedata/broadcasts", json=payload)
+        self.assertEqual(r.status_code, 409)
+        self.assertIn("error", r.json()["detail"])
+
+    def test_broadcast_domain_mark_read(self):
+        r = requests.get(self.url + "/freedata/broadcasts/BB1BBB-0/")
+        self.assertEqual(r.status_code, 200)
+        r = requests.patch(self.url + "/freedata/broadcasts/BB1BBB-0/read")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()["marked_read"], 0)
 
 
 if __name__ == "__main__":

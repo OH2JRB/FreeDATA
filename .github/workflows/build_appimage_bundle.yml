@@ -31,7 +31,7 @@ jobs:
       - name: Install Linux dependencies
         run: |
           sudo apt update
-          sudo apt install -y portaudio19-dev libhamlib-dev libhamlib-utils build-essential cmake python3-libhamlib2 patchelf desktop-file-utils
+          sudo apt install -y portaudio19-dev libhamlib-dev libhamlib-utils build-essential cmake patchelf desktop-file-utils
 
       - name: Install Python dependencies
         run: |
@@ -41,7 +41,7 @@ jobs:
       - name: Build binaries
         working-directory: freedata_server
         run: |
-          python3 -m nuitka  --remove-output --assume-yes-for-downloads --follow-imports --include-data-dir=lib=lib --include-data-files=lib/codec2/*=lib/codec2/ --include-data-files=config.ini.example=config.ini --standalone server.py --output-filename=freedata-server
+          python3 -m nuitka  --remove-output --assume-yes-for-downloads --follow-imports --include-data-dir=lib=lib --include-data-files=lib/codec2/*=lib/codec2/ --include-data-files=config.ini.example=config.ini.example --standalone server.py --output-filename=freedata-server
 
       - name: Prepare AppImage folder
         run: |
@@ -85,8 +85,8 @@ jobs:
               echo "$SERVER_CONFIG_FILE exists."
           else 
               echo "$SERVER_CONFIG_FILE does not exist. Copying the default one"
-              mkdir ~/.config/FreeDATA
-              cp ./server/config.ini $SERVER_CONFIG_FILE
+              mkdir -p ~/.config/FreeDATA
+              cp ./server/config.ini.example $SERVER_CONFIG_FILE
           fi
 
           echo "Setting server config variable"

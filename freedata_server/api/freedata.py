@@ -50,7 +50,7 @@ def _mgr_broadcasts(ctx: AppContext):
     },
 )
 async def get_freedata_message(message_id: str, ctx: AppContext = Depends(get_ctx)):
-    message = _mgr_msgs(ctx).get_message_by_id_json(message_id)
+    message = _mgr_msgs(ctx).get_message_by_id(message_id)
     if message is None:
         api_abort("Message not found", 404)
     return api_response(message)
@@ -73,7 +73,8 @@ async def get_freedata_message(message_id: str, ctx: AppContext = Depends(get_ct
 )
 async def post_freedata_message(payload: dict, ctx: AppContext = Depends(get_ctx)):
     # Transmit FreeDATA message
-    await enqueue_tx_command(ctx, command_message_send.SendMessageCommand, payload)
+    if not await enqueue_tx_command(ctx, command_message_send.SendMessageCommand, payload):
+        api_abort("Failed to transmit message.", 500)
     return api_response(payload)
 
 
@@ -130,14 +131,20 @@ async def post_freedata_message_adif_log(message_id: str, ctx: AppContext = Depe
     },
 )
 async def patch_freedata_message(message_id: str, payload: dict, ctx: AppContext = Depends(get_ctx)):
+    # update_message() returns a {"status": "failure"} dict (never None) for
+    # unknown ids, so check existence explicitly before updating.
+    if _mgr_msgs(ctx).get_message_by_id(message_id) is None:
+        api_abort("Message not found", 404)
     if payload.get("action") == "retransmit":
-        _mgr_msgs(ctx).update_message(message_id, {"status": "queued"})
+        update_result = _mgr_msgs(ctx).update_message(message_id, {"status": "queued"})
+        if not update_result or update_result.get("status") != "success":
+            api_abort("Error updating message", 500)
         _mgr_msgs(ctx).increment_message_attempts(message_id)
         result = {"message_id": message_id, "status": "queued"}
     else:
         result = _mgr_msgs(ctx).update_message(message_id, update_data=payload)
-    if result is None:
-        api_abort("Message not found", 404)
+        if not result or result.get("status") != "success":
+            api_abort("Error updating message", 500)
     return api_response(result)
 
 
@@ -220,9 +227,11 @@ async def get_freedata_messages(ctx: AppContext = Depends(get_ctx)):
     },
 )
 async def delete_freedata_message(message_id: str, ctx: AppContext = Depends(get_ctx)):
-    ok = _mgr_msgs(ctx).delete_message(message_id)
-    if not ok:
-        api_abort("Message not found", 404)
+    result = _mgr_msgs(ctx).delete_message(message_id)
+    if result.get("status") != "success":
+        if result.get("message") == "Message not found":
+            api_abort("Message not found", 404)
+        api_abort(result.get("message", "Error deleting message"), 409)
     return api_response({"message": f"{message_id} deleted", "status": "success"})
 
 
@@ -523,9 +532,10 @@ async def set_station_info(callsign: str, payload: dict, ctx: AppContext = Depen
     info = payload.get("info")
     if not isinstance(info, dict):
         api_abort("Invalid input data", 400)
+    # update_station_info() creates unknown stations and returns True/False
     result = _mgr_stations(ctx).update_station_info(callsign, new_info=info)
-    if result is None:
-        api_abort("Station not found", 404)
+    if not result:
+        api_abort("Error updating station info", 500)
     return api_response(result)
 
 
@@ -544,6 +554,13 @@ async def get_freedata_broadcasts_per_domain(domain: str, ctx: AppContext = Depe
     return api_response(result)
 
 
+@router.patch("/broadcasts/{domain}/read", summary="Mark Broadcast Domain as Read", tags=["FreeDATA"], responses={})
+async def patch_freedata_broadcast_domain_read(domain: str, ctx: AppContext = Depends(get_ctx)):
+    # explicit counterpart of the (side-effect free) GET /broadcasts/{domain}/
+    count = _mgr_broadcasts(ctx).mark_domain_as_read(domain)
+    return api_response({"domain": domain, "marked_read": count, "status": "success"})
+
+
 @router.get("/broadcasts/domains", summary="Get All Broadcast Messages", tags=["FreeDATA"], responses={})
 async def get_freedata_broadcasts(ctx: AppContext = Depends(get_ctx)):  # noqa: F811 # same as line 534, but different path
     # filters = {k: v for k, v in ctx.config_manager.read().get('FILTERS', {}).items()}
@@ -555,15 +572,21 @@ async def get_freedata_broadcasts(ctx: AppContext = Depends(get_ctx)):  # noqa: 
 
 @router.delete("/broadcasts/{id}", summary="Delete Message or Broadcast by ID", tags=["FreeDATA"], responses={})
 async def delete_freedata_broadcast_domain(id: str, ctx: AppContext = Depends(get_ctx)):
-    ok = _mgr_broadcasts(ctx).delete_broadcast_message_or_domain(id)
-    if not ok:
-        api_abort("Message not found", 404)
+    # delete_broadcast_message_or_domain() always returns a dict; check its status
+    result = _mgr_broadcasts(ctx).delete_broadcast_message_or_domain(id)
+    if result.get("status") != "success":
+        if result.get("status") == "not_found":
+            api_abort("Broadcast message or domain not found", 404)
+        api_abort(result.get("message", "Error deleting broadcast"), 500)
     return api_response({"message": f"{id} deleted", "status": "success"})
 
 
 @router.patch("/broadcasts/{id}", summary="Retransmit Broadcast by ID", tags=["FreeDATA"], responses={})
 async def patch_freedata_broadcast_domain(id: str, payload: dict, ctx: AppContext = Depends(get_ctx)):
     if payload.get("action") == "retransmit":
+        # check existence before touching the attempts counter
+        if _mgr_broadcasts(ctx).get_broadcast_per_id(id) is None:
+            api_abort("Message not found", 404)
         _mgr_broadcasts(ctx).increment_attempts(id)
         msg = _mgr_broadcasts(ctx).get_broadcast_per_id(id, get_object=True)
         if msg:
@@ -578,5 +601,8 @@ async def patch_freedata_broadcast_domain(id: str, payload: dict, ctx: AppContex
 
 @router.post("/broadcasts", summary="Transmit Broadcast", tags=["FreeDATA"], responses={})
 async def post_freedata_broadcast(payload: dict, ctx: AppContext = Depends(get_ctx)):
-    await enqueue_tx_command(ctx, command_norm.Norm, payload)
+    if not ctx.config_manager.config["EXP"]["enable_groupchat"]:
+        api_abort("Group chat is disabled (EXP.enable_groupchat), broadcast not transmitted.", 409)
+    if not await enqueue_tx_command(ctx, command_norm.Norm, payload):
+        api_abort("Failed to transmit broadcast.", 500)
     return api_response({"message": "broadcast transmitted", "status": "success"})
