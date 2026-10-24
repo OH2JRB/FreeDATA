@@ -11,8 +11,8 @@ import threading
 import time
 from freedata_server import codec2
 import numpy as np
-import sounddevice as sd
 import structlog
+from freedata_server.audio_backend import get_sounddevice
 from freedata_server import cw
 from freedata_server import audio
 from freedata_server import demodulator
@@ -199,6 +199,9 @@ class RF:
                 raise ValueError("Invalid output device")
             else:
                 out_dev_index, out_dev_name = result
+
+            # raises AudioUnavailableError (handled below) if PortAudio can't be loaded
+            sd = get_sounddevice()
 
             self.log.info(f"[MDM] init: receiving audio from '{in_dev_name}'")
             self.log.info(f"[MDM] init: transmiting audio on '{out_dev_name}'")

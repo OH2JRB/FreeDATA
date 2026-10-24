@@ -264,6 +264,17 @@ Callers: [arq_session_irs.py](../arq_session_irs.py), [arq_session_iss.py](../ar
 
 ## 5. Audio ([audio.py](../audio.py), [modem.py](../modem.py))
 
+### Loading PortAudio ([audio_backend.py](../audio_backend.py))
+
+Importing `sounddevice` initializes PortAudio and raises if that fails (libportaudio
+missing, or no PulseAudio/PipeWire server on Linux). So no module imports it at load
+time: `audio_backend.get_sounddevice()` imports it on first use and raises
+`AudioUnavailableError` on failure. A failed import is retried on the next call.
+Without audio the server, API and GUI keep running: `get_audio_devices()` returns
+empty lists, `test_audio_devices()` returns `[False, False]`, so `ServiceManager`
+doesn't start the modem and sends the `modem failed` event. Shutdown and cleanup code
+use `loaded_sounddevice()`, which never triggers a load.
+
 ### Device enumeration and selection
 
 - `get_audio_devices()` runs `fetch_audio_devices` in a separate `multiprocessing.Process` (comment: to avoid PortAudio crashes on Raspberry Pi), joined with a 3 s timeout, and returns `(inputs, outputs)` lists. Used by the devices API ([api/devices.py](../api/devices.py)).

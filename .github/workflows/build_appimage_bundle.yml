@@ -1,9 +1,20 @@
 name: Build and Release APPIMAGE Installer
-on: [push]
+on:
+  push:
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: "Runner image, e.g. ubuntu-latest or ubuntu-26.04"
+        default: ubuntu-latest
+
+# The AppImage contains the Nuitka-built server with the web GUI bundled in
+# (like the Windows installer). Starting it starts the server, which serves
+# the GUI on http://127.0.0.1:5000/gui and opens it in the browser.
+# The AppImage needs at least the glibc of the runner image it was built on.
 
 jobs:
   build-and-release:
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
 
     steps:
       - name: Check out repository
@@ -19,14 +30,9 @@ jobs:
         with:
           node-version: 24
 
-      - name: Electron Builder
+      - name: Build GUI
         working-directory: freedata_gui
-        run: |
-          npm i
-          npm run build
-
-      - name: LIST ALL FILES
-        run: ls -R
+        run: npm run build
 
       - name: Install Linux dependencies
         run: |
@@ -41,78 +47,80 @@ jobs:
       - name: Build binaries
         working-directory: freedata_server
         run: |
-          python3 -m nuitka  --remove-output --assume-yes-for-downloads --follow-imports --include-data-dir=lib=lib --include-data-files=lib/codec2/*=lib/codec2/ --include-data-files=config.ini.example=config.ini.example --standalone server.py --output-filename=freedata-server
+          python3 -m nuitka \
+            --remove-output \
+            --assume-yes-for-downloads \
+            --follow-imports \
+            --include-data-dir=lib=lib \
+            --include-data-dir=../freedata_gui/dist=gui \
+            --include-data-files=lib/codec2/*=lib/codec2/ \
+            --include-data-files=config.ini.example=config.ini.example \
+            --nofollow-import-to=sqlalchemy.dialects.mysql,sqlalchemy.dialects.mariadb,sqlalchemy.dialects.postgresql,sqlalchemy.dialects.oracle,sqlalchemy.dialects.mssql \
+            --include-package=sqlalchemy.dialects.sqlite \
+            --standalone server.py \
+            --output-filename=freedata-server
 
       - name: Prepare AppImage folder
         run: |
-          mkdir -p $HOME/freedata-appimage
-          mkdir -p $HOME/freedata-appimage/gui
-          mkdir -p $HOME/freedata-appimage/server
+          APPDIR=$HOME/freedata-appimage
+          mkdir -p $APPDIR/server
+          cp -r freedata_server/server.dist/* $APPDIR/server
+          cp freedata_gui/public/android-chrome-512x512.png $APPDIR/freedata.png
 
+          cat > $APPDIR/FreeDATA.desktop <<'EOF'
+          [Desktop Entry]
+          Type=Application
+          Name=FreeDATA
+          Comment=HF data modem with web GUI
+          Icon=freedata
+          Exec=AppRun
+          Terminal=false
+          Categories=Network;HamRadio;
+          EOF
+          desktop-file-validate $APPDIR/FreeDATA.desktop
 
-      - name: Copy GUI
+          # The server creates ~/.config/FreeDATA/config.ini from its bundled
+          # config.ini.example on first start and keeps the database there too.
+          cat > $APPDIR/AppRun <<'EOF'
+          #!/bin/sh
+          HERE="$(dirname "$(readlink -f "$0")")"
+          exec "$HERE/server/freedata-server" "$@"
+          EOF
+          chmod +x $APPDIR/AppRun
+
+      - name: Download appimagetool
         run: |
-          cp -r freedata_gui/release/linux-unpacked/* $HOME/freedata-appimage/gui
-
-
-      - name: Copy server
-        run: |
-          cp -r freedata_server/server.dist/* $HOME/freedata-appimage/server
-
-      - name: Copy Icon
-        run: |
-          cp freedata_gui/build/icon.png $HOME/freedata-appimage/icon.png
-
-      - name: Create Desktop shortcut
-        run: |
-          echo "[Desktop Entry]" > $HOME/freedata-appimage/FreeDATA.desktop
-          echo "Type=Application" >> $HOME/freedata-appimage/FreeDATA.desktop
-          echo "Name=FreeDATA" >> $HOME/freedata-appimage/FreeDATA.desktop
-          echo "Icon=icon" >> $HOME/freedata-appimage/FreeDATA.desktop
-          echo "Exec=AppRun" >> $HOME/freedata-appimage/FreeDATA.desktop
-          echo "Categories=Utility" >> $HOME/freedata-appimage/FreeDATA.desktop
-      
-
-      - name: Create AppImage build script
-        run: |
-          echo '#!/bin/bash
-          # Navigate to the AppDir root; this ensures relative paths work as expected
-          cd "$(dirname "$(readlink -f "${0}")")"
-          
-          # check if config exists in ~/.config/FreeDATA/config.ini else create it
-          SERVER_CONFIG_FILE=~/.config/FreeDATA/config.ini
-          if test -f "$SERVER_CONFIG_FILE"; then
-              echo "$SERVER_CONFIG_FILE exists."
-          else 
-              echo "$SERVER_CONFIG_FILE does not exist. Copying the default one"
-              mkdir -p ~/.config/FreeDATA
-              cp ./server/config.ini.example $SERVER_CONFIG_FILE
-          fi
-
-          echo "Setting server config variable"
-          export FREEDATA_CONFIG=$SERVER_CONFIG_FILE
-          # ./server/freedata-server
-          
-          # Launch the gui
-          echo "Starting gui"
-          ./gui/freedata
-          
-          ' > $HOME/freedata-appimage/AppRun
-          chmod +x $HOME/freedata-appimage/AppRun
-
-      - name: Download AppImage
-        run: |
-          wget https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage -O appimagetool-x86_64.AppImage
+          wget -q https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage -O appimagetool-x86_64.AppImage
           chmod +x appimagetool-x86_64.AppImage
 
-      - name: Execute AppImage
+      - name: Build AppImage
+        env:
+          ARCH: x86_64
+          # newer Ubuntu images have no libfuse2, run appimagetool without FUSE
+          APPIMAGE_EXTRACT_AND_RUN: 1
+        run: ./appimagetool-x86_64.AppImage $HOME/freedata-appimage FreeDATA-x86_64.AppImage
+
+      - name: Test AppImage
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: 1
+          XDG_CONFIG_HOME: ${{ runner.temp }}/freedata-config
         run: |
-          ./appimagetool-x86_64.AppImage $HOME/freedata-appimage/
-
-      - name: LIST ALL FILES
-        run: ls -R
-
-
+          # runners have no sound server, so this also checks the server
+          # keeps running when PortAudio can't start
+          ./FreeDATA-x86_64.AppImage > appimage.log 2>&1 &
+          PID=$!
+          ok=0
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:5000/ > /dev/null && curl -fsS http://127.0.0.1:5000/gui/ | grep -q "<title>"; then
+              ok=1
+              break
+            fi
+            sleep 1
+          done
+          kill $PID || true
+          cat appimage.log
+          test -f "$XDG_CONFIG_HOME/FreeDATA/config.ini"
+          test $ok = 1
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7

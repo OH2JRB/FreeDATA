@@ -2,7 +2,7 @@ from freedata_server import codec2
 import ctypes
 import structlog
 import threading
-from freedata_server import audio
+from freedata_server.audio_backend import loaded_sounddevice
 import itertools
 from freedata_server.audio_buffer import CircularBuffer
 
@@ -225,7 +225,9 @@ class Demodulator:
                 return
             else:
                 self.log.warning("[MDM] [demod_audio] demod loop ended", mode=mode_name, e=e)
-                audio.sd._terminate()
+                sd = loaded_sounddevice()
+                if sd is not None:
+                    sd._terminate()
 
     def set_frames_per_burst(self, frames_per_burst: int) -> None:
         """

@@ -3,11 +3,11 @@ Gather information about audio devices.
 """
 
 import multiprocessing
-import sounddevice as sd
 import structlog
 import numpy as np
 import queue
 from freedata_server import helpers
+from freedata_server.audio_backend import AudioUnavailableError, get_sounddevice, loaded_sounddevice
 import time
 
 log = structlog.get_logger("audio")
@@ -29,6 +29,11 @@ def get_audio_devices():
     # sd._initialize()
 
     # log.debug("[AUD] get_audio_devices")
+    try:
+        get_sounddevice()
+    except AudioUnavailableError:
+        return [], []
+
     with multiprocessing.Manager() as manager:
         proxy_input_devices = manager.list()
         proxy_output_devices = manager.list()
@@ -71,7 +76,10 @@ def fetch_audio_devices(input_devices, output_devices):
 
     Returns:
 
+    Raises:
+        AudioUnavailableError: If PortAudio can't be loaded.
     """
+    sd = get_sounddevice()
     devices = sd.query_devices(device=None, kind=None)
 
     for index, device in enumerate(devices):
@@ -151,6 +159,8 @@ def get_device_index_from_crc(crc, isInput: bool):
             if dev["id"] == crc:
                 return (dev["native_index"], dev["name"])
 
+    except AudioUnavailableError:
+        log.warning(f"Audio device {crc} not available, PortAudio could not be loaded")
     except Exception as _:
         log.warning(f"Audio device {crc} not detected ", devices=detected_devices, isInput=isInput)
 
@@ -172,6 +182,10 @@ def test_audio_devices(input_id: str, output_id: str) -> list:
         list: A list of booleans indicating the test results for input and output devices, respectively.
     """
     test_result = [False, False]
+    try:
+        sd = get_sounddevice()
+    except AudioUnavailableError:
+        return test_result
     try:
         result = get_device_index_from_crc(input_id, True)
         if result is None:
@@ -481,5 +495,6 @@ def terminate():
     releasing audio resources and preventing potential issues during shutdown.
     """
     log.warning("[SHUTDOWN] terminating audio instance...")
-    if sd._initialized:
+    sd = loaded_sounddevice()
+    if sd is not None and sd._initialized:
         sd._terminate()
