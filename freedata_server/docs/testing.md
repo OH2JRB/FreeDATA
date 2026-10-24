@@ -41,7 +41,8 @@ A full run takes about a minute. Both commands exit non-zero when a test fails.
 | `test_message_p2p.py` | `MessageP2P` from API params, payloads with attachments | yes |
 | `test_protocols.py` | PING → PING_ACK and CQ → QRV through the real frame dispatcher | yes |
 | `test_arq_session.py` | A full ARQ transfer (1000 random bytes) between two stations; IRS success event | two |
-| `test_message_protocol.py` | A P2P message sent over an ARQ session, checked on both stations | two |
+| `test_message_protocol.py` | A P2P message sent over an ARQ session, checked on both stations; the same with encryption on | two |
+| `test_encryption.py` | AES-GCM helpers and key parsing, the encrypted ARQ data type, holding sent/received messages until a key is entered, the station encryption API, database migration from version 1 | yes |
 | `test_norm_protocol.py` | Sending a NORM broadcast (smoke test, see section 5) | two |
 | `test_rx_audio_callback.py` | RX audio callback/worker split and re-blocking to whole DSP blocks | yes (not started) |
 | `test_audio_backend.py` | Server import, device listing, audio test and modem start in a fresh interpreter where `import sounddevice` fails (no PortAudio / no sound server); loading PortAudio again once it is available | separate process |
