@@ -8,6 +8,7 @@ colorama
 sqlalchemy
 fastapi[standard]
 uvicorn[standard]
+cryptography
 # minimum versions for security fixes in indirect dependencies
 certifi>=2026.10.19
 opentelemetry-api>=1.45.1
