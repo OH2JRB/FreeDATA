@@ -42,9 +42,9 @@ class SendMessageCommand(TxCommand):
 
     def key_missing(self, destination):
         """True if messages to destination are to be encrypted, but its key is unknown."""
-        return DatabaseManagerStations(self.ctx).is_encryption_enabled(
+        return DatabaseManagerStations(self.ctx).is_encryption_enabled(destination) and not self.ctx.station_keys.has(
             destination
-        ) and not self.ctx.station_keys.has(destination)
+        )
 
     def transmit(self):
         """Transmits the first queued message using ARQ.
@@ -68,6 +68,12 @@ class SendMessageCommand(TxCommand):
         first_queued_message = DatabaseManagerMessages(self.ctx).get_first_queued_message()
         if not first_queued_message:
             self.log("No queued message in database.")
+            return
+
+        # the API and the scheduler can both get here for the same message
+        message_id = first_queued_message["id"]
+        if not self.ctx.state_manager.claim_message_transmit(message_id):
+            self.log(f"Message {message_id} is already being sent")
             return
         try:
             self.log(f"Queued message found: {first_queued_message['id']}")
@@ -118,6 +124,11 @@ class SendMessageCommand(TxCommand):
                 self.ctx.event_manager.send_encryption_key_required(message.destination, "send")
                 return
 
+            # another ARQ session may have started while we waited; the message stays queued
+            if self.ctx.state_manager.getARQ():
+                self.log("Modem busy, waiting until ready...")
+                return
+
             # If we came until here, we are setting status to transmitting, otherwise it stays in queued
             DatabaseManagerMessages(self.ctx).update_message(
                 first_queued_message["id"],
@@ -131,3 +142,6 @@ class SendMessageCommand(TxCommand):
             iss.start()
         except Exception as e:
             self.log(f"Error starting ARQ session: {e}", isWarning=True)
+        finally:
+            # once it is "transmitting" it is no longer the first queued message
+            self.ctx.state_manager.release_message_transmit(message_id)
