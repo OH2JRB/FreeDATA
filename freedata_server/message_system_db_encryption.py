@@ -42,7 +42,8 @@ class DatabaseManagerEncryption(DatabaseManager):
         session = self.get_thread_scoped_session()
         try:
             rows = (
-                session.query(PendingEncryptedMessage)
+                session
+                .query(PendingEncryptedMessage)
                 .filter_by(callsign=callsign)
                 .order_by(PendingEncryptedMessage.id)
                 .all()

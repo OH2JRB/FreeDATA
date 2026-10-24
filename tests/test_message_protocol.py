@@ -16,6 +16,7 @@ from freedata_server import encryption
 from freedata_server.message_system_db_encryption import DatabaseManagerEncryption
 from freedata_server.message_system_db_messages import DatabaseManagerMessages
 from freedata_server.message_system_db_station import DatabaseManagerStations
+from freedata_server.schedule_manager import ScheduleManager
 
 
 class TestModem:
@@ -52,6 +53,12 @@ class TestMessageProtocol(unittest.TestCase):
     def setUpClass(cls):
         cls.logger = structlog.get_logger("TESTS")
 
+        # Both stations share one message database. Their schedulers would also
+        # send the queued test messages (twice, or without the station's key),
+        # so only the test's own SendMessageCommand may send.
+        cls.queue_patch = unittest.mock.patch.object(ScheduleManager, "check_for_queued_messages")
+        cls.queue_patch.start()
+
         # ISS
 
         cls.ctx_ISS = AppContext(testenv.config_path())
@@ -74,6 +81,7 @@ class TestMessageProtocol(unittest.TestCase):
     def tearDownClass(cls):
         cls.ctx_IRS.shutdown()
         cls.ctx_ISS.shutdown()
+        cls.queue_patch.stop()
 
     def channelWorker(self, ctx_a, ctx_b):
         while self.channels_running:

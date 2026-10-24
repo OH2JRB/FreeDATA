@@ -42,9 +42,9 @@ class SendMessageCommand(TxCommand):
 
     def key_missing(self, destination):
         """True if messages to destination are to be encrypted, but its key is unknown."""
-        return DatabaseManagerStations(self.ctx).is_encryption_enabled(
+        return DatabaseManagerStations(self.ctx).is_encryption_enabled(destination) and not self.ctx.station_keys.has(
             destination
-        ) and not self.ctx.station_keys.has(destination)
+        )
 
     def transmit(self):
         """Transmits the first queued message using ARQ.
