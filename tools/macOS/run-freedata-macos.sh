@@ -19,6 +19,9 @@
 # We expect the config.ini file to be at $HOME/.config/FreeDATA/config.ini
 # If it isn't found, we copy config.ini.example there
 #
+# 2.1:	24 Oct 2026
+#	Run the server as the freedata_server.server module, since server.py
+#	can no longer be started directly; drop the old "modem" fallback
 # 2.0:	30 Jan 2025 (HB9HBO)
 #	checks if MacPorts or brew is installed
 # 1.9:	29.Jan 2025 (HB9HBO)
@@ -72,7 +75,8 @@ fi
 source ./FreeDATA-venv/bin/activate
 
 # Check to see if there is an old server running, and stop it if there is
-checkoldserver=`ps auxw | grep FreeDATA | grep server.py`
+# (older installs ran server.py directly, newer ones run the freedata_server.server module)
+checkoldserver=`ps auxw | grep -E "freedata_server(/|\.)server" | grep -v grep`
 
 if [ ! -z "$checkoldserver" ];
 then
@@ -93,12 +97,15 @@ echo "*************************************************************************"
 echo "Running the FreeDATA server component"
 echo "*************************************************************************"
 
-# New versions use freedata_server, old version use modem
-if [ -d "FreeDATA/freedata_server" ];
+# The server uses package imports (freedata_server.*), so it has to run as a
+# module with the FreeDATA checkout on the module path.  We keep the current
+# directory, because rigctld is looked up below it (FreeDATA-hamlib).
+serverdir="FreeDATA/freedata_server"
+if [ ! -f "$serverdir/server.py" ];
 then
-	serverdir="FreeDATA/freedata_server"
-else
-	serverdir="FreeDATA/modem"
+	echo "Something went wrong.  $serverdir/server.py not found."
+	echo "Please reinstall with install-freedata-macos.sh"
+	exit 1
 fi
 
 
@@ -131,7 +138,7 @@ fi
 #////////////////////////////////////////////////////////////////
 #	Config and DB-File macOS like
 #
-FREEDATA_CONFIG=$HOME/Library/Application\ Support/FreeDATA/config.ini FREEDATA_DATABASE=$HOME/Library/Application\ Support/FreeDATA/freedata-messages.db python3 $serverdir/server.py > FreeDATA-server.log 2>&1 &
+FREEDATA_CONFIG=$HOME/Library/Application\ Support/FreeDATA/config.ini FREEDATA_DATABASE=$HOME/Library/Application\ Support/FreeDATA/freedata-messages.db PYTHONPATH="$PWD/FreeDATA${PYTHONPATH:+:$PYTHONPATH}" python3 -m freedata_server.server > FreeDATA-server.log 2>&1 &
 serverpid=$!
 echo "Process ID of FreeDATA server is" $serverpid
 
