@@ -105,11 +105,8 @@ jobs:
           APPIMAGE_EXTRACT_AND_RUN: 1
           XDG_CONFIG_HOME: ${{ runner.temp }}/freedata-config
         run: |
-          # PortAudio fails to initialize without a sound server (newer images
-          # have no audio at all), so give the test a desktop-like one
-          sudo apt install -y pulseaudio
-          pulseaudio --start --exit-idle-time=-1 || true
-
+          # runners have no sound server, so this also checks the server
+          # keeps running when PortAudio can't start
           ./FreeDATA-x86_64.AppImage > appimage.log 2>&1 &
           PID=$!
           ok=0
