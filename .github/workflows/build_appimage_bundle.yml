@@ -1,6 +1,8 @@
 name: Build and Release APPIMAGE Installer
 on:
   push:
+    branches: [main]
+    tags: ["v*"]
   workflow_dispatch:
     inputs:
       runner:
@@ -37,7 +39,7 @@ jobs:
       - name: Install Linux dependencies
         run: |
           sudo apt update
-          sudo apt install -y portaudio19-dev libhamlib-dev libhamlib-utils build-essential cmake patchelf desktop-file-utils
+          sudo apt install -y portaudio19-dev libhamlib-dev libhamlib-utils build-essential cmake patchelf desktop-file-utils zip
 
       - name: Install Python dependencies
         run: |
@@ -128,11 +130,19 @@ jobs:
           name: 'FreeDATA-x86_64.AppImage'
           path: FreeDATA-x86_64.AppImage
 
+      # the plain server zip, for running without the AppImage
+      - name: Zip server
+        if: startsWith(github.ref, 'refs/tags/v')
+        working-directory: freedata_server/server.dist
+        run: zip -qr ../../freedata-server_ubuntu.zip .
+
       - name: Upload Installer to Release
         uses: softprops/action-gh-release@v3
         if: startsWith(github.ref, 'refs/tags/v')
         with:
           draft: true
-          files: FreeDATA-x86_64.AppImage
+          files: |
+            FreeDATA-x86_64.AppImage
+            freedata-server_ubuntu.zip
           tag_name: ${{ github.ref_name }}
           name: 'FreeDATA-x86_64.AppImage'
