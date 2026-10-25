@@ -48,14 +48,12 @@ class SendMessageCommand(TxCommand):
         """True if an encrypted message may not be sent on the current frequency.
 
         Encrypted data is not allowed on the amateur bands. The message is set to
-        failed, so it does not block the queue, and the GUI is told.
+        failed, so it does not block the queue; the event manager tells the GUI
+        and logs it.
         """
         frequency = self.ctx.state_manager.radio_frequency
         if not encrypt or not on_amateur_band(frequency, self.ctx.iaru_region()):
             return False
-        self.log(
-            f"Not sending encrypted message to {destination}: {frequency} Hz is on an amateur band", isWarning=True
-        )
         DatabaseManagerMessages(self.ctx).update_message(message_id, update_data={"status": "failed"})
         self.ctx.event_manager.send_encryption_amateur_band(destination, frequency)
         return True

@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends
 from freedata_server.api.common import api_abort
 from freedata_server import api_validations as validations
 from freedata_server.context import AppContext, get_ctx
-from freedata_server.message_p2p import common_key_changed, EXPLORER_SETTINGS
+from freedata_server.message_p2p import common_key_changed, encryption_log, EXPLORER_SETTINGS
 from freedata_server.message_system_db_station import DatabaseManagerStations
 
 router = APIRouter()
@@ -153,11 +153,14 @@ async def post_config(
     # common key setting in this config, or encryption on for any station
     if new_cfg.get("MESSAGES", {}).get("enable_common_key") or DatabaseManagerStations(ctx).any_encryption_enabled():
         station = new_cfg.get("STATION", {})
-        for key in EXPLORER_SETTINGS:
-            if station.get(key):
-                station[key] = False
+        off = [key for key in EXPLORER_SETTINGS if station.get(key)]
+        for key in off:
+            station[key] = False
+        if off:
+            encryption_log.info("[ENCRYPTION] Explorer reporting kept off, encryption is in use", settings=off)
         if ctx.pskreporter.status()["enabled"]:
             ctx.pskreporter.set_enabled(False)
+            encryption_log.info("[ENCRYPTION] PSK Reporter switched off, encryption is in use")
 
     # Read and compare
     old_cfg = ctx.config_manager.read()
@@ -170,11 +173,15 @@ async def post_config(
 
     updated = ctx.config_manager.read()
 
+    common_was_on = bool(old_cfg.get("MESSAGES", {}).get("enable_common_key"))
+    common_is_on = bool(updated.get("MESSAGES", {}).get("enable_common_key"))
+    if common_is_on != common_was_on:
+        encryption_log.info("[ENCRYPTION] Common key setting " + ("on" if common_is_on else "off"))
     # common key switched on: decrypt and send what waited for a key
-    if updated.get("MESSAGES", {}).get("enable_common_key") and not old_cfg.get("MESSAGES", {}).get(
-        "enable_common_key"
-    ):
-        await asyncio.to_thread(common_key_changed, ctx)
+    if common_is_on and not common_was_on:
+        decrypted, requeued = await asyncio.to_thread(common_key_changed, ctx)
+        if decrypted or requeued:
+            encryption_log.info("[ENCRYPTION] Common key used", decrypted=decrypted, requeued=requeued)
 
     # Trigger modem restart, unless only the GUI section changed
     # (GUI-only keys such as distance_unit are not used by the modem)

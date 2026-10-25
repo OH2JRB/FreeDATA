@@ -15,6 +15,7 @@ from freedata_server.message_p2p import (
     encryption_wanted,
     common_key_changed,
     disable_reporting,
+    encryption_log,
 )
 from freedata_server import api_validations
 from freedata_server import encryption
@@ -634,6 +635,7 @@ async def patch_station_encryption(callsign: str, payload: dict, ctx: AppContext
         api_abort("'enabled' must be true or false", 400)
     if not _mgr_stations(ctx).set_encryption_enabled(callsign, enabled):
         api_abort("Error updating encryption setting", 500)
+    encryption_log.info("[ENCRYPTION] Encryption " + ("on" if enabled else "off"), callsign=callsign)
     if enabled:
         # no Explorer or PSK Reporter reporting while encryption is in use
         disable_reporting(ctx)
@@ -661,14 +663,17 @@ async def put_station_encryption_key(callsign: str, payload: dict, ctx: AppConte
         # scrypt for passphrases takes a moment, keep it off the event loop
         key = await asyncio.to_thread(encryption.parse_key, payload.get("key"))
     except ValueError as e:
+        encryption_log.warning("[ENCRYPTION] Invalid key rejected", callsign=callsign)
         api_abort(str(e), 400)
 
     decrypted, still_pending = await asyncio.to_thread(decrypt_pending_messages, ctx, callsign, key)
     if still_pending and not decrypted:
+        encryption_log.warning("[ENCRYPTION] Key rejected, it does not decrypt the waiting messages", callsign=callsign)
         api_abort("This key does not decrypt the messages received from this station", 400)
 
     ctx.station_keys.set(callsign, key)
     requeued = DatabaseManagerEncryption(ctx).requeue_key_required(callsign)
+    encryption_log.info("[ENCRYPTION] Key entered", callsign=callsign, decrypted=decrypted, requeued=requeued)
     if decrypted:
         ctx.event_manager.freedata_message_db_change()
     result = _encryption_status(ctx, callsign)
@@ -685,6 +690,7 @@ async def put_station_encryption_key(callsign: str, payload: dict, ctx: AppConte
 async def delete_station_encryption_key(callsign: str, ctx: AppContext = Depends(get_ctx)):
     callsign = _encryption_callsign(callsign)
     ctx.station_keys.remove(callsign)
+    encryption_log.info("[ENCRYPTION] Key removed from memory", callsign=callsign)
     return api_response(_encryption_status(ctx, callsign))
 
 
@@ -738,9 +744,11 @@ async def put_common_encryption_key(payload: dict, ctx: AppContext = Depends(get
         # scrypt for passphrases takes a moment, keep it off the event loop
         key = await asyncio.to_thread(encryption.parse_key, payload.get("key"))
     except ValueError as e:
+        encryption_log.warning("[ENCRYPTION] Invalid common key rejected")
         api_abort(str(e), 400)
     ctx.station_keys.set_common(key)
     decrypted, requeued = await asyncio.to_thread(common_key_changed, ctx)
+    encryption_log.info("[ENCRYPTION] Common key entered", decrypted=decrypted, requeued=requeued)
     result = _common_key_status(ctx)
     result.update({"decrypted": decrypted, "requeued": requeued})
     return api_response(result)
@@ -754,6 +762,7 @@ async def put_common_encryption_key(payload: dict, ctx: AppContext = Depends(get
 )
 async def delete_common_encryption_key(ctx: AppContext = Depends(get_ctx)):
     ctx.station_keys.remove_common()
+    encryption_log.info("[ENCRYPTION] Common key removed from memory")
     return api_response(_common_key_status(ctx))
 
 
