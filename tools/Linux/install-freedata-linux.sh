@@ -35,7 +35,7 @@
 # FreeDATA-venv: Contains the Python virtual environment
 # FreeDATA-hamlib: Contains the hamlib libraries
 #
-# It also installs nvm and node into $HOME/.nvm
+# It also installs nvm and node 22 into $HOME/.nvm
 #
 # FreeDATA config file is stored in $HOME/.config/FreeDATA/config.ini
 # See the run-freedata-linux.sh for more details
@@ -44,6 +44,17 @@
 #
 #
 # Changelog:
+# 2.11:	25 Oct 2026
+#	Run apt update / dnf with fresh metadata before installing packages
+#	Remove Debian 11 (Python 3.9, FreeDATA needs Python 3.10 or newer)
+#	Remove python3-colorama (installed into the venv by pip)
+#	Install nodejs version 22 (LTS) instead of 20 (end of life)
+#	Update the nvm installer from v0.39.7 to v0.40.8
+#	Add Ubuntu 25.10 and 26.04, Linux Mint 22.x, Fedora 42 to 44
+#	Remove end of life Ubuntu 24.10 and 25.04, Fedora 40 and 41
+#	Stop on unsupported Fedora versions instead of skipping the install
+#	Download FreeDATA from the OH2JRB/FreeDATA fork
+#
 # 2.10:	24 Jul 2026
 #	Remove python3-pyaudio (unused dependency, FreeDATA uses sounddevice)
 #
@@ -166,8 +177,9 @@ echo "*************************************************************************"
 case $osname in
    "Debian GNU/Linux")
 	case $osversion in
-	   "11" | "12" | "13")
-		sudo apt install --upgrade -y fonts-noto-color-emoji git build-essential cmake python3 portaudio19-dev python3-pip python3-colorama python3-venv wget python3-dev
+	   "12" | "13")
+		sudo apt update
+		sudo apt install --upgrade -y fonts-noto-color-emoji git build-essential cmake python3 portaudio19-dev python3-pip python3-venv wget python3-dev
 	   ;;
 
 	   *)
@@ -184,8 +196,9 @@ case $osname in
 
    "Ubuntu" | "Linux Mint")
 	case $osversion in
-	   "21.3" | "22.04" | "24.04" | "24.10" | "25.04" )
-		sudo apt install --upgrade -y fonts-noto-color-emoji git build-essential cmake python3 portaudio19-dev python3-pip python3-colorama python3-venv wget python3-dev
+	   "21.3" | "22" | "22.1" | "22.2" | "22.3" | "22.04" | "24.04" | "25.10" | "26.04" )
+		sudo apt update
+		sudo apt install --upgrade -y fonts-noto-color-emoji git build-essential cmake python3 portaudio19-dev python3-pip python3-venv wget python3-dev
 	   ;;
 
 	   *)
@@ -199,8 +212,16 @@ case $osname in
    ;;
    "Fedora Linux")
 	case $osversion in
-	   "VERSION_ID=40" | "VERSION_ID=41")
-		sudo dnf install -y git cmake make automake gcc gcc-c++ kernel-devel wget portaudio-devel python3-pip python3-colorama python3-virtualenv google-noto-emoji-fonts python3-devel
+	   "VERSION_ID=42" | "VERSION_ID=43" | "VERSION_ID=44")
+		sudo dnf install -y --refresh git cmake make automake gcc gcc-c++ kernel-devel wget portaudio-devel python3-pip python3-virtualenv google-noto-emoji-fonts python3-devel
+	   ;;
+
+	   *)
+	   	echo "*************************************************************************"
+	   	echo "This version of Linux is not yet supported by this script."
+	   	echo $osname $osversion
+	   	echo "*************************************************************************"
+		exit 1
 	   ;;
 	esac
    ;;
@@ -215,9 +236,9 @@ case $osname in
 esac
 
 echo "*************************************************************************"
-echo "Installing nvm and node v 20 into ~/.nvm"
+echo "Installing nvm and node v 22 into ~/.nvm"
 echo "*************************************************************************"
-wget https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh
+wget https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.8/install.sh
 if [ -f "install.sh" ];
 then
 	XDG_CONFIG_HOME=""
@@ -233,7 +254,7 @@ then
 	export NVM_DIR="$HOME/.nvm"
 	[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
 	[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
-	nvm install 20
+	nvm install 22
 	echo "npm is version" `npm -v`
 	echo "node is version" `node -v`
 	rm -f install.sh
@@ -348,10 +369,10 @@ echo "*************************************************************************"
 if [ "$branch" == "develop" ];
 then
   echo "Downloading development version"
-  git clone https://github.com/DJ2LS/FreeDATA.git -b develop
+  git clone https://github.com/OH2JRB/FreeDATA.git -b develop
 else 
     echo "Downloading specific version: $branch"
-    git clone https://github.com/DJ2LS/FreeDATA.git -b $branch
+    git clone https://github.com/OH2JRB/FreeDATA.git -b $branch
 fi
 
 echo "*************************************************************************"

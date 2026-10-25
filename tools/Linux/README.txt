@@ -12,9 +12,9 @@ mkdir ~/freedata
 
 cd ~/freedata
 
-wget https://raw.githubusercontent.com/DJ2LS/FreeDATA/main/tools/Linux/install-freedata-linux.sh
+wget https://raw.githubusercontent.com/OH2JRB/FreeDATA/main/tools/Linux/install-freedata-linux.sh
 
-wget https://raw.githubusercontent.com/DJ2LS/FreeDATA/main/tools/Linux/run-freedata-linux.sh
+wget https://raw.githubusercontent.com/OH2JRB/FreeDATA/main/tools/Linux/run-freedata-linux.sh
 
 To install from the main FreeDATA branch, run:
 bash install-freedata-linux.sh
