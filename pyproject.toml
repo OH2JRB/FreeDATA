@@ -83,7 +83,7 @@ include = [
 ]
 
 [tool.setuptools.package-data]
-freedata_server = [ "lib/**/*", "config.ini.example" ]
+freedata_server = [ "lib/**/*", "config.ini.example", "data/*.json" ]
 freedata_gui = [ "dist/**/*" ]
 
 [tool.setuptools.dynamic]

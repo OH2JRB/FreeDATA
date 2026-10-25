@@ -1,0 +1,744 @@
+{
+  "schema_version": 1,
+  "title": "IARU regional band plans (amateur radio)",
+  "retrieved": "2026-10-25",
+  "index_url": "https://www.iaru.org/on-the-air/band-plans/",
+  "disclaimer": "Hand-transcribed from the IARU regional band plan documents listed under 'sources'. Band plans are voluntary guidance; national regulations take precedence and can be stricter (narrower bands, other segments, power or mode limits, licence class restrictions). Not every country has every band.",
+  "units": {
+    "frequency": "Hz",
+    "max_bandwidth_hz": "Hz (null = not specified or unrestricted)"
+  },
+  "mode_tags": {
+    "cw": "CW / telegraphy",
+    "narrowband": "Narrow band modes, up to 500 Hz",
+    "digimodes": "Digital (data) modes, e.g. RTTY, PSK, MGM; the FreeDATA-relevant tag",
+    "all_modes": "All modes within the segment bandwidth",
+    "phone": "Phone (SSB, AM, FM, digital voice)",
+    "ssb": "Single sideband phone",
+    "fm": "FM",
+    "dv": "Digital voice",
+    "beacons": "Beacons",
+    "satellite": "Amateur satellite service",
+    "atv": "Amateur television",
+    "weak_signal": "Weak signal / EME",
+    "guard": "Guard band, no transmission",
+    "local_option": "Local option, use according to national/local band plan"
+  },
+  "segment_flags": {
+    "acds": "Automatically controlled (unattended) data stations listed for this segment"
+  },
+  "regions": {
+    "1": {
+      "name": "IARU Region 1",
+      "area": "Europe, Africa, Middle East, northern Asia",
+      "sources": [
+        {
+          "title": "IARU Region 1 HF Band Plan",
+          "url": "https://www.iaru-r1.org/wp-content/uploads/2021/06/hf_r1_bandplan.pdf",
+          "version": "Effective from 16 Oct 2020 (General Conference Novi Sad), edited by DF5JL",
+          "linked_from": "https://www.iaru.org/on-the-air/band-plans/ -> https://www.iaru-r1.org/on-the-air/band-plans/"
+        },
+        {
+          "title": "IARU Region 1 VHF band plan",
+          "url": "https://www.iaru-r1.org/wp-content/uploads/2020/12/VHF-Bandplan.pdf",
+          "version": "Effective December 2020 (VGC Novi Sad), edited by ON4AVJ 02/12/2020",
+          "linked_from": "https://www.iaru-r1.org/about-us/committees-and-working-groups/vhf-uhf-shf-committee-c5/vhf-up-bandplanning/"
+        },
+        {
+          "title": "IARU Region 1 UHF band plan",
+          "url": "https://www.iaru-r1.org/wp-content/uploads/2021/03/UHF-Bandplan.pdf",
+          "version": "Effective December 2020 (VGC Novi Sad), edited by ON4AVJ 18/03/2020",
+          "linked_from": "https://www.iaru-r1.org/about-us/committees-and-working-groups/vhf-uhf-shf-committee-c5/vhf-up-bandplanning/"
+        }
+      ],
+      "notes": [
+        "Frequencies are transmitted frequencies, not the suppressed carrier (dial) frequency.",
+        "Lowest dial setting for LSB voice: 1843, 3603, 7053 kHz. Highest USB voice dial on 60 m: 5363 kHz.",
+        "On 20 m to 10 m the maximum USB voice dial setting should be 3 kHz below the upper band edge.",
+        "630 m and 60 m entries are 'proposed usage' in the source.",
+        "Unmanned transmitting stations on HF shall only be activated under operator control (except agreed beacons) and must stay within the band plan frequency and bandwidth limits.",
+        "The 3600-3620 and 3600-3650 kHz rows overlap in the source and are kept as published.",
+        "The VHF plan lists 50.5-52 MHz both as a single 12 kHz all-mode row and as finer sub-rows; only the single row is transcribed here."
+      ],
+      "bands": [
+        {
+          "name": "2200m",
+          "start_hz": 135700,
+          "end_hz": 137800,
+          "segments": [
+            {"start_hz": 135700, "end_hz": 137800, "max_bandwidth_hz": 200, "modes": ["cw", "narrowband", "digimodes"], "usage": "CW, QRSS and narrow band digital modes"}
+          ]
+        },
+        {
+          "name": "630m",
+          "start_hz": 472000,
+          "end_hz": 479000,
+          "segments": [
+            {"start_hz": 472000, "end_hz": 475000, "max_bandwidth_hz": 200, "modes": ["cw"], "usage": "CW"},
+            {"start_hz": 475000, "end_hz": 479000, "max_bandwidth_hz": null, "modes": ["cw", "narrowband", "digimodes"], "usage": "CW, digimodes (max bandwidth not specified, 500 Hz suggested)"}
+          ]
+        },
+        {
+          "name": "160m",
+          "start_hz": 1810000,
+          "end_hz": 2000000,
+          "segments": [
+            {"start_hz": 1810000, "end_hz": 1838000, "max_bandwidth_hz": 200, "modes": ["cw"], "usage": "CW; 1836 kHz CW QRP centre of activity"},
+            {"start_hz": 1838000, "end_hz": 1840000, "max_bandwidth_hz": 500, "modes": ["narrowband"], "usage": "Narrow band modes"},
+            {"start_hz": 1840000, "end_hz": 1843000, "max_bandwidth_hz": 2700, "modes": ["all_modes", "digimodes"], "usage": "All modes, digimodes"},
+            {"start_hz": 1843000, "end_hz": 2000000, "max_bandwidth_hz": 2700, "modes": ["all_modes"], "usage": "All modes"}
+          ]
+        },
+        {
+          "name": "80m",
+          "start_hz": 3500000,
+          "end_hz": 3800000,
+          "segments": [
+            {"start_hz": 3500000, "end_hz": 3510000, "max_bandwidth_hz": 200, "modes": ["cw"], "usage": "CW; priority for inter-continental operation"},
+            {"start_hz": 3510000, "end_hz": 3560000, "max_bandwidth_hz": 200, "modes": ["cw"], "usage": "CW; CW contest preferred; 3555 kHz CW QRS centre of activity"},
+            {"start_hz": 3560000, "end_hz": 3570000, "max_bandwidth_hz": 200, "modes": ["cw"], "usage": "CW; 3560 kHz CW QRP centre of activity"},
+            {"start_hz": 3570000, "end_hz": 3580000, "max_bandwidth_hz": 200, "modes": ["narrowband", "digimodes"], "usage": "Narrow band modes, digimodes"},
+            {"start_hz": 3580000, "end_hz": 3590000, "max_bandwidth_hz": 500, "modes": ["narrowband", "digimodes"], "usage": "Narrow band modes, digimodes"},
+            {"start_hz": 3590000, "end_hz": 3600000, "max_bandwidth_hz": 500, "modes": ["narrowband", "digimodes"], "usage": "Narrow band modes, digimodes, automatically controlled data stations (unattended)", "acds": true},
+            {"start_hz": 3600000, "end_hz": 3620000, "max_bandwidth_hz": 2700, "modes": ["all_modes", "digimodes"], "usage": "All modes, digimodes, automatically controlled data stations (unattended)", "acds": true},
+            {"start_hz": 3600000, "end_hz": 3650000, "max_bandwidth_hz": 2700, "modes": ["all_modes"], "usage": "All modes; SSB contest preferred; 3630 kHz digital voice centre of activity"},
+            {"start_hz": 3650000, "end_hz": 3700000, "max_bandwidth_hz": 2700, "modes": ["all_modes"], "usage": "All modes; 3690 kHz SSB QRP centre of activity"},
+            {"start_hz": 3700000, "end_hz": 3775000, "max_bandwidth_hz": 2700, "modes": ["all_modes"], "usage": "All modes; SSB contest preferred; 3735 kHz image, 3760 kHz R1 emergency centre of activity"},
+            {"start_hz": 3775000, "end_hz": 3800000, "max_bandwidth_hz": 2700, "modes": ["all_modes"], "usage": "All modes; SSB contest preferred; priority for inter-continental operation"}
+          ]
+        },
+        {
+          "name": "60m",
+          "start_hz": 5351500,
+          "end_hz": 5366500,
+          "segments": [
+            {"start_hz": 5351500, "end_hz": 5354000, "max_bandwidth_hz": 200, "modes": ["cw", "narrowband"], "usage": "CW, narrow band modes"},
+            {"start_hz": 5354000, "end_hz": 5366000, "max_bandwidth_hz": 2700, "modes": ["all_modes"], "usage": "All modes; USB recommended for voice operation"},
+            {"start_hz": 5366000, "end_hz": 5366500, "max_bandwidth_hz": 20, "modes": ["weak_signal", "narrowband"], "usage": "Weak signal narrow band modes"}
+          ]
+        },
+        {
+          "name": "40m",
+          "start_hz": 7000000,
+          "end_hz": 7200000,
+          "segments": [
+            {"start_hz": 7000000, "end_hz": 7040000, "max_bandwidth_hz": 200, "modes": ["cw"], "usage": "CW; 7030 kHz CW QRP centre of activity"},
+            {"start_hz": 7040000, "end_hz": 7047000, "max_bandwidth_hz": 500, "modes": ["narrowband", "digimodes"], "usage": "Narrow band modes, digimodes"},
+            {"start_hz": 7047000, "end_hz": 7050000, "max_bandwidth_hz": 500, "modes": ["narrowband", "digimodes"], "usage": "Narrow band modes, digimodes, automatically controlled data stations (unattended)", "acds": true},
+            {"start_hz": 7050000, "end_hz": 7053000, "max_bandwidth_hz": 2700, "modes": ["all_modes", "digimodes"], "usage": "All modes, digimodes, automatically controlled data stations (unattended)", "acds": true},
+            {"start_hz": 7053000, "end_hz": 7060000, "max_bandwidth_hz": 2700, "modes": ["all_modes", "digimodes"], "usage": "All modes, digimodes"},
+            {"start_hz": 7060000, "end_hz": 7100000, "max_bandwidth_hz": 2700, "modes": ["all_modes"], "usage": "All modes; SSB contest preferred; 7070 kHz digital voice, 7090 kHz SSB QRP centre of activity"},
+            {"start_hz": 7100000, "end_hz": 7130000, "max_bandwidth_hz": 2700, "modes": ["all_modes"], "usage": "All modes; 7110 kHz Region 1 emergency centre of activity"},
+            {"start_hz": 7130000, "end_hz": 7175000, "max_bandwidth_hz": 2700, "modes": ["all_modes"], "usage": "All modes; SSB contest preferred; 7165 kHz image centre of activity"},
+            {"start_hz": 7175000, "end_hz": 7200000, "max_bandwidth_hz": 2700, "modes": ["all_modes"], "usage": "All modes; SSB contest preferred; priority for inter-continental operation"}
+          ]
+        },
+        {
+          "name": "30m",
+          "start_hz": 10100000,
+          "end_hz": 10150000,
+          "segments": [
+            {"start_hz": 10100000, "end_hz": 10130000, "max_bandwidth_hz": 200, "modes": ["cw"], "usage": "CW; 10116 kHz CW QRP centre of activity"},
+            {"start_hz": 10130000, "end_hz": 10150000, "max_bandwidth_hz": 500, "modes": ["narrowband", "digimodes"], "usage": "Narrow band modes, digimodes"}
+          ]
+        },
+        {
+          "name": "20m",
+          "start_hz": 14000000,
+          "end_hz": 14350000,
+          "segments": [
+            {"start_hz": 14000000, "end_hz": 14060000, "max_bandwidth_hz": 200, "modes": ["cw"], "usage": "CW; CW contest preferred; 14055 kHz QRS centre of activity"},
+            {"start_hz": 14060000, "end_hz": 14070000, "max_bandwidth_hz": 200, "modes": ["cw"], "usage": "CW; 14060 kHz CW QRP centre of activity"},
+            {"start_hz": 14070000, "end_hz": 14089000, "max_bandwidth_hz": 500, "modes": ["narrowband", "digimodes"], "usage": "Narrow band modes, digimodes"},
+            {"start_hz": 14089000, "end_hz": 14099000, "max_bandwidth_hz": 500, "modes": ["narrowband", "digimodes"], "usage": "Narrow band modes, digimodes, automatically controlled data stations (unattended)", "acds": true},
+            {"start_hz": 14099000, "end_hz": 14101000, "max_bandwidth_hz": null, "modes": ["beacons"], "usage": "International Beacon Project, beacons exclusively"},
+            {"start_hz": 14101000, "end_hz": 14112000, "max_bandwidth_hz": 2700, "modes": ["all_modes", "digimodes"], "usage": "All modes, digimodes, automatically controlled data stations (unattended)", "acds": true},
+            {"start_hz": 14112000, "end_hz": 14125000, "max_bandwidth_hz": 2700, "modes": ["all_modes"], "usage": "All modes"},
+            {"start_hz": 14125000, "end_hz": 14300000, "max_bandwidth_hz": 2700, "modes": ["all_modes"], "usage": "All modes; SSB contest preferred; 14130 kHz digital voice, 14195 +-5 kHz DXpedition priority, 14230 kHz image, 14285 kHz SSB QRP"},
+            {"start_hz": 14300000, "end_hz": 14350000, "max_bandwidth_hz": 2700, "modes": ["all_modes"], "usage": "All modes; 14300 kHz global emergency centre of activity"}
+          ]
+        },
+        {
+          "name": "17m",
+          "start_hz": 18068000,
+          "end_hz": 18168000,
+          "segments": [
+            {"start_hz": 18068000, "end_hz": 18095000, "max_bandwidth_hz": 200, "modes": ["cw"], "usage": "CW; 18086 kHz CW QRP centre of activity"},
+            {"start_hz": 18095000, "end_hz": 18105000, "max_bandwidth_hz": 500, "modes": ["narrowband", "digimodes"], "usage": "Narrow band modes, digimodes"},
+            {"start_hz": 18105000, "end_hz": 18109000, "max_bandwidth_hz": 500, "modes": ["narrowband", "digimodes"], "usage": "Narrow band modes, digimodes, automatically controlled data stations (unattended)", "acds": true},
+            {"start_hz": 18109000, "end_hz": 18111000, "max_bandwidth_hz": null, "modes": ["beacons"], "usage": "International Beacon Project, beacons exclusively"},
+            {"start_hz": 18111000, "end_hz": 18120000, "max_bandwidth_hz": 2700, "modes": ["all_modes", "digimodes"], "usage": "All modes, digimodes, automatically controlled data stations (unattended)", "acds": true},
+            {"start_hz": 18120000, "end_hz": 18168000, "max_bandwidth_hz": 2700, "modes": ["all_modes"], "usage": "All modes; 18130 kHz SSB QRP, 18150 kHz digital voice, 18160 kHz emergency centre of activity"}
+          ]
+        },
+        {
+          "name": "15m",
+          "start_hz": 21000000,
+          "end_hz": 21450000,
+          "segments": [
+            {"start_hz": 21000000, "end_hz": 21070000, "max_bandwidth_hz": 200, "modes": ["cw"], "usage": "CW; 21055 kHz QRS, 21060 kHz QRP centre of activity"},
+            {"start_hz": 21070000, "end_hz": 21090000, "max_bandwidth_hz": 500, "modes": ["narrowband", "digimodes"], "usage": "Narrow band modes, digimodes"},
+            {"start_hz": 21090000, "end_hz": 21110000, "max_bandwidth_hz": 500, "modes": ["narrowband", "digimodes"], "usage": "Narrow band modes, digimodes, automatically controlled data stations (unattended)", "acds": true},
+            {"start_hz": 21110000, "end_hz": 21120000, "max_bandwidth_hz": 2700, "modes": ["all_modes", "digimodes"], "usage": "All modes (not SSB), digimodes, automatically controlled data stations (unattended)", "acds": true},
+            {"start_hz": 21120000, "end_hz": 21149000, "max_bandwidth_hz": 500, "modes": ["narrowband"], "usage": "Narrow band modes"},
+            {"start_hz": 21149000, "end_hz": 21151000, "max_bandwidth_hz": null, "modes": ["beacons"], "usage": "International Beacon Project, beacons exclusively"},
+            {"start_hz": 21151000, "end_hz": 21450000, "max_bandwidth_hz": 2700, "modes": ["all_modes"], "usage": "All modes; 21180 kHz digital voice, 21285 kHz SSB QRP, 21340 kHz image, 21360 kHz global emergency centre of activity; 21125-21450 kHz also amateur satellites (non-exclusive)"}
+          ]
+        },
+        {
+          "name": "12m",
+          "start_hz": 24890000,
+          "end_hz": 24990000,
+          "segments": [
+            {"start_hz": 24890000, "end_hz": 24915000, "max_bandwidth_hz": 200, "modes": ["cw"], "usage": "CW; 24906 kHz CW QRP centre of activity"},
+            {"start_hz": 24915000, "end_hz": 24925000, "max_bandwidth_hz": 500, "modes": ["narrowband", "digimodes"], "usage": "Narrow band modes, digimodes"},
+            {"start_hz": 24925000, "end_hz": 24929000, "max_bandwidth_hz": 500, "modes": ["narrowband", "digimodes"], "usage": "Narrow band modes, digimodes, automatically controlled data stations (unattended)", "acds": true},
+            {"start_hz": 24929000, "end_hz": 24931000, "max_bandwidth_hz": null, "modes": ["beacons"], "usage": "International Beacon Project, beacons exclusively"},
+            {"start_hz": 24931000, "end_hz": 24940000, "max_bandwidth_hz": 2700, "modes": ["all_modes", "digimodes"], "usage": "All modes, digimodes, automatically controlled data stations (unattended)", "acds": true},
+            {"start_hz": 24940000, "end_hz": 24990000, "max_bandwidth_hz": 2700, "modes": ["all_modes"], "usage": "All modes; 24950 kHz SSB QRP, 24960 kHz digital voice centre of activity"}
+          ]
+        },
+        {
+          "name": "10m",
+          "start_hz": 28000000,
+          "end_hz": 29700000,
+          "segments": [
+            {"start_hz": 28000000, "end_hz": 28070000, "max_bandwidth_hz": 200, "modes": ["cw"], "usage": "CW; 28055 kHz QRS, 28060 kHz QRP centre of activity"},
+            {"start_hz": 28070000, "end_hz": 28120000, "max_bandwidth_hz": 500, "modes": ["narrowband", "digimodes"], "usage": "Narrow band modes, digimodes"},
+            {"start_hz": 28120000, "end_hz": 28150000, "max_bandwidth_hz": 500, "modes": ["narrowband", "digimodes"], "usage": "Narrow band modes, digimodes, automatically controlled data stations (unattended)", "acds": true},
+            {"start_hz": 28150000, "end_hz": 28190000, "max_bandwidth_hz": 500, "modes": ["narrowband"], "usage": "Narrow band modes"},
+            {"start_hz": 28190000, "end_hz": 28199000, "max_bandwidth_hz": null, "modes": ["beacons"], "usage": "International Beacon Project, regional time shared beacons exclusively"},
+            {"start_hz": 28199000, "end_hz": 28201000, "max_bandwidth_hz": null, "modes": ["beacons"], "usage": "International Beacon Project, worldwide time shared beacons exclusively"},
+            {"start_hz": 28201000, "end_hz": 28225000, "max_bandwidth_hz": null, "modes": ["beacons"], "usage": "International Beacon Project, continuous duty beacons exclusively"},
+            {"start_hz": 28225000, "end_hz": 28300000, "max_bandwidth_hz": 2700, "modes": ["all_modes", "beacons"], "usage": "All modes, beacons"},
+            {"start_hz": 28300000, "end_hz": 28320000, "max_bandwidth_hz": 2700, "modes": ["all_modes", "digimodes"], "usage": "All modes, digimodes, automatically controlled data stations (unattended)", "acds": true},
+            {"start_hz": 28320000, "end_hz": 29000000, "max_bandwidth_hz": 2700, "modes": ["all_modes"], "usage": "All modes; 28330 kHz digital voice, 28360 kHz SSB QRP, 28680 kHz image centre of activity"},
+            {"start_hz": 29000000, "end_hz": 29100000, "max_bandwidth_hz": null, "modes": ["all_modes"], "usage": "All modes (bandwidth unrestricted)"},
+            {"start_hz": 29100000, "end_hz": 29200000, "max_bandwidth_hz": null, "modes": ["all_modes", "fm"], "usage": "All modes; FM simplex, 10 kHz channels (bandwidth unrestricted)"},
+            {"start_hz": 29200000, "end_hz": 29300000, "max_bandwidth_hz": null, "modes": ["all_modes", "digimodes"], "usage": "All modes, digimodes, automatically controlled data stations (unattended) (bandwidth unrestricted)", "acds": true},
+            {"start_hz": 29300000, "end_hz": 29510000, "max_bandwidth_hz": null, "modes": ["satellite"], "usage": "Satellite links (bandwidth unrestricted)"},
+            {"start_hz": 29510000, "end_hz": 29520000, "max_bandwidth_hz": null, "modes": ["guard"], "usage": "Guard channel"},
+            {"start_hz": 29520000, "end_hz": 29590000, "max_bandwidth_hz": 6000, "modes": ["all_modes", "fm"], "usage": "All modes; FM repeater input (RH1-RH8)"},
+            {"start_hz": 29590000, "end_hz": 29620000, "max_bandwidth_hz": 6000, "modes": ["all_modes", "fm"], "usage": "All modes; 29600 kHz FM calling channel, 29610 kHz FM simplex repeater (parrot)"},
+            {"start_hz": 29620000, "end_hz": 29700000, "max_bandwidth_hz": 6000, "modes": ["all_modes", "fm"], "usage": "All modes; FM repeater output (RH1-RH8)"}
+          ]
+        },
+        {
+          "name": "6m",
+          "start_hz": 50000000,
+          "end_hz": 54000000,
+          "notes": [
+            "The band plan covers 50-54 MHz, but many Region 1 administrations only allow parts of it (the ITU Region 1 allocation is mostly 50-52 MHz, secondary)."
+          ],
+          "segments": [
+            {"start_hz": 50000000, "end_hz": 50100000, "max_bandwidth_hz": 500, "modes": ["cw", "beacons"], "usage": "Telegraphy, coordinated beacon project 50.000-50.030 MHz; 50.050 MHz telegraphy, 50.090 MHz intercontinental centre of activity"},
+            {"start_hz": 50100000, "end_hz": 50200000, "max_bandwidth_hz": 2700, "modes": ["ssb", "cw"], "usage": "SSB and telegraphy; 50.100-50.130 MHz intercontinental (50.110 MHz CoA), 50.150 MHz CoA"},
+            {"start_hz": 50200000, "end_hz": 50300000, "max_bandwidth_hz": 2700, "modes": ["ssb", "cw"], "usage": "SSB and telegraphy, general use; 50.285 MHz crossband"},
+            {"start_hz": 50300000, "end_hz": 50400000, "max_bandwidth_hz": 2700, "modes": ["narrowband", "digimodes"], "usage": "Narrow band modes, MGM; 50.305 PSK, 50.310-50.320 EME, 50.320-50.380 MS centre of activity"},
+            {"start_hz": 50400000, "end_hz": 50500000, "max_bandwidth_hz": 1000, "modes": ["digimodes", "cw", "beacons"], "usage": "MGM and telegraphy, beacons exclusive (50.401 MHz +-500 Hz WSPR beacons)"},
+            {"start_hz": 50500000, "end_hz": 52000000, "max_bandwidth_hz": 12000, "modes": ["all_modes"], "usage": "All mode; 50.600-50.750 MHz digital communications, 50.630 MHz DV calling, FM/DV repeaters and simplex, 51.510 MHz FM calling"},
+            {"start_hz": 52000000, "end_hz": 54000000, "max_bandwidth_hz": 500000, "modes": ["all_modes"], "usage": "All mode"}
+          ]
+        },
+        {
+          "name": "2m",
+          "start_hz": 144000000,
+          "end_hz": 146000000,
+          "segments": [
+            {"start_hz": 144000000, "end_hz": 144025000, "max_bandwidth_hz": 2700, "modes": ["all_modes", "satellite"], "usage": "All mode, satellite downlink only"},
+            {"start_hz": 144025000, "end_hz": 144100000, "max_bandwidth_hz": 500, "modes": ["cw"], "usage": "Telegraphy; 144.050 MHz telegraphy calling, 144.100 MHz random MS"},
+            {"start_hz": 144100000, "end_hz": 144150000, "max_bandwidth_hz": 500, "modes": ["digimodes", "cw"], "usage": "MGM and telegraphy; 144.110-144.160 MHz CW and MGM EME"},
+            {"start_hz": 144150000, "end_hz": 144400000, "max_bandwidth_hz": 2700, "modes": ["ssb", "cw", "digimodes"], "usage": "SSB, telegraphy, MGM; 144.300 MHz SSB centre of activity"},
+            {"start_hz": 144400000, "end_hz": 144490000, "max_bandwidth_hz": 500, "modes": ["digimodes", "cw", "beacons"], "usage": "MGM and telegraphy, beacons exclusive"},
+            {"start_hz": 144491000, "end_hz": 144493000, "max_bandwidth_hz": 500, "modes": ["digimodes", "beacons"], "usage": "Personal weak signal MGM beacons, experimental MGM"},
+            {"start_hz": 144500000, "end_hz": 144794000, "max_bandwidth_hz": 20000, "modes": ["all_modes"], "usage": "All mode; 144.500 MHz image, 144.600 MHz data (MGM, RTTY) centre of activity, 144.750 ATV talk back"},
+            {"start_hz": 144794000, "end_hz": 144962500, "max_bandwidth_hz": 12000, "modes": ["digimodes"], "usage": "MGM, digital communication; 144.800 MHz APRS, 144.8125-144.8625 MHz DV internet voice gateways"},
+            {"start_hz": 144975000, "end_hz": 145194000, "max_bandwidth_hz": 12000, "modes": ["fm", "dv"], "usage": "FM/digital voice repeater input exclusive"},
+            {"start_hz": 145194000, "end_hz": 145206000, "max_bandwidth_hz": 12000, "modes": ["fm", "dv", "satellite"], "usage": "FM/digital voice space communication"},
+            {"start_hz": 145206000, "end_hz": 145562500, "max_bandwidth_hz": 12000, "modes": ["fm", "dv"], "usage": "FM/digital voice; 145.375 MHz DV calling, 145.500 MHz FM calling"},
+            {"start_hz": 145575000, "end_hz": 145793500, "max_bandwidth_hz": 12000, "modes": ["fm", "dv"], "usage": "FM/digital voice repeater output exclusive"},
+            {"start_hz": 145794000, "end_hz": 145806000, "max_bandwidth_hz": 12000, "modes": ["fm", "dv", "satellite"], "usage": "FM/digital voice space communication"},
+            {"start_hz": 145806000, "end_hz": 146000000, "max_bandwidth_hz": 12000, "modes": ["all_modes", "satellite"], "usage": "All mode, satellite exclusive"}
+          ]
+        },
+        {
+          "name": "70cm",
+          "start_hz": 430000000,
+          "end_hz": 440000000,
+          "segments": [
+            {"start_hz": 430000000, "end_hz": 431975000, "max_bandwidth_hz": 20000, "modes": ["all_modes"], "usage": "All mode; repeater outputs/inputs, 430.400-430.575 MHz digital communications"},
+            {"start_hz": 432000000, "end_hz": 432100000, "max_bandwidth_hz": 500, "modes": ["digimodes", "cw"], "usage": "MGM and telegraphy; 432.050 MHz telegraphy centre of activity"},
+            {"start_hz": 432100000, "end_hz": 432400000, "max_bandwidth_hz": 2700, "modes": ["digimodes", "cw", "ssb"], "usage": "MGM, telegraphy and SSB; 432.200 MHz SSB centre of activity"},
+            {"start_hz": 432400000, "end_hz": 432490000, "max_bandwidth_hz": 500, "modes": ["digimodes", "cw", "beacons"], "usage": "MGM and telegraphy, beacons exclusive"},
+            {"start_hz": 432500000, "end_hz": 432975000, "max_bandwidth_hz": 12000, "modes": ["all_modes"], "usage": "All mode; 432.500 MHz APRS, repeater inputs (2 MHz shift)"},
+            {"start_hz": 433000000, "end_hz": 433375000, "max_bandwidth_hz": 12000, "modes": ["fm", "dv"], "usage": "FM/digital voice repeater inputs (1.6 MHz shift)"},
+            {"start_hz": 433400000, "end_hz": 433575000, "max_bandwidth_hz": 12000, "modes": ["fm", "dv"], "usage": "FM/digital voice; 433.450 MHz DV calling, 433.500 MHz FM calling"},
+            {"start_hz": 433600000, "end_hz": 434000000, "max_bandwidth_hz": null, "modes": ["all_modes"], "usage": "All mode; 433.625-433.775 MHz digital communications channels"},
+            {"start_hz": 434000000, "end_hz": 434594000, "max_bandwidth_hz": 12000, "modes": ["all_modes", "atv"], "usage": "All mode, ATV; 434.000 MHz digital experiments, 434.450-434.575 MHz digital communications"},
+            {"start_hz": 434594000, "end_hz": 434981000, "max_bandwidth_hz": 12000, "modes": ["all_modes"], "usage": "All mode; repeater outputs"},
+            {"start_hz": 435000000, "end_hz": 436000000, "max_bandwidth_hz": null, "modes": ["satellite"], "usage": "Satellite service"},
+            {"start_hz": 436000000, "end_hz": 438000000, "max_bandwidth_hz": null, "modes": ["satellite", "atv", "digimodes"], "usage": "Satellite service and DATV/data"},
+            {"start_hz": 438000000, "end_hz": 440000000, "max_bandwidth_hz": null, "modes": ["all_modes"], "usage": "All mode; 438.025-438.525 MHz digital communication channels, repeater outputs"}
+          ]
+        }
+      ]
+    },
+    "2": {
+      "name": "IARU Region 2",
+      "area": "The Americas",
+      "sources": [
+        {
+          "title": "IARU Region 2 Band Plan",
+          "url": "https://www.iaru.org/wp-content/uploads/2020/10/IARU-Region-2-Band-plan.pdf",
+          "version": "September 2020",
+          "linked_from": "https://www.iaru.org/on-the-air/band-plans/ -> https://www.iaru-r2.org/en/reference/band-plans/"
+        }
+      ],
+      "notes": [
+        "Frequencies are transmitted frequencies, not the suppressed carrier (dial) frequency.",
+        "ACDS are allowed only where explicitly specified on a segment; unattended operation on HF should be limited.",
+        "Segments marked with (*) in the source allow DSB AM phone with max 6 kHz bandwidth; this is noted in 'usage'.",
+        "Source typos corrected: 17 m '18095-15105' read as 18095-18105 kHz; 10 m repeater outputs '29620 to 26690' read as 29620-29690 kHz.",
+        "The 3600-3625 and 3600-3650 kHz rows overlap in the source and are kept as published.",
+        "Above 450 MHz (33 cm and up) the Region 2 plan is not transcribed here."
+      ],
+      "bands": [
+        {
+          "name": "2200m",
+          "start_hz": 135700,
+          "end_hz": 137800,
+          "segments": [
+            {"start_hz": 135700, "end_hz": 137800, "max_bandwidth_hz": 200, "modes": ["all_modes"], "usage": "All modes; ACDS may be used carefully", "acds": true}
+          ]
+        },
+        {
+          "name": "630m",
+          "start_hz": 472000,
+          "end_hz": 479000,
+          "segments": [
+            {"start_hz": 472000, "end_hz": 479000, "max_bandwidth_hz": 500, "modes": ["cw", "digimodes"], "usage": "CW, digital modes; ACDS may be used carefully", "acds": true}
+          ]
+        },
+        {
+          "name": "160m",
+          "start_hz": 1800000,
+          "end_hz": 2000000,
+          "segments": [
+            {"start_hz": 1800000, "end_hz": 1810000, "max_bandwidth_hz": 500, "modes": ["digimodes"], "usage": "Digital modes"},
+            {"start_hz": 1810000, "end_hz": 1830000, "max_bandwidth_hz": 200, "modes": ["cw"], "usage": "CW; 1812 kHz CW QRP centre of activity"},
+            {"start_hz": 1830000, "end_hz": 1839000, "max_bandwidth_hz": 200, "modes": ["cw"], "usage": "CW; priority for intercontinental operation (DX window)"},
+            {"start_hz": 1839000, "end_hz": 1840000, "max_bandwidth_hz": 200, "modes": ["cw", "digimodes"], "usage": "CW, digital modes; DX window, ACDS", "acds": true},
+            {"start_hz": 1840000, "end_hz": 1843000, "max_bandwidth_hz": 2700, "modes": ["cw", "ssb", "digimodes"], "usage": "CW, SSB, digital modes (DM max 200 Hz); SSB DX window"},
+            {"start_hz": 1843000, "end_hz": 1850000, "max_bandwidth_hz": 2700, "modes": ["cw", "ssb"], "usage": "CW, SSB; SSB DX window"},
+            {"start_hz": 1850000, "end_hz": 2000000, "max_bandwidth_hz": 2700, "modes": ["all_modes"], "usage": "All modes (AM allowed, max 6 kHz); 1910 kHz SSB QRP centre of activity"}
+          ]
+        },
+        {
+          "name": "80m",
+          "start_hz": 3500000,
+          "end_hz": 4000000,
+          "segments": [
+            {"start_hz": 3500000, "end_hz": 3510000, "max_bandwidth_hz": 200, "modes": ["cw"], "usage": "CW; priority for intercontinental operation (DX window)"},
+            {"start_hz": 3510000, "end_hz": 3560000, "max_bandwidth_hz": 200, "modes": ["cw"], "usage": "CW; CW contest preferred; 3555 kHz CW QRS centre of activity"},
+            {"start_hz": 3560000, "end_hz": 3570000, "max_bandwidth_hz": 200, "modes": ["cw"], "usage": "CW; 3560 kHz CW QRP centre of activity"},
+            {"start_hz": 3570000, "end_hz": 3580000, "max_bandwidth_hz": 200, "modes": ["cw", "digimodes"], "usage": "CW, digital modes"},
+            {"start_hz": 3580000, "end_hz": 3590000, "max_bandwidth_hz": 500, "modes": ["cw", "digimodes"], "usage": "CW, digital modes"},
+            {"start_hz": 3590000, "end_hz": 3600000, "max_bandwidth_hz": 500, "modes": ["cw", "digimodes"], "usage": "CW, digital modes, ACDS", "acds": true},
+            {"start_hz": 3600000, "end_hz": 3625000, "max_bandwidth_hz": 2700, "modes": ["all_modes"], "usage": "All modes (AM allowed, max 6 kHz), ACDS", "acds": true},
+            {"start_hz": 3600000, "end_hz": 3650000, "max_bandwidth_hz": 2700, "modes": ["all_modes"], "usage": "All modes; SSB contest preferred"},
+            {"start_hz": 3650000, "end_hz": 3700000, "max_bandwidth_hz": 2700, "modes": ["all_modes"], "usage": "All modes; 3690 kHz SSB QRP centre of activity"},
+            {"start_hz": 3700000, "end_hz": 3775000, "max_bandwidth_hz": 2700, "modes": ["all_modes"], "usage": "All modes; SSB contest preferred; 3735 kHz image, 3750 kHz emergency centre of activity"},
+            {"start_hz": 3775000, "end_hz": 3800000, "max_bandwidth_hz": 2700, "modes": ["all_modes"], "usage": "All modes; priority for intercontinental operation (DX window)"},
+            {"start_hz": 3800000, "end_hz": 3875000, "max_bandwidth_hz": 2700, "modes": ["all_modes"], "usage": "All modes; 3845 kHz image centre of activity"},
+            {"start_hz": 3875000, "end_hz": 3900000, "max_bandwidth_hz": 2700, "modes": ["all_modes"], "usage": "All modes (AM allowed, max 6 kHz); 3885 kHz AM centre of activity"},
+            {"start_hz": 3900000, "end_hz": 4000000, "max_bandwidth_hz": 2700, "modes": ["all_modes"], "usage": "All modes; 3985 kHz emergency centre of activity"}
+          ]
+        },
+        {
+          "name": "60m",
+          "start_hz": 5351500,
+          "end_hz": 5366500,
+          "segments": [
+            {"start_hz": 5351500, "end_hz": 5354000, "max_bandwidth_hz": 500, "modes": ["cw", "digimodes"], "usage": "CW, digital modes"},
+            {"start_hz": 5354000, "end_hz": 5366000, "max_bandwidth_hz": 2700, "modes": ["all_modes"], "usage": "All modes; USB for phone"},
+            {"start_hz": 5366000, "end_hz": 5366500, "max_bandwidth_hz": 20, "modes": ["cw", "digimodes"], "usage": "CW, digital modes, ACDS", "acds": true}
+          ]
+        },
+        {
+          "name": "40m",
+          "start_hz": 7000000,
+          "end_hz": 7300000,
+          "segments": [
+            {"start_hz": 7000000, "end_hz": 7025000, "max_bandwidth_hz": 200, "modes": ["cw"], "usage": "CW; priority for intercontinental operation (DX window)"},
+            {"start_hz": 7025000, "end_hz": 7040000, "max_bandwidth_hz": 200, "modes": ["cw"], "usage": "CW; 7030 kHz QRP centre of activity"},
+            {"start_hz": 7040000, "end_hz": 7047000, "max_bandwidth_hz": 500, "modes": ["cw", "digimodes"], "usage": "CW, digital modes"},
+            {"start_hz": 7047000, "end_hz": 7050000, "max_bandwidth_hz": 500, "modes": ["cw", "digimodes"], "usage": "CW, digital modes, ACDS", "acds": true},
+            {"start_hz": 7050000, "end_hz": 7053000, "max_bandwidth_hz": 2700, "modes": ["all_modes"], "usage": "All modes, ACDS", "acds": true},
+            {"start_hz": 7053000, "end_hz": 7060000, "max_bandwidth_hz": 2700, "modes": ["all_modes"], "usage": "All modes; 7060 kHz R2 emergency centre of activity"},
+            {"start_hz": 7060000, "end_hz": 7100000, "max_bandwidth_hz": 2700, "modes": ["all_modes"], "usage": "All modes; SSB contest preferred; 7070 kHz DV, 7090 kHz SSB QRP centre of activity"},
+            {"start_hz": 7100000, "end_hz": 7130000, "max_bandwidth_hz": 2700, "modes": ["all_modes"], "usage": "All modes (AM allowed, max 6 kHz)"},
+            {"start_hz": 7130000, "end_hz": 7200000, "max_bandwidth_hz": 2700, "modes": ["all_modes"], "usage": "All modes (AM allowed, max 6 kHz); SSB contest preferred; 7165 kHz image centre of activity"},
+            {"start_hz": 7200000, "end_hz": 7300000, "max_bandwidth_hz": 2700, "modes": ["all_modes"], "usage": "All modes (AM allowed, max 6 kHz); 7240 and 7275 kHz R2 emergency, 7285 kHz SSB QRP, 7290 kHz AM centre of activity"}
+          ]
+        },
+        {
+          "name": "30m",
+          "start_hz": 10100000,
+          "end_hz": 10150000,
+          "segments": [
+            {"start_hz": 10100000, "end_hz": 10130000, "max_bandwidth_hz": 200, "modes": ["cw"], "usage": "CW; 10116 kHz CW QRP centre of activity"},
+            {"start_hz": 10130000, "end_hz": 10140000, "max_bandwidth_hz": 500, "modes": ["cw", "digimodes"], "usage": "CW, digital modes, ACDS", "acds": true},
+            {"start_hz": 10140000, "end_hz": 10150000, "max_bandwidth_hz": 2700, "modes": ["cw", "digimodes"], "usage": "CW, digital modes"}
+          ]
+        },
+        {
+          "name": "20m",
+          "start_hz": 14000000,
+          "end_hz": 14350000,
+          "segments": [
+            {"start_hz": 14000000, "end_hz": 14025000, "max_bandwidth_hz": 200, "modes": ["cw"], "usage": "CW; priority for intercontinental operation (DX window)"},
+            {"start_hz": 14025000, "end_hz": 14060000, "max_bandwidth_hz": 200, "modes": ["cw"], "usage": "CW; CW contests preferred; 14055 kHz CW QRS centre of activity"},
+            {"start_hz": 14060000, "end_hz": 14070000, "max_bandwidth_hz": 200, "modes": ["cw"], "usage": "CW; 14060 kHz CW QRP centre of activity"},
+            {"start_hz": 14070000, "end_hz": 14089000, "max_bandwidth_hz": 500, "modes": ["cw", "digimodes"], "usage": "CW, digital modes"},
+            {"start_hz": 14089000, "end_hz": 14099000, "max_bandwidth_hz": 500, "modes": ["cw", "digimodes"], "usage": "CW, digital modes, ACDS", "acds": true},
+            {"start_hz": 14099000, "end_hz": 14101000, "max_bandwidth_hz": 200, "modes": ["cw", "beacons"], "usage": "International Beacon Project (exclusive)"},
+            {"start_hz": 14101000, "end_hz": 14112000, "max_bandwidth_hz": 2700, "modes": ["all_modes"], "usage": "All modes, ACDS", "acds": true},
+            {"start_hz": 14112000, "end_hz": 14190000, "max_bandwidth_hz": 2700, "modes": ["all_modes"], "usage": "All modes; SSB contest preferred"},
+            {"start_hz": 14190000, "end_hz": 14200000, "max_bandwidth_hz": 2700, "modes": ["all_modes"], "usage": "All modes; SSB DX window, SSB contest preferred"},
+            {"start_hz": 14200000, "end_hz": 14285000, "max_bandwidth_hz": 2700, "modes": ["all_modes"], "usage": "All modes; SSB contest preferred; 14230 kHz image, 14285 kHz SSB QRP centre of activity"},
+            {"start_hz": 14285000, "end_hz": 14300000, "max_bandwidth_hz": 2700, "modes": ["all_modes"], "usage": "All modes (AM allowed, max 6 kHz); 14285 kHz AM calling"},
+            {"start_hz": 14300000, "end_hz": 14350000, "max_bandwidth_hz": 2700, "modes": ["all_modes"], "usage": "All modes; 14300 kHz global emergency centre of activity"}
+          ]
+        },
+        {
+          "name": "17m",
+          "start_hz": 18068000,
+          "end_hz": 18168000,
+          "segments": [
+            {"start_hz": 18068000, "end_hz": 18095000, "max_bandwidth_hz": 200, "modes": ["cw"], "usage": "CW; 18086 kHz CW QRP centre of activity"},
+            {"start_hz": 18095000, "end_hz": 18105000, "max_bandwidth_hz": 500, "modes": ["cw", "digimodes"], "usage": "CW, digital modes"},
+            {"start_hz": 18105000, "end_hz": 18109000, "max_bandwidth_hz": 500, "modes": ["cw", "digimodes"], "usage": "CW, digital modes, ACDS", "acds": true},
+            {"start_hz": 18109000, "end_hz": 18111000, "max_bandwidth_hz": 200, "modes": ["cw", "beacons"], "usage": "International Beacon Project (exclusive)"},
+            {"start_hz": 18111000, "end_hz": 18120000, "max_bandwidth_hz": 2700, "modes": ["all_modes"], "usage": "All modes, ACDS", "acds": true},
+            {"start_hz": 18120000, "end_hz": 18168000, "max_bandwidth_hz": 2700, "modes": ["all_modes"], "usage": "All modes; 18130 kHz QRP, 18160 kHz global emergency centre of activity"}
+          ]
+        },
+        {
+          "name": "15m",
+          "start_hz": 21000000,
+          "end_hz": 21450000,
+          "segments": [
+            {"start_hz": 21000000, "end_hz": 21070000, "max_bandwidth_hz": 200, "modes": ["cw"], "usage": "CW; 21060 kHz CW QRP centre of activity"},
+            {"start_hz": 21070000, "end_hz": 21090000, "max_bandwidth_hz": 500, "modes": ["cw", "digimodes"], "usage": "CW, digital modes"},
+            {"start_hz": 21090000, "end_hz": 21110000, "max_bandwidth_hz": 500, "modes": ["cw", "digimodes"], "usage": "CW, digital modes, ACDS", "acds": true},
+            {"start_hz": 21110000, "end_hz": 21120000, "max_bandwidth_hz": 2700, "modes": ["cw", "digimodes"], "usage": "CW, digital modes, ACDS", "acds": true},
+            {"start_hz": 21120000, "end_hz": 21149000, "max_bandwidth_hz": 500, "modes": ["all_modes"], "usage": "All modes"},
+            {"start_hz": 21149000, "end_hz": 21151000, "max_bandwidth_hz": 200, "modes": ["cw", "beacons"], "usage": "International Beacon Project (exclusive)"},
+            {"start_hz": 21151000, "end_hz": 21380000, "max_bandwidth_hz": 2700, "modes": ["all_modes"], "usage": "All modes; 21285 kHz SSB QRP, 21340 kHz image, 21360 kHz global emergency centre of activity"},
+            {"start_hz": 21380000, "end_hz": 21450000, "max_bandwidth_hz": 2700, "modes": ["all_modes"], "usage": "All modes (AM allowed, max 6 kHz)"}
+          ]
+        },
+        {
+          "name": "12m",
+          "start_hz": 24890000,
+          "end_hz": 24990000,
+          "segments": [
+            {"start_hz": 24890000, "end_hz": 24915000, "max_bandwidth_hz": 200, "modes": ["cw"], "usage": "CW; 24906 kHz CW QRP centre of activity"},
+            {"start_hz": 24915000, "end_hz": 24925000, "max_bandwidth_hz": 500, "modes": ["cw", "digimodes"], "usage": "CW, digital modes"},
+            {"start_hz": 24925000, "end_hz": 24929000, "max_bandwidth_hz": 500, "modes": ["cw", "digimodes"], "usage": "CW, digital modes, ACDS", "acds": true},
+            {"start_hz": 24929000, "end_hz": 24931000, "max_bandwidth_hz": 200, "modes": ["cw", "beacons"], "usage": "International Beacon Project (exclusive)"},
+            {"start_hz": 24931000, "end_hz": 24940000, "max_bandwidth_hz": 2700, "modes": ["all_modes"], "usage": "All modes, ACDS", "acds": true},
+            {"start_hz": 24940000, "end_hz": 24990000, "max_bandwidth_hz": 2700, "modes": ["all_modes"], "usage": "All modes; 24950 kHz SSB QRP centre of activity"}
+          ]
+        },
+        {
+          "name": "10m",
+          "start_hz": 28000000,
+          "end_hz": 29700000,
+          "segments": [
+            {"start_hz": 28000000, "end_hz": 28070000, "max_bandwidth_hz": 200, "modes": ["cw"], "usage": "CW; 28055 kHz CW QRS, 28060 kHz CW QRP centre of activity"},
+            {"start_hz": 28070000, "end_hz": 28120000, "max_bandwidth_hz": 500, "modes": ["cw", "digimodes"], "usage": "CW, digital modes"},
+            {"start_hz": 28120000, "end_hz": 28150000, "max_bandwidth_hz": 500, "modes": ["cw", "digimodes"], "usage": "CW, digital modes, ACDS", "acds": true},
+            {"start_hz": 28150000, "end_hz": 28190000, "max_bandwidth_hz": 500, "modes": ["cw", "digimodes"], "usage": "CW, digital modes"},
+            {"start_hz": 28190000, "end_hz": 28225000, "max_bandwidth_hz": 200, "modes": ["cw", "beacons"], "usage": "Beacons; IBP (exclusive) 28199-28201 kHz"},
+            {"start_hz": 28225000, "end_hz": 28300000, "max_bandwidth_hz": 2700, "modes": ["all_modes", "beacons"], "usage": "All modes, beacons"},
+            {"start_hz": 28300000, "end_hz": 28320000, "max_bandwidth_hz": 2700, "modes": ["all_modes"], "usage": "All modes, ACDS", "acds": true},
+            {"start_hz": 28320000, "end_hz": 29000000, "max_bandwidth_hz": 2700, "modes": ["all_modes"], "usage": "All modes; 28330 kHz DV, 28360 kHz SSB QRP, 28680 kHz image centre of activity"},
+            {"start_hz": 29000000, "end_hz": 29200000, "max_bandwidth_hz": 6000, "modes": ["all_modes"], "usage": "All modes; AM preferred"},
+            {"start_hz": 29200000, "end_hz": 29300000, "max_bandwidth_hz": 6000, "modes": ["all_modes"], "usage": "All modes, ACDS", "acds": true},
+            {"start_hz": 29300000, "end_hz": 29510000, "max_bandwidth_hz": 6000, "modes": ["all_modes", "satellite"], "usage": "Satellite"},
+            {"start_hz": 29510000, "end_hz": 29520000, "max_bandwidth_hz": null, "modes": ["guard"], "usage": "Guard band, no transmission allowed"},
+            {"start_hz": 29520000, "end_hz": 29590000, "max_bandwidth_hz": 6000, "modes": ["fm", "dv"], "usage": "FM, DV repeater inputs (exclusive)"},
+            {"start_hz": 29590000, "end_hz": 29620000, "max_bandwidth_hz": 6000, "modes": ["fm", "dv"], "usage": "FM, DV; 29600 kHz FM calling"},
+            {"start_hz": 29620000, "end_hz": 29700000, "max_bandwidth_hz": 6000, "modes": ["fm", "dv"], "usage": "FM, DV repeater outputs"}
+          ]
+        },
+        {
+          "name": "6m",
+          "start_hz": 50000000,
+          "end_hz": 54000000,
+          "segments": [
+            {"start_hz": 50000000, "end_hz": 50100000, "max_bandwidth_hz": 500, "modes": ["cw", "beacons"], "usage": "CW, beacons"},
+            {"start_hz": 50100000, "end_hz": 50125000, "max_bandwidth_hz": 2700, "modes": ["cw", "ssb"], "usage": "CW, SSB; DX window, 50.110 MHz calling (exclusive)"},
+            {"start_hz": 50125000, "end_hz": 50400000, "max_bandwidth_hz": 2700, "modes": ["cw", "ssb", "digimodes"], "usage": "CW, SSB, digital modes; 50.305 MHz PSK centre of activity"},
+            {"start_hz": 50400000, "end_hz": 50500000, "max_bandwidth_hz": 2700, "modes": ["all_modes", "beacons"], "usage": "All modes (AM allowed, max 6 kHz); beacons, ACDS (digital beacons)", "acds": true},
+            {"start_hz": 50500000, "end_hz": 50600000, "max_bandwidth_hz": 2700, "modes": ["all_modes"], "usage": "All modes (AM allowed, max 6 kHz), ACDS", "acds": true},
+            {"start_hz": 50600000, "end_hz": 50800000, "max_bandwidth_hz": 12000, "modes": ["all_modes"], "usage": "All modes, ACDS", "acds": true},
+            {"start_hz": 50800000, "end_hz": 51000000, "max_bandwidth_hz": 12000, "modes": ["all_modes"], "usage": "All modes; radio remote control (20 kHz channels)"},
+            {"start_hz": 51000000, "end_hz": 51110000, "max_bandwidth_hz": 2700, "modes": ["cw", "ssb"], "usage": "CW, SSB; DX window"},
+            {"start_hz": 51110000, "end_hz": 51480000, "max_bandwidth_hz": 12000, "modes": ["fm", "dv"], "usage": "FM, DV repeater inputs (exclusive)"},
+            {"start_hz": 51500000, "end_hz": 51600000, "max_bandwidth_hz": 12000, "modes": ["fm", "dv"], "usage": "FM, DV simplex"},
+            {"start_hz": 51620000, "end_hz": 51980000, "max_bandwidth_hz": 12000, "modes": ["fm", "dv"], "usage": "FM, DV repeater outputs"},
+            {"start_hz": 52000000, "end_hz": 52100000, "max_bandwidth_hz": 12000, "modes": ["fm", "dv"], "usage": "FM, DV internet voice gateways (10 kHz channels)"},
+            {"start_hz": 52100000, "end_hz": 54000000, "max_bandwidth_hz": 12000, "modes": ["all_modes"], "usage": "All modes"}
+          ]
+        },
+        {
+          "name": "2m",
+          "start_hz": 144000000,
+          "end_hz": 148000000,
+          "segments": [
+            {"start_hz": 144000000, "end_hz": 144025000, "max_bandwidth_hz": 2700, "modes": ["all_modes", "satellite"], "usage": "All modes, satellites (no transmissions below 144.0025 MHz)"},
+            {"start_hz": 144000000, "end_hz": 144110000, "max_bandwidth_hz": 500, "modes": ["cw", "weak_signal"], "usage": "CW, EME and weak signal"},
+            {"start_hz": 144110000, "end_hz": 144150000, "max_bandwidth_hz": 2700, "modes": ["cw", "digimodes", "weak_signal"], "usage": "CW, digital modes, EME and weak signal"},
+            {"start_hz": 144150000, "end_hz": 144180000, "max_bandwidth_hz": 2700, "modes": ["cw", "digimodes", "ssb", "weak_signal"], "usage": "CW, digital modes, SSB, weak signal"},
+            {"start_hz": 144180000, "end_hz": 144275000, "max_bandwidth_hz": 2700, "modes": ["cw", "ssb", "weak_signal"], "usage": "CW, SSB, weak signal; 144.200 MHz calling (exclusive)"},
+            {"start_hz": 144275000, "end_hz": 144300000, "max_bandwidth_hz": 500, "modes": ["cw", "beacons"], "usage": "CW beacons"},
+            {"start_hz": 144300000, "end_hz": 144360000, "max_bandwidth_hz": 2700, "modes": ["cw", "ssb"], "usage": "CW, SSB; 144.300 MHz calling"},
+            {"start_hz": 144360000, "end_hz": 144400000, "max_bandwidth_hz": 12000, "modes": ["digimodes"], "usage": "Digital modes, ACDS; 144.390 MHz APRS centre of activity", "acds": true},
+            {"start_hz": 144400000, "end_hz": 144500000, "max_bandwidth_hz": 500, "modes": ["cw", "digimodes", "beacons"], "usage": "CW, digital modes; beacons, ACDS (digital beacons); 144.490 MHz ISS FM uplink", "acds": true},
+            {"start_hz": 144500000, "end_hz": 144600000, "max_bandwidth_hz": null, "modes": ["local_option"], "usage": "Local option"},
+            {"start_hz": 144600000, "end_hz": 144900000, "max_bandwidth_hz": 12000, "modes": ["fm", "dv"], "usage": "FM, DV repeater inputs (exclusive)"},
+            {"start_hz": 144900000, "end_hz": 145000000, "max_bandwidth_hz": 12000, "modes": ["fm", "dv", "weak_signal"], "usage": "FM, DV weak signal"},
+            {"start_hz": 145000000, "end_hz": 145100000, "max_bandwidth_hz": 12000, "modes": ["all_modes"], "usage": "All modes, ACDS, internet voice gateways (10 kHz channels)", "acds": true},
+            {"start_hz": 145100000, "end_hz": 145200000, "max_bandwidth_hz": null, "modes": ["local_option"], "usage": "Local option"},
+            {"start_hz": 145200000, "end_hz": 145500000, "max_bandwidth_hz": 12000, "modes": ["fm", "dv"], "usage": "FM, DV repeater outputs"},
+            {"start_hz": 145500000, "end_hz": 145790000, "max_bandwidth_hz": 12000, "modes": ["all_modes"], "usage": "All modes"},
+            {"start_hz": 145790000, "end_hz": 145800000, "max_bandwidth_hz": null, "modes": ["guard"], "usage": "Guard band, no transmission allowed"},
+            {"start_hz": 145800000, "end_hz": 146000000, "max_bandwidth_hz": 12000, "modes": ["all_modes", "satellite"], "usage": "All modes, satellites (exclusive)"},
+            {"start_hz": 146000000, "end_hz": 146390000, "max_bandwidth_hz": 12000, "modes": ["fm", "dv"], "usage": "FM, DV repeater inputs (exclusive)"},
+            {"start_hz": 146390000, "end_hz": 146600000, "max_bandwidth_hz": 12000, "modes": ["fm", "dv"], "usage": "FM, DV; 146.520 MHz FM calling"},
+            {"start_hz": 146600000, "end_hz": 146990000, "max_bandwidth_hz": 12000, "modes": ["fm", "dv"], "usage": "FM, DV repeater outputs"},
+            {"start_hz": 146990000, "end_hz": 147400000, "max_bandwidth_hz": 12000, "modes": ["fm", "dv"], "usage": "FM, DV repeater inputs (exclusive)"},
+            {"start_hz": 147400000, "end_hz": 147590000, "max_bandwidth_hz": 12000, "modes": ["fm", "dv"], "usage": "FM, DV"},
+            {"start_hz": 147590000, "end_hz": 148000000, "max_bandwidth_hz": 12000, "modes": ["fm", "dv"], "usage": "FM, DV repeater outputs"}
+          ]
+        },
+        {
+          "name": "70cm",
+          "start_hz": 420000000,
+          "end_hz": 450000000,
+          "notes": [
+            "For countries without the full 430-450 MHz range, 430-432 and 438-450 MHz are used according to local options."
+          ],
+          "segments": [
+            {"start_hz": 420000000, "end_hz": 426000000, "max_bandwidth_hz": null, "modes": ["atv"], "usage": "ATV repeater or simplex (421.25 MHz video carrier), control links, experimental"},
+            {"start_hz": 426000000, "end_hz": 432000000, "max_bandwidth_hz": null, "modes": ["atv"], "usage": "ATV simplex (427.25 MHz video carrier)"},
+            {"start_hz": 432000000, "end_hz": 432025000, "max_bandwidth_hz": 500, "modes": ["cw", "weak_signal"], "usage": "CW, EME"},
+            {"start_hz": 432025000, "end_hz": 432100000, "max_bandwidth_hz": 500, "modes": ["cw", "digimodes", "weak_signal"], "usage": "CW, digital modes, EME and weak signal"},
+            {"start_hz": 432100000, "end_hz": 432300000, "max_bandwidth_hz": 2700, "modes": ["cw", "ssb", "weak_signal"], "usage": "CW, SSB, weak signal; 432.100 MHz calling"},
+            {"start_hz": 432300000, "end_hz": 432400000, "max_bandwidth_hz": 500, "modes": ["cw", "beacons"], "usage": "CW beacons"},
+            {"start_hz": 432400000, "end_hz": 432420000, "max_bandwidth_hz": 2700, "modes": ["cw", "digimodes", "beacons"], "usage": "CW, digital modes; beacons, ACDS (digital beacons)", "acds": true},
+            {"start_hz": 432420000, "end_hz": 433000000, "max_bandwidth_hz": 2700, "modes": ["cw", "ssb", "digimodes"], "usage": "CW, SSB, digital modes"},
+            {"start_hz": 433000000, "end_hz": 433050000, "max_bandwidth_hz": 12000, "modes": ["digimodes"], "usage": "Digital modes, ACDS", "acds": true},
+            {"start_hz": 433050000, "end_hz": 433100000, "max_bandwidth_hz": 12000, "modes": ["all_modes"], "usage": "All modes, internet voice gateways"},
+            {"start_hz": 433100000, "end_hz": 435000000, "max_bandwidth_hz": null, "modes": ["local_option"], "usage": "Local option"},
+            {"start_hz": 435000000, "end_hz": 438000000, "max_bandwidth_hz": null, "modes": ["all_modes", "satellite"], "usage": "Satellite (exclusive)"},
+            {"start_hz": 438000000, "end_hz": 450000000, "max_bandwidth_hz": null, "modes": ["local_option"], "usage": "Local option"}
+          ]
+        }
+      ]
+    },
+    "3": {
+      "name": "IARU Region 3",
+      "area": "Asia-Pacific",
+      "sources": [
+        {
+          "title": "IARU Region 3 Interim Band Plan (Document R3-004)",
+          "url": "https://www.iaru.org/wp-content/uploads/2020/01/R3-004-IARU-Region-3-Bandplan-rev.2.pdf",
+          "version": "Revised 3 September 2019 (adopted at the R3 Directors' meeting, Tokyo); file name says rev.2",
+          "linked_from": "https://www.iaru.org/on-the-air/band-plans/"
+        }
+      ],
+      "notes": [
+        "The Region 3 plan is labelled 'interim' in the source.",
+        "Phone is SSB, DSB AM, FM and digital voice up to 6 kHz (up to 25 kHz on 50 MHz and above).",
+        "The 20 m rows 14070-14110 and 14100-14112 kHz overlap in the source and are kept as published.",
+        "The 10 m rows 29510-29590 and 29520-29620 kHz overlap in the source and are kept as published.",
+        "The 30 m plan starts at 10110 kHz although the band (ITU allocation) starts at 10100 kHz.",
+        "The 60 m 5366-5366.5 kHz segment has a suggested max bandwidth of 20 Hz (footnote).",
+        "Above 440 MHz (23 cm and up) the Region 3 plan is not transcribed here."
+      ],
+      "bands": [
+        {
+          "name": "2200m",
+          "start_hz": 135700,
+          "end_hz": 137800,
+          "segments": [
+            {"start_hz": 135700, "end_hz": 137800, "max_bandwidth_hz": 500, "modes": ["cw", "digimodes"], "usage": "CW, QRSS and digimodes"}
+          ]
+        },
+        {
+          "name": "630m",
+          "start_hz": 472000,
+          "end_hz": 479000,
+          "segments": [
+            {"start_hz": 472000, "end_hz": 479000, "max_bandwidth_hz": 500, "modes": ["cw", "digimodes"], "usage": "CW and digimodes"}
+          ]
+        },
+        {
+          "name": "160m",
+          "start_hz": 1800000,
+          "end_hz": 2000000,
+          "segments": [
+            {"start_hz": 1800000, "end_hz": 1830000, "max_bandwidth_hz": 200, "modes": ["cw"], "usage": "CW"},
+            {"start_hz": 1830000, "end_hz": 1840000, "max_bandwidth_hz": 500, "modes": ["cw", "narrowband"], "usage": "CW and narrowband modes; 1836 kHz QRP centre of activity"},
+            {"start_hz": 1840000, "end_hz": 2000000, "max_bandwidth_hz": 2700, "modes": ["all_modes"], "usage": "All modes"}
+          ]
+        },
+        {
+          "name": "80m",
+          "start_hz": 3500000,
+          "end_hz": 3900000,
+          "segments": [
+            {"start_hz": 3500000, "end_hz": 3510000, "max_bandwidth_hz": 200, "modes": ["cw"], "usage": "CW, DX"},
+            {"start_hz": 3510000, "end_hz": 3535000, "max_bandwidth_hz": 200, "modes": ["cw"], "usage": "CW"},
+            {"start_hz": 3535000, "end_hz": 3600000, "max_bandwidth_hz": 2700, "modes": ["cw", "phone", "digimodes"], "usage": "CW, phone, digimodes; 3560 kHz QRP centre of activity"},
+            {"start_hz": 3600000, "end_hz": 3775000, "max_bandwidth_hz": 2700, "modes": ["cw", "digimodes", "phone"], "usage": "CW, digimodes, phone; 3600 kHz emergency, 3690 kHz DV and SSB QRP, 3735 kHz image centre of activity"},
+            {"start_hz": 3775000, "end_hz": 3800000, "max_bandwidth_hz": 2700, "modes": ["cw", "phone"], "usage": "CW, phone, DX"},
+            {"start_hz": 3800000, "end_hz": 3900000, "max_bandwidth_hz": 2700, "modes": ["cw", "phone", "digimodes"], "usage": "CW, phone, digimodes; 3795 kHz DX phone, 3845 kHz image centre of activity (secondary allocation)"}
+          ]
+        },
+        {
+          "name": "60m",
+          "start_hz": 5351500,
+          "end_hz": 5366500,
+          "segments": [
+            {"start_hz": 5351500, "end_hz": 5354000, "max_bandwidth_hz": 500, "modes": ["cw", "narrowband", "digimodes"], "usage": "CW, narrowband modes, digimodes"},
+            {"start_hz": 5354000, "end_hz": 5366000, "max_bandwidth_hz": 2700, "modes": ["all_modes"], "usage": "All modes; USB for phone"},
+            {"start_hz": 5366000, "end_hz": 5366500, "max_bandwidth_hz": 20, "modes": ["weak_signal"], "usage": "Weak signal modes"}
+          ]
+        },
+        {
+          "name": "40m",
+          "start_hz": 7000000,
+          "end_hz": 7200000,
+          "segments": [
+            {"start_hz": 7000000, "end_hz": 7030000, "max_bandwidth_hz": 200, "modes": ["cw"], "usage": "CW"},
+            {"start_hz": 7030000, "end_hz": 7040000, "max_bandwidth_hz": 2700, "modes": ["cw", "narrowband", "phone"], "usage": "CW, narrowband, phone; 7030 kHz QRP centre of activity"},
+            {"start_hz": 7040000, "end_hz": 7060000, "max_bandwidth_hz": 2700, "modes": ["all_modes", "narrowband", "phone"], "usage": "All modes, narrowband modes, phone"},
+            {"start_hz": 7060000, "end_hz": 7100000, "max_bandwidth_hz": 2700, "modes": ["all_modes"], "usage": "All modes; 7070 kHz DV, 7090 kHz SSB QRP, 7095 kHz DX phone centre of activity"},
+            {"start_hz": 7100000, "end_hz": 7200000, "max_bandwidth_hz": 2700, "modes": ["all_modes"], "usage": "All modes; 7110 kHz emergency, 7165 kHz image centre of activity"}
+          ]
+        },
+        {
+          "name": "30m",
+          "start_hz": 10100000,
+          "end_hz": 10150000,
+          "segments": [
+            {"start_hz": 10110000, "end_hz": 10130000, "max_bandwidth_hz": 200, "modes": ["cw"], "usage": "CW; 10116 kHz QRP centre of activity"},
+            {"start_hz": 10130000, "end_hz": 10150000, "max_bandwidth_hz": 500, "modes": ["cw", "narrowband", "digimodes"], "usage": "CW, narrowband digimodes"}
+          ]
+        },
+        {
+          "name": "20m",
+          "start_hz": 14000000,
+          "end_hz": 14350000,
+          "segments": [
+            {"start_hz": 14000000, "end_hz": 14070000, "max_bandwidth_hz": 200, "modes": ["cw"], "usage": "CW; 14055 kHz QRS, 14060 kHz QRP centre of activity"},
+            {"start_hz": 14070000, "end_hz": 14110000, "max_bandwidth_hz": 500, "modes": ["cw", "narrowband"], "usage": "CW, narrowband modes; 14100 kHz International Beacon, 500 Hz guard band"},
+            {"start_hz": 14100000, "end_hz": 14112000, "max_bandwidth_hz": 2700, "modes": ["cw", "narrowband", "digimodes", "phone"], "usage": "CW, narrowband digimodes, phone"},
+            {"start_hz": 14112000, "end_hz": 14250000, "max_bandwidth_hz": 2700, "modes": ["cw", "phone"], "usage": "CW, phone; 14130 kHz DV, 14195 kHz DX phone, 14230 kHz image centre of activity"},
+            {"start_hz": 14250000, "end_hz": 14350000, "max_bandwidth_hz": 2700, "modes": ["cw", "phone"], "usage": "CW, phone; 14285 kHz SSB QRP, 14300 kHz global emergency centre of activity"}
+          ]
+        },
+        {
+          "name": "17m",
+          "start_hz": 18068000,
+          "end_hz": 18168000,
+          "segments": [
+            {"start_hz": 18068000, "end_hz": 18095000, "max_bandwidth_hz": 200, "modes": ["cw"], "usage": "CW; 18086 kHz QRP centre of activity"},
+            {"start_hz": 18095000, "end_hz": 18110000, "max_bandwidth_hz": 2700, "modes": ["cw", "narrowband", "digimodes"], "usage": "CW, narrowband digimodes"},
+            {"start_hz": 18110000, "end_hz": 18120000, "max_bandwidth_hz": 2700, "modes": ["cw", "narrowband", "phone"], "usage": "CW, narrowband, phone; 18110 kHz International Beacon, 500 Hz guard band"},
+            {"start_hz": 18120000, "end_hz": 18168000, "max_bandwidth_hz": 2700, "modes": ["cw", "phone"], "usage": "CW, phone; 18130 kHz SSB QRP, 18160 kHz DV and emergency centre of activity"}
+          ]
+        },
+        {
+          "name": "15m",
+          "start_hz": 21000000,
+          "end_hz": 21450000,
+          "segments": [
+            {"start_hz": 21000000, "end_hz": 21070000, "max_bandwidth_hz": 200, "modes": ["cw"], "usage": "CW; 21055 kHz QRS, 21060 kHz QRP centre of activity"},
+            {"start_hz": 21070000, "end_hz": 21110000, "max_bandwidth_hz": 500, "modes": ["cw", "narrowband"], "usage": "CW, narrowband modes"},
+            {"start_hz": 21110000, "end_hz": 21125000, "max_bandwidth_hz": 2700, "modes": ["cw", "narrowband", "digimodes"], "usage": "CW, narrowband digimodes"},
+            {"start_hz": 21125000, "end_hz": 21150000, "max_bandwidth_hz": 2700, "modes": ["cw", "narrowband", "digimodes", "satellite"], "usage": "CW, narrowband digimodes, satellite uplink only; 21150 kHz International Beacon, 500 Hz guard band"},
+            {"start_hz": 21150000, "end_hz": 21450000, "max_bandwidth_hz": 2700, "modes": ["cw", "phone", "satellite"], "usage": "CW, phone, satellite uplink only; 21180 kHz DV, 21295 kHz DX phone, 21340 kHz image, 21360 kHz global emergency centre of activity"}
+          ]
+        },
+        {
+          "name": "12m",
+          "start_hz": 24890000,
+          "end_hz": 24990000,
+          "segments": [
+            {"start_hz": 24890000, "end_hz": 24915000, "max_bandwidth_hz": 200, "modes": ["cw"], "usage": "CW; 24906 kHz QRP centre of activity"},
+            {"start_hz": 24915000, "end_hz": 24930000, "max_bandwidth_hz": 500, "modes": ["cw", "narrowband"], "usage": "CW, narrowband modes"},
+            {"start_hz": 24930000, "end_hz": 24940000, "max_bandwidth_hz": 2700, "modes": ["cw", "narrowband", "phone"], "usage": "CW, narrowband modes, DX, phone; 24930 kHz International Beacon, 500 Hz guard band"},
+            {"start_hz": 24940000, "end_hz": 24990000, "max_bandwidth_hz": 2700, "modes": ["cw", "phone"], "usage": "CW, phone; 24950 kHz SSB QRP, 24960 kHz digital centre of activity"}
+          ]
+        },
+        {
+          "name": "10m",
+          "start_hz": 28000000,
+          "end_hz": 29700000,
+          "segments": [
+            {"start_hz": 28000000, "end_hz": 28070000, "max_bandwidth_hz": 200, "modes": ["cw"], "usage": "CW; 28055 kHz QRS centre of activity"},
+            {"start_hz": 28070000, "end_hz": 28150000, "max_bandwidth_hz": 500, "modes": ["cw", "narrowband"], "usage": "CW, narrowband modes"},
+            {"start_hz": 28150000, "end_hz": 28190000, "max_bandwidth_hz": 500, "modes": ["cw", "narrowband", "beacons"], "usage": "CW, narrowband modes, DX, beacons"},
+            {"start_hz": 28190000, "end_hz": 28201000, "max_bandwidth_hz": 200, "modes": ["beacons"], "usage": "28200 kHz International Beacon, 500 Hz guard band"},
+            {"start_hz": 28201000, "end_hz": 28225000, "max_bandwidth_hz": 200, "modes": ["beacons"], "usage": "Beacons, continuous duty"},
+            {"start_hz": 28225000, "end_hz": 29100000, "max_bandwidth_hz": 2700, "modes": ["all_modes"], "usage": "All modes; 28330 kHz DV, 28360 kHz QRP, 28495 kHz DX, 28680 kHz image centre of activity"},
+            {"start_hz": 29100000, "end_hz": 29300000, "max_bandwidth_hz": 6000, "modes": ["all_modes"], "usage": "All modes"},
+            {"start_hz": 29300000, "end_hz": 29510000, "max_bandwidth_hz": 6000, "modes": ["satellite"], "usage": "Satellite uplink and downlink"},
+            {"start_hz": 29510000, "end_hz": 29590000, "max_bandwidth_hz": 6000, "modes": ["all_modes", "fm"], "usage": "All modes, FM repeater input"},
+            {"start_hz": 29520000, "end_hz": 29620000, "max_bandwidth_hz": 6000, "modes": ["all_modes", "fm"], "usage": "All modes, FM simplex; 29600 kHz international calling channel"},
+            {"start_hz": 29620000, "end_hz": 29700000, "max_bandwidth_hz": 6000, "modes": ["all_modes", "fm"], "usage": "All modes, FM repeater output"}
+          ]
+        },
+        {
+          "name": "6m",
+          "start_hz": 50000000,
+          "end_hz": 54000000,
+          "segments": [
+            {"start_hz": 50000000, "end_hz": 50100000, "max_bandwidth_hz": 200, "modes": ["cw", "beacons"], "usage": "CW; international beacons 50.020-50.080 MHz"},
+            {"start_hz": 50100000, "end_hz": 50500000, "max_bandwidth_hz": 2700, "modes": ["cw", "phone", "narrowband", "digimodes"], "usage": "CW, phone, narrowband, digimodes; 50.110 MHz DX centre of activity"},
+            {"start_hz": 50500000, "end_hz": 54000000, "max_bandwidth_hz": 25000, "modes": ["all_modes"], "usage": "All modes, wide bandwidth"}
+          ]
+        },
+        {
+          "name": "2m",
+          "start_hz": 144000000,
+          "end_hz": 148000000,
+          "segments": [
+            {"start_hz": 144000000, "end_hz": 144025000, "max_bandwidth_hz": 2700, "modes": ["narrowband", "digimodes", "satellite"], "usage": "Narrowband digimodes (satellites must not transmit below 144.0025 MHz)"},
+            {"start_hz": 144025000, "end_hz": 144035000, "max_bandwidth_hz": null, "modes": ["weak_signal"], "usage": "EME, weak signal"},
+            {"start_hz": 144035000, "end_hz": 145800000, "max_bandwidth_hz": 25000, "modes": ["all_modes"], "usage": "All modes; 144.100 MHz DX centre of activity"},
+            {"start_hz": 145800000, "end_hz": 146000000, "max_bandwidth_hz": 25000, "modes": ["all_modes", "satellite"], "usage": "All modes, satellites"},
+            {"start_hz": 146000000, "end_hz": 148000000, "max_bandwidth_hz": 25000, "modes": ["all_modes"], "usage": "All modes"}
+          ]
+        },
+        {
+          "name": "70cm",
+          "start_hz": 430000000,
+          "end_hz": 440000000,
+          "segments": [
+            {"start_hz": 430000000, "end_hz": 431900000, "max_bandwidth_hz": 25000, "modes": ["all_modes"], "usage": "All modes"},
+            {"start_hz": 431900000, "end_hz": 432240000, "max_bandwidth_hz": 2700, "modes": ["weak_signal"], "usage": "EME, weak signal"},
+            {"start_hz": 432240000, "end_hz": 435000000, "max_bandwidth_hz": 25000, "modes": ["all_modes"], "usage": "All modes"},
+            {"start_hz": 435000000, "end_hz": 438000000, "max_bandwidth_hz": 25000, "modes": ["all_modes", "satellite"], "usage": "Satellites, all modes (non-interference basis)"},
+            {"start_hz": 438000000, "end_hz": 440000000, "max_bandwidth_hz": 25000, "modes": ["all_modes"], "usage": "All modes"}
+          ]
+        }
+      ]
+    }
+  }
+}
