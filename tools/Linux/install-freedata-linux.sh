@@ -7,11 +7,11 @@
 # but hopefully can be used as a guide if you are installing on other 
 # flavours of Linux
 #
-# Currently tested in Debian [11, 12], Ubuntu [22.04, 24.04], Fedora [40,41]
-# Untested additions for Linux Mint [21.3]
+# Supported: Debian [12, 13], Ubuntu [22.04, 24.04, 25.10, 26.04], Fedora [42, 43, 44]
+# Untested additions for Linux Mint [21.3, 22.x]
 # 
 # First option passed is the branch of FreeDATA to run.  Defaults to main.
-# Second option passed is the version of Hamlib to use.  Defaults to 4.6.5.
+# Second option passed is the version of Hamlib to use.  Defaults to 4.7.2.
 #
 # Run this script by typing in the terminal (without the quotes):
 # "bash install-freedata-linux.sh (FreeDATA-branch) (hamlib-version)"
@@ -44,6 +44,9 @@
 #
 #
 # Changelog:
+# 2.12:	25 Oct 2026
+#	Change hamlib default version to 4.7.2
+#
 # 2.11:	25 Oct 2026
 #	Run apt update / dnf with fresh metadata before installing packages
 #	Remove Debian 11 (Python 3.9, FreeDATA needs Python 3.10 or newer)
@@ -152,7 +155,7 @@ if [ ! -z "$2" ];
 then
 	hamlibver=$2
 else
-	hamlibver="4.6.5"
+	hamlibver="4.7.2"
 fi
 
 osname=`grep -E '^(NAME)=' /etc/os-release | cut -d\" -f2`
