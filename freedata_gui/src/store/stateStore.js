@@ -6,6 +6,11 @@ export const useStateStore = defineStore("stateStore", () => {
   var arq_state = ref("-");
   var frequency = ref(0);
   var new_frequency = ref(14093000);
+  // radio frequency is inside an amateur band (IARU band plan)
+  var amateur_band = ref(false);
+  // an encrypted message was not sent, because the radio is on an amateur band;
+  // cleared once the radio leaves the amateur bands
+  var encryption_band_blocked = ref(false);
   var mode = ref("-");
   var rf_level = ref(10);
   var bandwidth = ref("-");
@@ -101,6 +106,8 @@ export const useStateStore = defineStore("stateStore", () => {
     arq_state,
     new_frequency,
     frequency,
+    amateur_band,
+    encryption_band_blocked,
     mode,
     bandwidth,
     tuner,

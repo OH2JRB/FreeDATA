@@ -8,7 +8,7 @@ import {
   getFreedataDomains,
   getFreedataBroadcastsPerDomain,
 } from "./api";
-import { processRadioStatus } from "./radioHandler";
+import { processRadioStatus, setAmateurBand } from "./radioHandler";
 import { loadEncryptionStatus, openEncryptionDialog } from "./encryptionHandler";
 import i18next from "./i18n";
 
@@ -89,6 +89,7 @@ export function stateDispatcher(data) {
     );
     stateStore.radio_status = data.radio_status;
     stateStore.frequency = data.radio_frequency;
+    setAmateurBand(data.radio_amateur_band);
     stateStore.mode = data.radio_mode;
 
     let swr = data.radio_swr;
@@ -177,6 +178,20 @@ export function eventDispatcher(data) {
         );
         // ask for the key right away; the dialog loads the station's status
         openEncryptionDialog(data.callsign, data.reason);
+      }
+      if (data.status === "amateur_band") {
+        // the frequency display turns red until the radio leaves the amateur bands
+        stateStore.encryption_band_blocked = true;
+        displayToast(
+          "danger",
+          "bi-broadcast",
+          `<strong>${escapeHtml(data.callsign)}</strong>: ${escapeHtml(
+            i18next.t("chat.encryption.amateur_band", {
+              frequency: data.frequency / 1000,
+            }),
+          )}`,
+          10000,
+        );
       }
       return;
 

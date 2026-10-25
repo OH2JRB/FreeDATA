@@ -4,6 +4,8 @@ from freedata_server import encryption
 import base64
 import json
 import zlib
+
+import structlog
 from freedata_server.message_system_db_messages import DatabaseManagerMessages
 from freedata_server.message_system_db_encryption import DatabaseManagerEncryption
 from freedata_server.message_system_db_station import DatabaseManagerStations
@@ -49,6 +51,10 @@ def encryption_wanted(ctx, callsign):
     return ctx.station_keys.common_enabled() or DatabaseManagerStations(ctx).is_encryption_enabled(callsign)
 
 
+# encryption events (keys entered or removed, settings, blocked messages) go to
+# the server log; key material never does
+encryption_log = structlog.get_logger("Encryption")
+
 # STATION settings that publish station activity to the FreeDATA Explorer
 EXPLORER_SETTINGS = ("enable_explorer", "enable_stats")
 
@@ -66,8 +72,10 @@ def disable_reporting(ctx):
     off = {key: False for key in EXPLORER_SETTINGS if station.get(key)}
     if off:
         ctx.config_manager.write({"STATION": off})
+        encryption_log.info("[ENCRYPTION] Explorer reporting switched off, encryption is in use", settings=sorted(off))
     if ctx.pskreporter.status()["enabled"]:
         ctx.pskreporter.set_enabled(False)
+        encryption_log.info("[ENCRYPTION] PSK Reporter switched off, encryption is in use")
 
 
 def encrypted_message_received(ctx, callsign, data, statistics):

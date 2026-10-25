@@ -277,7 +277,24 @@ class EventManager:
             reason (str): "send" (a message waits to be sent), "receive" (a received
                 message waits to be decrypted) or "wrong_key" (decryption failed).
         """
+        self.logger.warning("[ENCRYPTION] Key required", callsign=callsign, reason=reason)
         self.broadcast({"type": "encryption", "status": "key_required", "callsign": callsign, "reason": reason})
+
+    def send_encryption_amateur_band(self, callsign, frequency):
+        """Tells the GUI that an encrypted message was not sent, because the
+        radio is on an amateur band.
+
+        Args:
+            callsign (str): The station the message was for.
+            frequency: The radio frequency in Hz.
+        """
+        self.logger.warning(
+            "[ENCRYPTION] Encrypted message not sent, frequency is on an amateur band",
+            callsign=callsign,
+            frequency=frequency,
+            iaru_region=self.ctx.iaru_region() or "all",
+        )
+        self.broadcast({"type": "encryption", "status": "amateur_band", "callsign": callsign, "frequency": frequency})
 
     def freedata_logging(self, type, status, message):
         """Broadcasts a FreeDATA logging event.

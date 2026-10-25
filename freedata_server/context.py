@@ -26,6 +26,7 @@ class AppContext:
 
         self.event_manager = EventManager(self, [self.modem_events])
         self.state_manager = StateManager(self.state_queue)
+        self.state_manager.iaru_region = self.iaru_region
         self.schedule_manager = ScheduleManager(self)
         self.service_manager = ServiceManager(self)
         self.websocket_manager = WebsocketManager(self)
@@ -51,6 +52,13 @@ class AppContext:
         """True if the "common encryption key for all stations" setting is on."""
         config = self.config_manager.config or {}
         return bool(config.get("MESSAGES", {}).get("enable_common_key", False))
+
+    def iaru_region(self):
+        """The station's IARU region (1, 2 or 3) from the station settings,
+        or 0 when it is not set, which means all regions."""
+        config = self.config_manager.config or {}
+        region = config.get("STATION", {}).get("iaru_region", 0)
+        return region if region in (1, 2, 3) else 0
 
     def startup(self):
         # initially read config

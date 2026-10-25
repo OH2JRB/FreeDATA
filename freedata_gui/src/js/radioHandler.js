@@ -8,6 +8,13 @@ const stateStore = useStateStore(pinia);
 
 import { getRadioStatus } from "./api";
 
+export function setAmateurBand(amateur_band) {
+  stateStore.amateur_band = amateur_band === true;
+  if (!stateStore.amateur_band) {
+    stateStore.encryption_band_blocked = false;
+  }
+}
+
 export async function processRadioStatus() {
   try {
     let result = await getRadioStatus();
@@ -18,6 +25,7 @@ export async function processRadioStatus() {
 
     stateStore.mode = result.radio_mode;
     stateStore.frequency = result.radio_frequency;
+    setAmateurBand(result.radio_amateur_band);
     stateStore.rf_level = Math.round(result.radio_rf_level / 5) * 5; // round to 5er steps
     stateStore.tuner = result.radio_tuner;
   } catch (error) {
@@ -26,6 +34,7 @@ export async function processRadioStatus() {
     // For example, you can set default values or update the UI to indicate an error
     stateStore.mode = "unknown";
     stateStore.frequency = 0;
+    setAmateurBand(false);
     stateStore.rf_level = 0;
     stateStore.tuner = "unknown";
   }

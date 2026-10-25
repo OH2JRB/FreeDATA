@@ -4,6 +4,7 @@ from freedata_server.message_p2p import MessageP2P, encryption_wanted
 from freedata_server.arq_data_type_handler import ARQ_SESSION_TYPES
 from freedata_server.message_system_db_messages import DatabaseManagerMessages
 from freedata_server import encryption
+from freedata_server.bandplan import on_amateur_band
 import threading
 import numpy as np
 import time
@@ -42,6 +43,20 @@ class SendMessageCommand(TxCommand):
     def key_missing(self, destination):
         """True if messages to destination are to be encrypted, but its key is unknown."""
         return encryption_wanted(self.ctx, destination) and self.ctx.station_keys.key_for(destination) is None
+
+    def blocked_on_amateur_band(self, encrypt, message_id, destination):
+        """True if an encrypted message may not be sent on the current frequency.
+
+        Encrypted data is not allowed on the amateur bands. The message is set to
+        failed, so it does not block the queue; the event manager tells the GUI
+        and logs it.
+        """
+        frequency = self.ctx.state_manager.radio_frequency
+        if not encrypt or not on_amateur_band(frequency, self.ctx.iaru_region()):
+            return False
+        DatabaseManagerMessages(self.ctx).update_message(message_id, update_data={"status": "failed"})
+        self.ctx.event_manager.send_encryption_amateur_band(destination, frequency)
+        return True
 
     def transmit(self):
         """Transmits the first queued message using ARQ.
@@ -87,6 +102,8 @@ class SendMessageCommand(TxCommand):
                 self.ctx.event_manager.send_encryption_key_required(message.destination, "send")
                 return
             encrypt = encryption_wanted(self.ctx, message.destination)
+            if self.blocked_on_amateur_band(encrypt, message_id, message.destination):
+                return
 
             # wait some random time and wait if we have an ongoing codec2 transmission
             # on our channel. This should prevent some packet collision
@@ -124,6 +141,9 @@ class SendMessageCommand(TxCommand):
             # another ARQ session may have started while we waited; the message stays queued
             if self.ctx.state_manager.getARQ():
                 self.log("Modem busy, waiting until ready...")
+                return
+            # the radio may have been tuned while we waited
+            if self.blocked_on_amateur_band(encrypt, message_id, message.destination):
                 return
 
             # If we came until here, we are setting status to transmitting, otherwise it stays in queued

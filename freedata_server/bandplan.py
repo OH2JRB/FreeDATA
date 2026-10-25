@@ -1,6 +1,7 @@
 """IARU regional band plans, read from data/iaru_bandplan.json.
 
-Lookup helpers only, nothing in the modem uses them yet. Band plans are
+Lookup helpers; on_amateur_band() keeps encrypted messages off the amateur
+bands (command_message_send.py). Band plans are
 voluntary guidance and national rules can be stricter, so a hit here does not
 mean a frequency is legal for a given station.
 """
@@ -62,3 +63,17 @@ def fits_in_segment(region, low_hz, high_hz, mode="digimodes"):
             continue
         return True
     return False
+
+
+def on_amateur_band(frequency_hz, region=0):
+    """True when frequency_hz is inside an amateur band of the IARU region
+    (1, 2 or 3). Region 0, the default, checks all three regions.
+
+    Returns False for a missing or unreadable frequency.
+    """
+    try:
+        frequency_hz = int(float(frequency_hz))
+    except (TypeError, ValueError):
+        return False
+    regions = [region] if region in (1, 2, 3) else load_bandplan()["regions"]
+    return any(find_band(r, frequency_hz) is not None for r in regions)

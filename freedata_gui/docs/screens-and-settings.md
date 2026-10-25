@@ -181,6 +181,7 @@ Path = `settingsStore` path. "Server" column cross-checks against [config.ini.ex
 | Callsign | `remote.STATION.mycall` | text, displayed uppercase; on change: uppercased, `validateCallsignWithoutSSID()`; valid -> `onChange`, invalid -> `getRemote()` (silently reverts) |
 | SSID | `remote.STATION.myssid` | select 0-15, `v-model.number` |
 | Grid locator | `remote.STATION.mygrid` | text, maxlength 6; regex `^[A-Ra-r]{2}[0-9]{2}([A-Xa-x]{2})?$`, normalised (`JN48ea`) then `onChange`; invalid -> `alert()` and the field is reverted to the last valid value (remembered on focus), so the invalid value never reaches the store or the server |
+| IARU region | `remote.STATION.iaru_region` | select 0-3, `v-model.number`; 0 = not set (all regions). Encrypted messages are not sent on the amateur bands of this region |
 | Respond to CQ | `remote.STATION.respond_to_cq` | switch |
 | Enable callsign blacklist | `remote.STATION.enable_callsign_blacklist` | switch |
 | Callsign blacklist | `remote.STATION.callsign_blacklist` | textarea, one call per line (string in GUI, list on server) |

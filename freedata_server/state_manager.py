@@ -2,6 +2,8 @@ import time
 import threading
 import numpy as np
 
+from freedata_server.bandplan import on_amateur_band
+
 
 class StateManager:
     """Manages and updates the state of the FreeDATA server.
@@ -18,6 +20,8 @@ class StateManager:
         self.statequeue = statequeue
         self.newstate = None
         self.newradio = None
+        # returns the station's IARU region, 0 = all; AppContext sets it from the config
+        self.iaru_region = lambda: 0
         self.last = time.time()
 
         # freedata_server related states
@@ -209,6 +213,7 @@ class StateManager:
             "type": msgtype,
             "radio_status": self.radio_status,
             "radio_frequency": self.radio_frequency,
+            "radio_amateur_band": on_amateur_band(self.radio_frequency, self.iaru_region()),
             "radio_rf_level": self.radio_rf_level,
             "radio_mode": self.radio_mode,
             "s_meter_strength": self.s_meter_strength,
@@ -569,6 +574,7 @@ class StateManager:
         return {
             "radio_status": self.radio_status,
             "radio_frequency": self.radio_frequency,
+            "radio_amateur_band": on_amateur_band(self.radio_frequency, self.iaru_region()),
             "radio_mode": self.radio_mode,
             "radio_rf_level": self.radio_rf_level,
             "s_meter_strength": self.s_meter_strength,
