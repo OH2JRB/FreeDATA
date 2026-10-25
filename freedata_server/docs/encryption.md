@@ -76,6 +76,23 @@ One key shared by a group of stations, switched on in *Settings → Chat* (confi
 - Stations that don't know the common key can't read your messages while the setting
   is on. Enter a station key for them, or switch the setting off.
 
+## Explorer and PSK Reporter
+
+Publishing station activity next to encrypted traffic is switched off. Encryption is
+"in use" when the common key setting is on or encryption is on for at least one station
+(`encryption_in_use()` in [message_p2p.py](../message_p2p.py)). Then:
+
+- Turning encryption on (`PATCH .../encryption` with `enabled: true`, or `POST /config`
+  with `MESSAGES.enable_common_key` on) calls `disable_reporting()` or does the same in
+  `post_config`: `STATION.enable_explorer` and `STATION.enable_stats` are saved as `False`
+  and PSK Reporter is switched off.
+- While encryption is in use, `POST /config` saves those two settings as `False` whatever it
+  is sent, and `POST /modem/pskreporter` with `enabled: true` is refused with 409.
+- `AppContext.startup()` does the same check, for a config edited by hand.
+- Turning all encryption off again does **not** switch reporting back on; the user does.
+- The GUI (Settings → Web) greys out both switches and shows a note while
+  `GET /modem/pskreporter` returns `blocked_by_encryption: true`.
+
 ## Wire format
 
 ARQ type byte `21` (`p2pmsg_zlib_aesgcm`). The ARQ payload is:

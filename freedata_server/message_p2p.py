@@ -49,6 +49,27 @@ def encryption_wanted(ctx, callsign):
     return ctx.station_keys.common_enabled() or DatabaseManagerStations(ctx).is_encryption_enabled(callsign)
 
 
+# STATION settings that publish station activity to the FreeDATA Explorer
+EXPLORER_SETTINGS = ("enable_explorer", "enable_stats")
+
+
+def encryption_in_use(ctx):
+    """True if encryption is on for any station or the common key setting is on.
+    Explorer publishing and PSK Reporter uploads are kept off while it is."""
+    return ctx.station_keys.common_enabled() or DatabaseManagerStations(ctx).any_encryption_enabled()
+
+
+def disable_reporting(ctx):
+    """Switches Explorer publishing (saved in the config) and PSK Reporter
+    uploads off, because encryption is in use."""
+    station = ctx.config_manager.config.get("STATION", {})
+    off = {key: False for key in EXPLORER_SETTINGS if station.get(key)}
+    if off:
+        ctx.config_manager.write({"STATION": off})
+    if ctx.pskreporter.status()["enabled"]:
+        ctx.pskreporter.set_enabled(False)
+
+
 def encrypted_message_received(ctx, callsign, data, statistics):
     """Handles an encrypted P2P message received from a station.
 

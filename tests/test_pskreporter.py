@@ -267,7 +267,10 @@ class TestApi(unittest.TestCase):
         return json.loads(asyncio.run(coroutine).body)
 
     def test_toggle(self):
-        self.assertEqual(self.call(get_pskreporter(ctx=self.ctx)), {"enabled": False, "pending_spots": 0})
+        self.assertEqual(
+            self.call(get_pskreporter(ctx=self.ctx)),
+            {"enabled": False, "pending_spots": 0, "blocked_by_encryption": False},
+        )
         self.assertTrue(self.call(post_pskreporter({"enabled": True}, ctx=self.ctx))["enabled"])
         self.assertTrue(self.ctx.pskreporter.enabled)
         self.assertTrue(self.call(get_pskreporter(ctx=self.ctx))["enabled"])

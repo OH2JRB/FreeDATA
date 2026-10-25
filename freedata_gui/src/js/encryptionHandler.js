@@ -14,7 +14,33 @@ import {
   getCommonEncryptionKey,
   setCommonEncryptionKey,
   deleteCommonEncryptionKey,
+  getPSKReporter,
+  setPSKReporter,
 } from "./api";
+import { getRemote } from "../store/settingsStore.js";
+
+// PSK Reporter state, including whether encryption blocks it
+export async function loadPSKReporterStatus() {
+  const result = await getPSKReporter();
+  if (result) encryption.pskreporter = result;
+  return result;
+}
+
+export async function switchPSKReporter(enabled) {
+  const result = await setPSKReporter(enabled);
+  if (result) {
+    encryption.pskreporter = result;
+  } else {
+    await loadPSKReporterStatus();
+  }
+  return result;
+}
+
+// Turning encryption on switches Explorer publishing and PSK Reporter off on
+// the server, so reload both after any encryption change.
+async function reportingChanged() {
+  await Promise.all([getRemote(), loadPSKReporterStatus()]);
+}
 
 export async function loadEncryptionStatus(callsign) {
   if (!callsign) return null;
@@ -42,6 +68,7 @@ export async function enableEncryption(callsign, key) {
   if (!keyResult.ok) return keyResult;
   const result = storeResult(callsign, await setStationEncryptionEnabled(callsign, true));
   if (result.ok) {
+    await reportingChanged();
     result.data = {
       ...result.data,
       decrypted: keyResult.data.decrypted,
@@ -52,7 +79,9 @@ export async function enableEncryption(callsign, key) {
 }
 
 export async function disableEncryption(callsign) {
-  return storeResult(callsign, await setStationEncryptionEnabled(callsign, false));
+  const result = storeResult(callsign, await setStationEncryptionEnabled(callsign, false));
+  if (result.ok) await reportingChanged();
+  return result;
 }
 
 export async function enterEncryptionKey(callsign, key) {
@@ -89,6 +118,7 @@ export async function forgetCommonKey() {
 
 // After the common key setting was switched on or off.
 export async function commonKeySettingChanged() {
+  await reportingChanged();
   return commonKeyChanged({ ok: true });
 }
 

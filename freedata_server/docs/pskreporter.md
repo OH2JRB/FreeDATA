@@ -13,6 +13,10 @@ protocol from the PSK Reporter developer page, <https://pskreporter.info/pskdev.
 - `POST /modem/pskreporter` with `{"enabled": bool}` switches it and returns the same object.
   A non-boolean `enabled` gives 400. The modem does not need to be running.
 - Switching it off drops spots that have not been uploaded yet.
+- **Encryption locks it off.** While encryption is in use (see
+  [encryption.md](encryption.md#explorer-and-psk-reporter)), `POST` with `enabled: true` gives 409,
+  and turning encryption on switches reporting off. `GET` and `POST` also return
+  `blocked_by_encryption`.
 - The GUI switch is in Settings → Web, next to the Explorer switch. It reads the state from the
   server when the settings component is mounted and shows what the server returns after each
   change, so it reflects the server's state, not a saved setting.

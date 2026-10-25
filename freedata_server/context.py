@@ -68,6 +68,12 @@ class AppContext:
         db.database_repair_and_cleanup()
         DatabaseManagerAttachments(self).clean_orphaned_attachments()
 
+        # no Explorer publishing while encryption is on (e.g. a config edited by hand)
+        from freedata_server.message_p2p import encryption_in_use, disable_reporting
+
+        if encryption_in_use(self):
+            disable_reporting(self)
+
     def shutdown(self):
         try:
             for s in self.state_manager.arq_irs_sessions.values():

@@ -6,27 +6,23 @@ setActivePinia(pinia);
 
 import { settingsStore as settings, onChange } from "../store/settingsStore.js";
 
-import { onMounted, ref } from "vue";
-import { getPSKReporter, setPSKReporter } from "../js/api.js";
+import { computed, onMounted } from "vue";
+import { useEncryptionStore } from "../store/encryptionStore.js";
+import { loadPSKReporterStatus, switchPSKReporter } from "../js/encryptionHandler.js";
+
+const encryption = useEncryptionStore(pinia);
 
 // runtime state on the server, not part of the saved config
-const pskreporterEnabled = ref(false);
+const pskreporterEnabled = computed({
+  get: () => encryption.pskreporter?.enabled === true,
+  set: (enabled) => switchPSKReporter(enabled),
+});
 
-async function loadPSKReporter() {
-  const status = await getPSKReporter();
-  pskreporterEnabled.value = status?.enabled === true;
-}
+// encryption is on (for a station or with the common key): the server keeps
+// Explorer publishing and PSK Reporter off and refuses to switch them on
+const blockedByEncryption = computed(() => encryption.pskreporter?.blocked_by_encryption === true);
 
-async function onPSKReporterChange() {
-  const status = await setPSKReporter(pskreporterEnabled.value);
-  if (status) {
-    pskreporterEnabled.value = status.enabled === true;
-  } else {
-    await loadPSKReporter();
-  }
-}
-
-onMounted(loadPSKReporter);
+onMounted(loadPSKReporterStatus);
 </script>
 
 <template>
@@ -43,6 +39,14 @@ onMounted(loadPSKReporter);
     role="alert"
   >
     {{ $t('settings.web.description') }}
+  </div>
+
+  <div
+    v-if="blockedByEncryption"
+    class="alert alert-warning py-2"
+    role="alert"
+  >
+    <i class="bi bi-lock-fill me-1" />{{ $t('settings.web.blockedbyencryption') }}
   </div>
 
   <!-- Explorer Publishing -->
@@ -65,6 +69,7 @@ onMounted(loadPSKReporter);
           v-model="settings.remote.STATION.enable_explorer"
           class="form-check-input"
           type="checkbox"
+          :disabled="blockedByEncryption"
           @change="onChange"
         >
         <label
@@ -95,7 +100,7 @@ onMounted(loadPSKReporter);
           v-model="pskreporterEnabled"
           class="form-check-input"
           type="checkbox"
-          @change="onPSKReporterChange"
+          :disabled="blockedByEncryption"
         >
         <label
           class="form-check-label"

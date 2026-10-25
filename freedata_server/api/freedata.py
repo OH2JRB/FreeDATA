@@ -10,7 +10,12 @@ from freedata_server.message_system_db_beacon import DatabaseManagerBeacon
 from freedata_server.message_system_db_station import DatabaseManagerStations
 from freedata_server.message_system_db_broadcasts import DatabaseManagerBroadcasts
 from freedata_server.message_system_db_encryption import DatabaseManagerEncryption
-from freedata_server.message_p2p import decrypt_pending_messages, encryption_wanted, common_key_changed
+from freedata_server.message_p2p import (
+    decrypt_pending_messages,
+    encryption_wanted,
+    common_key_changed,
+    disable_reporting,
+)
 from freedata_server import api_validations
 from freedata_server import encryption
 from freedata_server import command_message_send
@@ -629,6 +634,9 @@ async def patch_station_encryption(callsign: str, payload: dict, ctx: AppContext
         api_abort("'enabled' must be true or false", 400)
     if not _mgr_stations(ctx).set_encryption_enabled(callsign, enabled):
         api_abort("Error updating encryption setting", 500)
+    if enabled:
+        # no Explorer or PSK Reporter reporting while encryption is in use
+        disable_reporting(ctx)
     return api_response(_encryption_status(ctx, callsign))
 
 

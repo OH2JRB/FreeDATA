@@ -285,7 +285,12 @@ Visible only when `RADIO.control == "rigctld_bundle"` (`d-none` otherwise):
 | Field | Path | Input |
 |---|---|---|
 | Publish to explorer | `remote.STATION.enable_explorer` | switch |
-| Report heard stations to PSK Reporter | none, server runtime state | switch; reads `GET /modem/pskreporter` on mount, writes `POST /modem/pskreporter` on change and shows the state the server returns. Not part of the config, so it is off after every server start |
+| Report heard stations to PSK Reporter | none, server runtime state | switch; reads `GET /modem/pskreporter` on mount, writes `POST /modem/pskreporter` on change and shows the state the server returns (`encryptionStore.pskreporter`). Not part of the config, so it is off after every server start |
+
+While encryption is in use (`blocked_by_encryption` from `GET /modem/pskreporter`), both switches
+are disabled and a note explains why. `encryptionHandler.js` reloads the config and the PSK
+Reporter state after turning station encryption or the common key setting on or off, because the
+server switches both off.
 
 #### [settings_exp.vue](../src/components/settings_exp.vue) - Experimental
 

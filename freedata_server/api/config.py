@@ -4,7 +4,8 @@ from fastapi import APIRouter, Depends
 from freedata_server.api.common import api_abort
 from freedata_server import api_validations as validations
 from freedata_server.context import AppContext, get_ctx
-from freedata_server.message_p2p import common_key_changed
+from freedata_server.message_p2p import common_key_changed, EXPLORER_SETTINGS
+from freedata_server.message_system_db_station import DatabaseManagerStations
 
 router = APIRouter()
 
@@ -146,6 +147,16 @@ async def post_config(
     # Validate incoming data
     if not validations.validate_remote_config(new_cfg):
         api_abort("Invalid configuration", 400)
+
+    # No Explorer or PSK Reporter reporting while encryption is in use: the
+    # common key setting in this config, or encryption on for any station
+    if new_cfg.get("MESSAGES", {}).get("enable_common_key") or DatabaseManagerStations(ctx).any_encryption_enabled():
+        station = new_cfg.get("STATION", {})
+        for key in EXPLORER_SETTINGS:
+            if station.get(key):
+                station[key] = False
+        if ctx.pskreporter.status()["enabled"]:
+            ctx.pskreporter.set_enabled(False)
 
     # Read and compare
     old_cfg = ctx.config_manager.read()

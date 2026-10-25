@@ -10,6 +10,7 @@ from freedata_server import (
 )
 from freedata_server import api_validations as validations
 from freedata_server.context import AppContext, get_ctx
+from freedata_server.message_p2p import encryption_in_use
 
 router = APIRouter()
 
@@ -222,15 +223,24 @@ async def post_beacon(
     responses={
         200: {
             "description": "Current PSK Reporter reporting state.",
-            "content": {"application/json": {"example": {"enabled": False, "pending_spots": 0}}},
+            "content": {
+                "application/json": {"example": {"enabled": False, "pending_spots": 0, "blocked_by_encryption": False}}
+            },
         },
     },
 )
 async def get_pskreporter(ctx: AppContext = Depends(get_ctx)):
     """
-    Get whether heard stations are reported to PSK Reporter. Reporting is off after every server start.
+    Get whether heard stations are reported to PSK Reporter. Reporting is off after every server start,
+    and can't be switched on while encryption is in use (blocked_by_encryption).
     """
-    return api_response(ctx.pskreporter.status())
+    return api_response(_pskreporter_status(ctx))
+
+
+def _pskreporter_status(ctx: AppContext) -> dict:
+    status = ctx.pskreporter.status()
+    status["blocked_by_encryption"] = encryption_in_use(ctx)
+    return status
 
 
 @router.post(
@@ -246,6 +256,12 @@ async def get_pskreporter(ctx: AppContext = Depends(get_ctx)):
             "description": "Invalid input parameters.",
             "content": {"application/json": {"example": {"error": "Expected a boolean for 'enabled'"}}},
         },
+        409: {
+            "description": "Encryption is in use, reporting can't be switched on.",
+            "content": {
+                "application/json": {"example": {"error": "PSK Reporter is not available while encryption is on"}}
+            },
+        },
     },
 )
 async def post_pskreporter(payload: dict, ctx: AppContext = Depends(get_ctx)):
@@ -255,8 +271,10 @@ async def post_pskreporter(payload: dict, ctx: AppContext = Depends(get_ctx)):
     enabled = payload.get("enabled")
     if not isinstance(enabled, bool):
         api_abort("Expected a boolean for 'enabled'", 400)
+    if enabled and encryption_in_use(ctx):
+        api_abort("PSK Reporter is not available while encryption is on", 409)
     ctx.pskreporter.set_enabled(enabled)
-    return api_response(ctx.pskreporter.status())
+    return api_response(_pskreporter_status(ctx))
 
 
 @router.post(
