@@ -49,6 +49,7 @@
 #	Remove Debian 11 (Python 3.9, FreeDATA needs Python 3.10 or newer)
 #	Remove python3-colorama (installed into the venv by pip)
 #	Install nodejs version 22 (LTS) instead of 20 (end of life)
+#	Update the nvm installer from v0.39.7 to v0.40.8
 #	Add Ubuntu 25.10 and 26.04, Linux Mint 22.x, Fedora 42 to 44
 #	Remove end of life Ubuntu 24.10 and 25.04, Fedora 40 and 41
 #	Stop on unsupported Fedora versions instead of skipping the install
@@ -237,7 +238,7 @@ esac
 echo "*************************************************************************"
 echo "Installing nvm and node v 22 into ~/.nvm"
 echo "*************************************************************************"
-wget https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh
+wget https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.8/install.sh
 if [ -f "install.sh" ];
 then
 	XDG_CONFIG_HOME=""
