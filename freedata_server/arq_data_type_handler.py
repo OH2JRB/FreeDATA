@@ -502,12 +502,13 @@ class ARQDataTypeHandler:
         return decompressed_data
 
     def prepare_p2pmsg_zlib_aesgcm(self, data, dxcall):
-        """Compresses P2PMSG data like p2pmsg_zlib, then encrypts it with the key of dxcall.
+        """Compresses P2PMSG data like p2pmsg_zlib, then encrypts it with the key of
+        dxcall, or the common key if dxcall has none.
 
         Raises:
-            encryption.KeyMissingError: If no key has been entered for dxcall.
+            encryption.KeyMissingError: If no key is available for dxcall.
         """
-        key = self.ctx.station_keys.get(dxcall)
+        key = self.ctx.station_keys.key_for(dxcall)
         if key is None:
             raise encryption.KeyMissingError(f"No encryption key for {dxcall}")
         compressed_data = self.prepare_p2pmsg_zlib(data)
@@ -527,12 +528,12 @@ class ARQDataTypeHandler:
 
     def _decrypt_own_p2pmsg(self, data, dxcall):
         """Decrypts a message we sent, to update its database entry afterwards."""
-        key = self.ctx.station_keys.get(dxcall)
-        if key is None:
+        keys = self.ctx.station_keys.keys_for(dxcall)
+        if not keys:
             self.log(f"Key for {dxcall} was removed, can't update the sent message", isWarning=True)
             return None
         try:
-            return decompress_p2pmsg(encryption.decrypt(key, data))
+            return decompress_p2pmsg(encryption.decrypt_any(keys, data))
         except encryption.DecryptionError:
             self.log(f"Key for {dxcall} was changed, can't update the sent message", isWarning=True)
             return None

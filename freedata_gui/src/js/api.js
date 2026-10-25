@@ -184,6 +184,15 @@ export async function setModemBeacon(enabled = false, away_from_key = false) {
   return await apiPost("/modem/beacon", { enabled, away_from_key });
 }
 
+// PSK Reporter uploads are a runtime switch on the server, off after every start
+export async function getPSKReporter() {
+  return await apiGet("/modem/pskreporter");
+}
+
+export async function setPSKReporter(enabled = false) {
+  return await apiPost("/modem/pskreporter", { enabled });
+}
+
 export async function sendModemCQ() {
   return await apiPost("/modem/cqcqcq");
 }
@@ -368,6 +377,19 @@ export async function deleteStationEncryptionKey(callsign) {
     "DELETE",
     `/freedata/station/${encodeURIComponent(callsign)}/encryption/key`,
   );
+}
+
+// Common encryption key for all stations ([MESSAGES] enable_common_key)
+export async function getCommonEncryptionKey() {
+  return await apiGet("/freedata/encryption/common-key");
+}
+
+export async function setCommonEncryptionKey(key) {
+  return await apiRequestResult("PUT", "/freedata/encryption/common-key", { key });
+}
+
+export async function deleteCommonEncryptionKey() {
+  return await apiRequestResult("DELETE", "/freedata/encryption/common-key");
 }
 
 export async function getFreedataBroadcasts() {

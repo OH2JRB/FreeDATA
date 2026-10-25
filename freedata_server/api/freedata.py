@@ -10,7 +10,12 @@ from freedata_server.message_system_db_beacon import DatabaseManagerBeacon
 from freedata_server.message_system_db_station import DatabaseManagerStations
 from freedata_server.message_system_db_broadcasts import DatabaseManagerBroadcasts
 from freedata_server.message_system_db_encryption import DatabaseManagerEncryption
-from freedata_server.message_p2p import decrypt_pending_messages
+from freedata_server.message_p2p import (
+    decrypt_pending_messages,
+    encryption_wanted,
+    common_key_changed,
+    disable_reporting,
+)
 from freedata_server import api_validations
 from freedata_server import encryption
 from freedata_server import command_message_send
@@ -556,11 +561,22 @@ def _encryption_callsign(callsign: str) -> str:
 
 def _encryption_status(ctx: AppContext, callsign: str) -> dict:
     db = DatabaseManagerEncryption(ctx)
+    keys = ctx.station_keys
+    if keys.has(callsign):
+        key_source = "station"
+    elif keys.key_for(callsign) is not None:
+        key_source = "common"
+    else:
+        key_source = None
     return {
         "callsign": callsign,
         "enabled": _mgr_stations(ctx).is_encryption_enabled(callsign),
-        "key_loaded": ctx.station_keys.has(callsign),
-        "fingerprint": ctx.station_keys.fingerprint(callsign),
+        # messages to the station are encrypted (its own setting or the common key setting)
+        "encrypted": encryption_wanted(ctx, callsign),
+        "common_key_enabled": keys.common_enabled(),
+        "key_loaded": keys.has(callsign),
+        "fingerprint": keys.fingerprint(callsign),
+        "key_source": key_source,
         "pending_received": db.count_pending(callsign),
         "waiting_to_send": db.count_key_required(callsign),
     }
@@ -578,8 +594,11 @@ def _encryption_status(ctx: AppContext, callsign: str) -> dict:
                     "example": {
                         "callsign": "XX1XXX-0",
                         "enabled": True,
+                        "encrypted": True,
+                        "common_key_enabled": False,
                         "key_loaded": False,
                         "fingerprint": None,
+                        "key_source": None,
                         "pending_received": 1,
                         "waiting_to_send": 0,
                     }
@@ -615,6 +634,9 @@ async def patch_station_encryption(callsign: str, payload: dict, ctx: AppContext
         api_abort("'enabled' must be true or false", 400)
     if not _mgr_stations(ctx).set_encryption_enabled(callsign, enabled):
         api_abort("Error updating encryption setting", 500)
+    if enabled:
+        # no Explorer or PSK Reporter reporting while encryption is in use
+        disable_reporting(ctx)
     return api_response(_encryption_status(ctx, callsign))
 
 
@@ -664,6 +686,75 @@ async def delete_station_encryption_key(callsign: str, ctx: AppContext = Depends
     callsign = _encryption_callsign(callsign)
     ctx.station_keys.remove(callsign)
     return api_response(_encryption_status(ctx, callsign))
+
+
+def _common_key_status(ctx: AppContext) -> dict:
+    return {
+        "enabled": ctx.station_keys.common_enabled(),
+        "key_loaded": ctx.station_keys.get_common() is not None,
+        "fingerprint": ctx.station_keys.common_fingerprint(),
+    }
+
+
+@router.get(
+    "/encryption/common-key",
+    summary="Get Common Encryption Key Status",
+    tags=["FreeDATA"],
+    responses={
+        200: {
+            "description": (
+                "Whether the common key setting ([MESSAGES] enable_common_key) is on and the "
+                "common key has been entered."
+            ),
+            "content": {
+                "application/json": {
+                    "example": {"enabled": True, "key_loaded": True, "fingerprint": "1A2B 3C4D 5E6F 7A8B"}
+                }
+            },
+        }
+    },
+)
+async def get_common_encryption_key(ctx: AppContext = Depends(get_ctx)):
+    return api_response(_common_key_status(ctx))
+
+
+@router.put(
+    "/encryption/common-key",
+    summary="Enter Common Encryption Key",
+    tags=["FreeDATA"],
+    responses={
+        200: {
+            "description": (
+                "Key accepted and held in memory. If the common key setting is on, waiting received "
+                "messages it fits are decrypted and messages waiting for a key are queued again."
+            ),
+            "content": {"application/json": {"example": {"key_loaded": True, "decrypted": 2, "requeued": 1}}},
+        },
+        400: {"description": "Invalid key."},
+    },
+)
+async def put_common_encryption_key(payload: dict, ctx: AppContext = Depends(get_ctx)):
+    try:
+        # scrypt for passphrases takes a moment, keep it off the event loop
+        key = await asyncio.to_thread(encryption.parse_key, payload.get("key"))
+    except ValueError as e:
+        api_abort(str(e), 400)
+    ctx.station_keys.set_common(key)
+    decrypted, requeued = await asyncio.to_thread(common_key_changed, ctx)
+    result = _common_key_status(ctx)
+    result.update({"decrypted": decrypted, "requeued": requeued})
+    return api_response(result)
+
+
+@router.delete(
+    "/encryption/common-key",
+    summary="Forget Common Encryption Key",
+    tags=["FreeDATA"],
+    responses={200: {"description": "Common key removed from memory. Returns the common key status."}},
+)
+async def delete_common_encryption_key(ctx: AppContext = Depends(get_ctx)):
+    ctx.station_keys.remove_common()
+    return api_response(_common_key_status(ctx))
 
 
 @router.get("/broadcasts", summary="Get All Broadcast Messages", tags=["FreeDATA"], responses={})

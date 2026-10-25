@@ -252,6 +252,16 @@ class FrameHandler:
             away_from_key=away_from_key,
         )
 
+        # the signal is centred 1500 Hz above the dial frequency, shifted by the measured offset
+        radio_frequency = self.ctx.state_manager.radio_frequency
+        try:
+            frequency = (
+                int(float(radio_frequency)) + 1500 + int(self.details["frequency_offset"]) if radio_frequency else 0
+            )
+        except (TypeError, ValueError):
+            frequency = 0
+        self.ctx.pskreporter.add_spot(frame["origin"], self.details["snr"], frequency, locator=dxgrid)
+
     def make_event(self):
         """Creates a frame received event dictionary.
 

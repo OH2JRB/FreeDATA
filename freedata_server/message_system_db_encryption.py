@@ -67,6 +67,18 @@ class DatabaseManagerEncryption(DatabaseManager):
         finally:
             session.remove()
 
+    def pending_callsigns(self):
+        """Callsigns of all stations with received messages waiting for a key."""
+        session = self.get_thread_scoped_session()
+        try:
+            rows = session.query(PendingEncryptedMessage.callsign).distinct().all()
+            return [row[0] for row in rows]
+        except SQLAlchemyError as e:
+            self.log(f"Failed to read stations with encrypted messages: {e}", isWarning=True)
+            return []
+        finally:
+            session.remove()
+
     def delete_pending(self, pending_id):
         session = self.get_thread_scoped_session()
         try:
@@ -97,6 +109,27 @@ class DatabaseManagerEncryption(DatabaseManager):
         except SQLAlchemyError as e:
             self.log(f"Failed to count messages waiting for a key: {e}", isWarning=True)
             return 0
+        finally:
+            session.remove()
+
+    def key_required_callsigns(self):
+        """Callsigns of all stations with outgoing messages waiting for a key."""
+        session = self.get_thread_scoped_session()
+        try:
+            status = session.query(Status).filter_by(name=self.KEY_REQUIRED_STATUS).first()
+            if not status:
+                return []
+            rows = (
+                session
+                .query(P2PMessage.destination_callsign)
+                .filter_by(status_id=status.id, direction="transmit")
+                .distinct()
+                .all()
+            )
+            return [row[0] for row in rows]
+        except SQLAlchemyError as e:
+            self.log(f"Failed to read stations with messages waiting for a key: {e}", isWarning=True)
+            return []
         finally:
             session.remove()
 

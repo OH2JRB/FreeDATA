@@ -217,6 +217,8 @@
             "off": "off",
             "key": "Key",
             "nokey": "not entered",
+            "commonkey": "common key",
+            "commonkey_info": "The common key setting is on: messages to this station are encrypted with the common key, unless you enter a key for this station.",
             "fingerprint_help": "Compare this fingerprint with the other operator. If both match, you use the same key.",
             "pending_received": "Received messages waiting for the key",
             "waiting_to_send": "Messages waiting for the key to be sent",
@@ -320,6 +322,10 @@
             "introduction": "Message related settings, like enabling message auto repeat and configuring ADIF log connection.",
             "enablemessageautorepeat": "Enable message auto repeat",
             "enablemessageautorepeat_help": "Re-send message on beacon",
+            "enablecommonkey": "Use a common encryption key for all stations",
+            "enablecommonkey_help": "Encrypt messages to and from every station with one shared key. A key entered for a station takes precedence.",
+            "commonkey": "Common key",
+            "commonkey_help": "Agree on the common key with all operators outside the radio link. It is kept in the server's memory only and has to be entered again after the server restarts. Stations without the key cannot read your messages.",
             "enableadifloggingudp": "Enable adif logging via UDP",
             "enableadifloggingudp_help": "ADIF Logging via UDP instead of TCP",
             "adifloggingudphost": "ADIF Logging UDP host",
@@ -369,7 +375,10 @@
             "enableexplorer": "Publish station details",
             "enableexplorer_help": "Share your station's status with FreeDATA web service",
             "enablestats":"Publish statistics",
-            "enablestats_help": "Share your station's statistics with FreeDATA web service"
+            "enablestats_help": "Share your station's statistics with FreeDATA web service",
+            "enablepskreporter": "Report heard stations to PSK Reporter",
+            "blockedbyencryption": "Encryption is on (for a station or with the common key), so Explorer publishing and PSK Reporter are switched off. Turn encryption off to use them again.",
+            "enablepskreporter_help": "Upload stations FreeDATA hears to pskreporter.info with mode FREEDATA, every 5 minutes. Not saved: always off after the server starts"
         },
         "exp": {
             "introduction": "Warning: These features may be incomplete. They are for experienced users ONLY!",

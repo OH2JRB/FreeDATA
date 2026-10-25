@@ -76,10 +76,12 @@ watch(
 
 const encryptionButton = computed(() => {
   const status = encryption.status[chat.selectedCallsign];
-  if (status?.pending_received || (status?.enabled && (!status.key_loaded || status.waiting_to_send))) {
+  // encrypted: on for the station, or the common key setting is on
+  const encrypted = status?.encrypted ?? status?.enabled;
+  if (status?.pending_received || (encrypted && (!status.key_source || status.waiting_to_send))) {
     return { icon: 'bi-lock', css: 'btn-warning' };
   }
-  if (!status?.enabled) {
+  if (!encrypted) {
     return { icon: 'bi-unlock', css: 'btn-outline-secondary' };
   }
   return { icon: 'bi-lock-fill', css: 'btn-success' };

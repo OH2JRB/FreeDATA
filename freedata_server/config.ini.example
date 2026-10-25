@@ -61,6 +61,7 @@ data_port = 9001
 
 [MESSAGES]
 enable_auto_repeat = True
+enable_common_key = False
 
 [QSO_LOGGING]
 enable_adif_udp = False

@@ -6,6 +6,10 @@ agree on a key outside the radio link and enter it in their GUI. Keys are only
 held in server memory (StationKeyStore) and are never written to disk or sent
 over the air, so the GUI asks for them again after a server restart.
 
+With the "common key" setting ([MESSAGES] enable_common_key) on, messages to
+and from every station are encrypted with one shared key. A station's own key
+takes precedence over the common key.
+
 LEGAL NOTE: most amateur radio regulations (e.g. ITU RR 25.2A, FCC 97.113(a)(4))
 prohibit messages encoded to obscure their meaning. Only use this on
 frequencies and under licences that allow encrypted traffic.
@@ -104,12 +108,30 @@ def decrypt(key: bytes, payload: bytes) -> bytes:
         raise DecryptionError("Wrong key or corrupted data") from e
 
 
-class StationKeyStore:
-    """Thread-safe, in-memory store of pre-shared keys per station callsign."""
+def decrypt_any(keys, payload: bytes) -> bytes:
+    """Decrypts a payload with the first of keys that fits.
 
-    def __init__(self):
+    Raises:
+        DecryptionError: If no key fits (or keys is empty).
+    """
+    for key in keys:
+        try:
+            return decrypt(key, payload)
+        except DecryptionError:
+            continue
+    raise DecryptionError("Wrong key or corrupted data")
+
+
+class StationKeyStore:
+    """Thread-safe, in-memory store of pre-shared keys per station callsign,
+    plus an optional common key for all stations."""
+
+    def __init__(self, common_key_enabled=None):
         self._keys = {}
+        self._common_key = None
         self._lock = threading.Lock()
+        # returns True while the common key setting is on
+        self._common_key_enabled = common_key_enabled or (lambda: False)
 
     def set(self, callsign: str, key: bytes):
         if len(key) != KEY_BYTES:
@@ -131,3 +153,42 @@ class StationKeyStore:
     def fingerprint(self, callsign: str):
         key = self.get(callsign)
         return key_fingerprint(key) if key else None
+
+    def set_common(self, key: bytes):
+        if len(key) != KEY_BYTES:
+            raise ValueError("Invalid key length")
+        with self._lock:
+            self._common_key = bytes(key)
+
+    def get_common(self):
+        with self._lock:
+            return self._common_key
+
+    def remove_common(self) -> bool:
+        with self._lock:
+            removed = self._common_key is not None
+            self._common_key = None
+            return removed
+
+    def common_fingerprint(self):
+        key = self.get_common()
+        return key_fingerprint(key) if key else None
+
+    def common_enabled(self) -> bool:
+        """True if the common key setting is on (whether or not the key is entered)."""
+        return bool(self._common_key_enabled())
+
+    def key_for(self, callsign: str):
+        """The key to encrypt messages to callsign with: its own key, otherwise the
+        common key if that setting is on. None if neither is available."""
+        key = self.get(callsign)
+        if key is None and self.common_enabled():
+            key = self.get_common()
+        return key
+
+    def keys_for(self, callsign: str):
+        """The keys to try when decrypting a message from or to callsign, own key first."""
+        keys = [self.get(callsign)]
+        if self.common_enabled():
+            keys.append(self.get_common())
+        return [key for key in keys if key is not None]

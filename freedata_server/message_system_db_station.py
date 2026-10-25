@@ -85,6 +85,18 @@ class DatabaseManagerStations(DatabaseManager):
         finally:
             session.remove()
 
+    def any_encryption_enabled(self):
+        """Returns True if encryption is switched on for at least one station."""
+        session = self.get_thread_scoped_session()
+        try:
+            return session.query(Station).filter_by(encryption_enabled=True).first() is not None
+        except SQLAlchemyError as e:
+            self.log(f"Failed to read encryption settings: {e}", isWarning=True)
+            # assume encryption is on, so reporting is not switched on by mistake
+            return True
+        finally:
+            session.remove()
+
     def set_encryption_enabled(self, callsign, enabled):
         """Turns encryption for a station on or off, creating the station if needed.
 

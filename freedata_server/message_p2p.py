@@ -6,6 +6,7 @@ import json
 import zlib
 from freedata_server.message_system_db_messages import DatabaseManagerMessages
 from freedata_server.message_system_db_encryption import DatabaseManagerEncryption
+from freedata_server.message_system_db_station import DatabaseManagerStations
 
 
 def message_received(ctx, data, statistics, encrypted=False, frequency=None):
@@ -42,20 +43,47 @@ def decompress_p2pmsg(data):
     return decompressor.decompress(bytes(data)) + decompressor.flush()
 
 
+def encryption_wanted(ctx, callsign):
+    """True if messages to callsign are to be encrypted: encryption is on for the
+    station, or the common key setting is on."""
+    return ctx.station_keys.common_enabled() or DatabaseManagerStations(ctx).is_encryption_enabled(callsign)
+
+
+# STATION settings that publish station activity to the FreeDATA Explorer
+EXPLORER_SETTINGS = ("enable_explorer", "enable_stats")
+
+
+def encryption_in_use(ctx):
+    """True if encryption is on for any station or the common key setting is on.
+    Explorer publishing and PSK Reporter uploads are kept off while it is."""
+    return ctx.station_keys.common_enabled() or DatabaseManagerStations(ctx).any_encryption_enabled()
+
+
+def disable_reporting(ctx):
+    """Switches Explorer publishing (saved in the config) and PSK Reporter
+    uploads off, because encryption is in use."""
+    station = ctx.config_manager.config.get("STATION", {})
+    off = {key: False for key in EXPLORER_SETTINGS if station.get(key)}
+    if off:
+        ctx.config_manager.write({"STATION": off})
+    if ctx.pskreporter.status()["enabled"]:
+        ctx.pskreporter.set_enabled(False)
+
+
 def encrypted_message_received(ctx, callsign, data, statistics):
     """Handles an encrypted P2P message received from a station.
 
-    Decrypts and stores the message if the station's key is known. Otherwise
-    (or if the key doesn't fit) the encrypted data is kept until the user
-    enters the right key, and the GUI is asked for it.
+    Decrypts and stores the message if the station's key, or the common key,
+    fits. Otherwise the encrypted data is kept until the user enters the right
+    key, and the GUI is asked for it.
 
     Returns:
         bytes or None: The decrypted, decompressed message, or None if it is pending.
     """
-    key = ctx.station_keys.get(callsign) if callsign else None
-    if key is not None:
+    keys = ctx.station_keys.keys_for(callsign) if callsign else []
+    if keys:
         try:
-            plaintext = decompress_p2pmsg(encryption.decrypt(key, data))
+            plaintext = decompress_p2pmsg(encryption.decrypt_any(keys, data))
             message_received(ctx, plaintext, statistics, encrypted=True)
             return plaintext
         except encryption.DecryptionError:
@@ -95,6 +123,26 @@ def decrypt_pending_messages(ctx, callsign, key):
         db.delete_pending(pending["id"])
         decrypted += 1
     return decrypted, failed
+
+
+def common_key_changed(ctx):
+    """Uses the common key after it was entered or its setting was switched on:
+    decrypts the received messages of all stations it fits and queues the
+    messages that waited for a key again.
+
+    Returns:
+        tuple: (number decrypted, number re-queued)
+    """
+    key = ctx.station_keys.get_common()
+    if key is None or not ctx.station_keys.common_enabled():
+        return 0, 0
+    db = DatabaseManagerEncryption(ctx)
+    decrypted = sum(decrypt_pending_messages(ctx, callsign, key)[0] for callsign in db.pending_callsigns())
+    # every station has a key now, either its own or the common one
+    requeued = sum(db.requeue_key_required(callsign) for callsign in db.key_required_callsigns())
+    if decrypted:
+        ctx.event_manager.freedata_message_db_change()
+    return decrypted, requeued
 
 
 def message_transmitted(ctx, data, statistics, encrypted=False):

@@ -9,6 +9,7 @@ from freedata_server.message_system_db_attachments import DatabaseManagerAttachm
 from freedata_server.websocket_manager import wsm as WebsocketManager
 from freedata_server import constants
 from freedata_server.encryption import StationKeyStore
+from freedata_server.pskreporter import PSKReporter
 from fastapi import Request, WebSocket
 
 
@@ -31,7 +32,9 @@ class AppContext:
         self.radio_manager = None  # Radio manager instance, started by the service manager on "start"
         self.socket_interface_manager = None  # Socket interface instance, We start it as we need it
         self.rf_modem = None  # Modem instnace, we start it as we need it
-        self.station_keys = StationKeyStore()  # pre-shared encryption keys, memory only
+        # pre-shared encryption keys, memory only
+        self.station_keys = StationKeyStore(common_key_enabled=self.common_key_enabled)
+        self.pskreporter = PSKReporter(self)  # PSK Reporter uploads, runtime only and off at start
         self.message_system_db_manager = DatabaseManager(self)
         self.message_system_db_attachments = DatabaseManagerAttachments(self)
 
@@ -43,6 +46,11 @@ class AppContext:
             Queue()
         )  # This is a helper queue which holds received bursts for helping using tests
         self.TESTMODE_EVENTS = Queue()  # This is a helper queue which holds events
+
+    def common_key_enabled(self):
+        """True if the "common encryption key for all stations" setting is on."""
+        config = self.config_manager.config or {}
+        return bool(config.get("MESSAGES", {}).get("enable_common_key", False))
 
     def startup(self):
         # initially read config
@@ -59,6 +67,12 @@ class AppContext:
         db.initialize_default_values()
         db.database_repair_and_cleanup()
         DatabaseManagerAttachments(self).clean_orphaned_attachments()
+
+        # no Explorer publishing while encryption is on (e.g. a config edited by hand)
+        from freedata_server.message_p2p import encryption_in_use, disable_reporting
+
+        if encryption_in_use(self):
+            disable_reporting(self)
 
     def shutdown(self):
         try:
