@@ -1,8 +1,5 @@
 name: Build and Release NSIS Installer
 on:
-  push:
-    branches: [main]
-    tags: ["v*"]
   workflow_dispatch:
 
 jobs:
