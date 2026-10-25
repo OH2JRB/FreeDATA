@@ -17,6 +17,15 @@ class TestBandplanData(unittest.TestCase):
                 self.assertTrue(source["url"].startswith("https://"))
                 self.assertTrue(source["version"])
 
+    def test_on_amateur_band(self):
+        self.assertTrue(bandplan.on_amateur_band(14093000))
+        self.assertTrue(bandplan.on_amateur_band("3590000"))
+        # 60 m differs between regions, any region counts
+        self.assertTrue(bandplan.on_amateur_band(5357000))
+        self.assertFalse(bandplan.on_amateur_band(15000000))
+        for unknown in (None, 0, "---", ""):
+            self.assertFalse(bandplan.on_amateur_band(unknown))
+
     def test_segments_inside_band_edges(self):
         known_modes = set(bandplan.load_bandplan()["mode_tags"])
         for region in ("1", "2", "3"):

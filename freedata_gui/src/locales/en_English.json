@@ -243,6 +243,7 @@
             "reason_send": "A message is waiting to be sent encrypted. Enter the key for this station.",
             "reason_receive": "An encrypted message was received. Enter the key for this station to read it.",
             "reason_wrong_key": "An encrypted message could not be decrypted with the current key. Enter the right key.",
+            "amateur_band": "Encrypted message not sent: {{frequency}} kHz is on an amateur band, where sending encrypted data is forbidden.",
             "msgstatuskeyrequired": "key required",
             "sent_encrypted": "Sent encrypted",
             "received_encrypted": "Received encrypted"

@@ -2,6 +2,8 @@ import time
 import threading
 import numpy as np
 
+from freedata_server.bandplan import on_amateur_band
+
 
 class StateManager:
     """Manages and updates the state of the FreeDATA server.
@@ -209,6 +211,7 @@ class StateManager:
             "type": msgtype,
             "radio_status": self.radio_status,
             "radio_frequency": self.radio_frequency,
+            "radio_amateur_band": on_amateur_band(self.radio_frequency),
             "radio_rf_level": self.radio_rf_level,
             "radio_mode": self.radio_mode,
             "s_meter_strength": self.s_meter_strength,
@@ -569,6 +572,7 @@ class StateManager:
         return {
             "radio_status": self.radio_status,
             "radio_frequency": self.radio_frequency,
+            "radio_amateur_band": on_amateur_band(self.radio_frequency),
             "radio_mode": self.radio_mode,
             "radio_rf_level": self.radio_rf_level,
             "s_meter_strength": self.s_meter_strength,

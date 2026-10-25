@@ -279,6 +279,16 @@ class EventManager:
         """
         self.broadcast({"type": "encryption", "status": "key_required", "callsign": callsign, "reason": reason})
 
+    def send_encryption_amateur_band(self, callsign, frequency):
+        """Tells the GUI that an encrypted message was not sent, because the
+        radio is on an amateur band.
+
+        Args:
+            callsign (str): The station the message was for.
+            frequency: The radio frequency in Hz.
+        """
+        self.broadcast({"type": "encryption", "status": "amateur_band", "callsign": callsign, "frequency": frequency})
+
     def freedata_logging(self, type, status, message):
         """Broadcasts a FreeDATA logging event.
 

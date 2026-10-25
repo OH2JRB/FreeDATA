@@ -80,7 +80,8 @@ const state = useStateStore(pinia);
           role="group"
         >
           <button
-            class="btn btn-sm btn-secondary me-4 disabled"
+            class="btn btn-sm me-4 disabled"
+            :class="state.encryption_band_blocked ? 'btn-danger' : 'btn-secondary'"
             type="button"
             data-bs-placement="top"
             data-bs-toggle="tooltip"

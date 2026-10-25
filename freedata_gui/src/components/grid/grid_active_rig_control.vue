@@ -47,7 +47,10 @@ function setRadioParameterTuner() {
         <div class="me-2">
           <div class="input-group input-group-sm">
             <span class="input-group-text">QRG</span>
-            <span class="input-group-text">{{ state.frequency / 1000 }} kHz</span>
+            <span
+              class="input-group-text"
+              :class="{ 'text-bg-danger': state.encryption_band_blocked }"
+            >{{ state.frequency / 1000 }} kHz</span>
             <button
               class="btn btn-secondary dropdown-toggle"
               :class="{ disabled: state.hamlib_status === 'disconnected' }"
