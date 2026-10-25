@@ -52,6 +52,7 @@
 #	Add Ubuntu 25.10 and 26.04, Linux Mint 22.x, Fedora 42 to 44
 #	Remove end of life Ubuntu 24.10 and 25.04, Fedora 40 and 41
 #	Stop on unsupported Fedora versions instead of skipping the install
+#	Download FreeDATA from the OH2JRB/FreeDATA fork
 #
 # 2.10:	24 Jul 2026
 #	Remove python3-pyaudio (unused dependency, FreeDATA uses sounddevice)
@@ -367,10 +368,10 @@ echo "*************************************************************************"
 if [ "$branch" == "develop" ];
 then
   echo "Downloading development version"
-  git clone https://github.com/DJ2LS/FreeDATA.git -b develop
+  git clone https://github.com/OH2JRB/FreeDATA.git -b develop
 else 
     echo "Downloading specific version: $branch"
-    git clone https://github.com/DJ2LS/FreeDATA.git -b $branch
+    git clone https://github.com/OH2JRB/FreeDATA.git -b $branch
 fi
 
 echo "*************************************************************************"
