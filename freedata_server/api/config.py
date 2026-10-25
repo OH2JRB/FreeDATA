@@ -1,7 +1,10 @@
+import asyncio
+
 from fastapi import APIRouter, Depends
 from freedata_server.api.common import api_abort
 from freedata_server import api_validations as validations
 from freedata_server.context import AppContext, get_ctx
+from freedata_server.message_p2p import common_key_changed
 
 router = APIRouter()
 
@@ -154,6 +157,12 @@ async def post_config(
         api_abort("Error writing configuration", 500)
 
     updated = ctx.config_manager.read()
+
+    # common key switched on: decrypt and send what waited for a key
+    if updated.get("MESSAGES", {}).get("enable_common_key") and not old_cfg.get("MESSAGES", {}).get(
+        "enable_common_key"
+    ):
+        await asyncio.to_thread(common_key_changed, ctx)
 
     # Trigger modem restart, unless only the GUI section changed
     # (GUI-only keys such as distance_unit are not used by the modem)

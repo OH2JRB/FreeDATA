@@ -200,6 +200,7 @@ Path = `settingsStore` path. "Server" column cross-checks against [config.ini.ex
 | Field | Path | Input / validation |
 |---|---|---|
 | Message auto repeat | `remote.MESSAGES.enable_auto_repeat` | switch |
+| Common encryption key | `remote.MESSAGES.enable_common_key` | switch; turning it on needs the legal confirmation. When on, a key field (password input, *Generate*, *Save key*, *Forget key*) and the key fingerprint; the key goes to `/freedata/encryption/common-key`, not to the config |
 | ADIF UDP logging | `remote.QSO_LOGGING.enable_adif_udp` | switch |
 | ADIF UDP host | `remote.QSO_LOGGING.adif_udp_host` | text |
 | ADIF UDP port | `remote.QSO_LOGGING.adif_udp_port` | number, `min=1025 max=65534`, enforced by the number-field handler (4.2) |

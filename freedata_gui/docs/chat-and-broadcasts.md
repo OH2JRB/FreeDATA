@@ -243,6 +243,8 @@ Per-station encryption is described on the server side in
   `GET /freedata/station/{callsign}/encryption` when the selected chat changes and on every
   `message-db` event. Grey open lock: off. Green lock: on with a key entered. Yellow lock: on
   without a key, messages waiting to be sent, or received messages waiting for the key.
+  "On" means the status's `encrypted` (the station's switch or the common key setting), and
+  either a station key or the common key counts (`key_source`).
 - **Dialog** ([chat_encryption_modal.vue](../src/components/chat_encryption_modal.vue)). To turn
   encryption on, the user has to enter a key (or *Generate* one: 32 random bytes from
   `crypto.getRandomValues`, shown as hex) and tick the legal confirmation under the
@@ -260,7 +262,15 @@ Per-station encryption is described on the server side in
   for that station with a matching message.
 - **Bubbles.** Sent messages with status `key_required` get a yellow *key required* badge that
   opens the dialog. Sent and received messages with `encrypted: true` show a lock icon.
-- **Strings** are under `chat.encryption` in [en_English.json](../src/locales/en_English.json).
+- **Common key** ([settings_chat.vue](../src/components/settings_chat.vue)). *Settings → Chat →
+  Use a common encryption key for all stations*. Clicking the switch on first shows the legal
+  warning; ticking the confirmation turns it on and saves the config. Then the common key can be
+  entered, generated or forgotten (`/freedata/encryption/common-key`), and its fingerprint is
+  shown. After any change, `encryptionHandler.js` reloads the common key status and the status of
+  every station already loaded, so lock buttons update. In the station dialog the key row shows
+  *common key* when the station has no key of its own, and a note explains that a station key
+  overrides it.
+- **Strings** are under `chat.encryption` and `settings.chat` in [en_English.json](../src/locales/en_English.json).
   Other languages fall back to English.
 
 ---

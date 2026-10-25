@@ -34,6 +34,8 @@ const callsign = computed(() => encryption.dialogCallsign);
 const status = computed(() => encryption.status[callsign.value] || null);
 const enabled = computed(() => !!status.value?.enabled);
 const keyLoaded = computed(() => !!status.value?.key_loaded);
+// the station has no key of its own, the common key is used
+const usesCommonKey = computed(() => status.value?.key_source === "common");
 
 function resetForm() {
   keyInput.value = "";
@@ -149,9 +151,9 @@ function disable() {
               {{ $t('chat.encryption.state') }}
               <span
                 class="badge"
-                :class="enabled ? 'text-bg-success' : 'text-bg-secondary'"
+                :class="status.encrypted ? 'text-bg-success' : 'text-bg-secondary'"
               >
-                {{ enabled ? $t('chat.encryption.on') : $t('chat.encryption.off') }}
+                {{ status.encrypted ? $t('chat.encryption.on') : $t('chat.encryption.off') }}
               </span>
             </li>
             <li class="list-group-item d-flex justify-content-between">
@@ -163,6 +165,10 @@ function disable() {
               >
                 <i class="bi bi-fingerprint" /> {{ status.fingerprint }}
               </span>
+              <span
+                v-else-if="usesCommonKey"
+                class="badge text-bg-info"
+              >{{ $t('chat.encryption.commonkey') }}</span>
               <span
                 v-else
                 class="badge text-bg-warning"
@@ -183,6 +189,13 @@ function disable() {
               <span class="badge text-bg-warning">{{ status.waiting_to_send }}</span>
             </li>
           </ul>
+
+          <div
+            v-if="status?.common_key_enabled"
+            class="alert alert-info py-2"
+          >
+            {{ $t('chat.encryption.commonkey_info') }}
+          </div>
 
           <!-- legal warning, always shown before turning encryption on -->
           <div

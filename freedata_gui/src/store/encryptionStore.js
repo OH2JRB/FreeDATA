@@ -4,6 +4,8 @@ import { ref } from "vue";
 export const useEncryptionStore = defineStore("encryptionStore", () => {
   // encryption status per callsign, as returned by the server
   const status = ref({});
+  // common key status: {enabled, key_loaded, fingerprint}
+  const common = ref(null);
 
   // station shown in the encryption dialog, and why it was opened
   // ("send", "receive", "wrong_key" or "user")
@@ -14,6 +16,7 @@ export const useEncryptionStore = defineStore("encryptionStore", () => {
 
   return {
     status,
+    common,
     dialogCallsign,
     dialogReason,
     dialogRequest,

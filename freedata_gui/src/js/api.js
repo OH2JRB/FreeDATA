@@ -370,6 +370,19 @@ export async function deleteStationEncryptionKey(callsign) {
   );
 }
 
+// Common encryption key for all stations ([MESSAGES] enable_common_key)
+export async function getCommonEncryptionKey() {
+  return await apiGet("/freedata/encryption/common-key");
+}
+
+export async function setCommonEncryptionKey(key) {
+  return await apiRequestResult("PUT", "/freedata/encryption/common-key", { key });
+}
+
+export async function deleteCommonEncryptionKey() {
+  return await apiRequestResult("DELETE", "/freedata/encryption/common-key");
+}
+
 export async function getFreedataBroadcasts() {
   broadcastStore.loading = true;
   try {

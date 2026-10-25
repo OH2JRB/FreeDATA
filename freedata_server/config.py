@@ -74,6 +74,7 @@ class CONFIG:
         },
         "MESSAGES": {
             "enable_auto_repeat": bool,
+            "enable_common_key": bool,
         },
         "QSO_LOGGING": {
             "enable_adif_udp": bool,
