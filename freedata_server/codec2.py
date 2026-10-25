@@ -164,6 +164,9 @@ api.freedv_nin.restype = ctypes.c_int
 api.freedv_rawdatarx.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p]  # type: ignore
 api.freedv_rawdatarx.restype = ctypes.c_int
 
+api.freedv_close.argtypes = [ctypes.c_void_p]  # type: ignore
+api.freedv_close.restype = None
+
 api.freedv_rawdatatx.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p]  # type: ignore
 api.freedv_rawdatatx.restype = None
 

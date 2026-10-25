@@ -159,7 +159,8 @@ BPF prototypes come from `codec2_filter_coeff.generate_filter_coefficients(Fs, b
 | `freedv_rawdatatx`, `freedv_rawdatapreambletx`, `freedv_rawdatapostambletx` | modulator |
 | `freedv_gen_crc16` | modulator CRC (no `restype`/`argtypes` declared) |
 | `freedv_nin`, `freedv_rawdatarx`, `freedv_get_rx_status` | demodulator loop |
-| `freedv_set_frames_per_burst`, `freedv_set_sync` | demodulator setup / sync reset |
+| `freedv_set_frames_per_burst`, `freedv_set_sync` | demodulator setup / sync reset (OFDM modes only) |
+| `freedv_close` | closing FSK instances replaced by the receiver restart |
 | `freedv_get_modem_stats` | SNR |
 | `freedv_get_modem_extended_stats` (`MODEMSTATS` struct) | frequency offset (`foff`) and scatter (`rx_symbols`) |
 | `fdmdv_48_to_8_short`, `fdmdv_8_to_48_short` | `resampler` |
@@ -203,7 +204,7 @@ Returns raw bytes of 8 kHz int16 samples.
 
 ### Per-mode state
 
-`Demodulator.MODE_DICT` is a **class attribute** keyed by mode value (12 entries, see aliasing above). Each entry: `decode`, `bytes_per_frame`, `bytes_out`, `audio_buffer`, `nin`, `instance`, `state_buffer`, `name`, `decoding_thread`.
+`Demodulator.MODE_DICT` is a class attribute keyed by mode value (12 entries, see aliasing above), which `__init__` deep-copies into the instance, so every demodulator has its own table. Each entry: `decode`, `bytes_per_frame`, `bytes_out`, `audio_buffer`, `nin`, `instance`, `state_buffer`, `name`, `decoding_thread`, and for the FSK receiver restart (below) `frame_samples`, `fsk_history`, `fsk_replay`, `fsk_reset`, `retired_instance`.
 
 `init_codec2_mode(mode)` opens an instance, sets frames-per-burst to 1, reads `freedv_nin`, and allocates an RX buffer of `2 * AUDIO_FRAMES_PER_BUFFER_RX` = 9600 samples (1.2 s at 8 kHz):
 
@@ -218,19 +219,30 @@ Returns raw bytes of 8 kHz int16 samples.
 
 Loop (every 10 ms, while the stream is active and `shutdown_flag` unset, or in TESTMODE):
 
-1. When `audiobuffer.nbuffer >= nin`:
+1. FSK modes only: if `fsk_reset` is set and the modem is not transmitting, `restart_fsk(mode, replay=False)`.
+2. When `nin` samples are available (FSK modes take them from `fsk_replay` first, completing its last block with new audio):
    - If not transmitting: `nbytes = freedv_rawdatarx(...)`, read `rx_status`. Any non-zero status sets `is_codec2_traffic_counter = 5` (shared across threads); the counter decrements per iteration and drives `state_manager.set_channel_busy_condition_codec2(True/False)`. Status 10 is appended to `state_buffer`.
-   - If transmitting: `nbytes = 0` and `reset_data_sync()` (sets sync 0 on every instance).
-   - `pop(nin)` and refresh `nin = freedv_nin()`.
-2. If `nbytes == bytes_per_frame`: compute SNR and scatter, then put onto `ctx.rf_modem.data_queue_received`:
+   - If transmitting: `nbytes = 0` and `reset_data_sync()` (sets sync 0 on every OFDM instance and `fsk_reset` on every FSK mode).
+   - FSK modes keep the last frame length of samples in `fsk_history`; `pop` the samples taken from the audio buffer and refresh `nin = freedv_nin()`.
+3. If `nbytes == bytes_per_frame`: compute SNR and scatter, then put onto `ctx.rf_modem.data_queue_received`:
 
    ```python
-   {"payload": bytes_out, "freedv": freedv, "bytes_per_frame": ..., "snr": ..., "frequency_offset": ..., "mode_name": ...}
+   {"payload": bytes(bytes_out), "freedv": freedv, "bytes_per_frame": ..., "snr": ..., "frequency_offset": ..., "mode_name": ...}
    ```
+
+   The payload is a copy, because `bytes_out` is overwritten by the next decode. For FSK modes, `restart_fsk(mode, replay=True)` follows.
 
    `frame_dispatcher.DISPATCHER.worker_receive` ([frame_dispatcher.py](../frame_dispatcher.py)) consumes this queue.
 
 On an unexpected exception the loop logs and calls `audio.sd._terminate()`; PortAudio "not initialized" / "invalid stream pointer" errors are treated as normal shutdown.
+
+### FSK receiver restart
+
+codec2's FSK_LDPC receiver (`data_vhf_1`), once it has decoded a frame, checks for the next one only at the same position and searches again one frame length later, so a burst that starts within about a frame of the previous one is lost. `freedv_set_sync()` and `freedv_set_frames_per_burst()` only act on OFDM modes, so they cannot reset it. See [fading-channels.md](fading-channels.md), section 7.
+
+`restart_fsk(mode, replay)` therefore opens the codec2 instance again (frames per burst 1). With `replay`, after every decoded FSK frame, the last frame length of audio (`fsk_history`) is decoded again by the new instance, so a burst that has already begun is still found. Without replay, after transmitting, the receiver simply starts afresh. The restart runs only in the mode's own decoding thread; the replaced instance is kept in `retired_instance` and closed (`freedv_close`) at the next restart, so a pointer another thread has just read stays valid meanwhile.
+
+The replay covers one frame length. codec2 decodes a frame up to a little more than a frame length after its end, so a burst that follows very closely can still be missed now and then (one of eight in `tests/test_demodulator_fsk.py`). A longer replay finds those too, but decodes some frames twice, which would need filtering.
 
 ### Signal reports
 
