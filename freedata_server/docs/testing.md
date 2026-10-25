@@ -52,6 +52,7 @@ A full run takes about a minute. Both commands exit non-zero when a test fails.
 | `test_api_fixes.py` | `GET /freedata/messages/{id}` (object / 404, called directly), broadcast DB helpers (read-only per-domain GET with `priority`, `mark_domain_as_read`, delete `not_found`), `Norm` priority coercion, `channel_busy` in state events, `POST /config` restarting only for non-GUI changes (fake ctx with its own config copy) | yes |
 | `test_pskreporter.py` | PSK Reporter datagram layout (templates compared with pskdev.html), deduplication and upload intervals, template resending, off at start, `GET`/`POST /modem/pskreporter` (called directly); a fake transport, no network traffic | yes |
 | `test_server.py` | Starts the real server as a subprocess; `/`, `GET /config`, `POST /config`, 404 for unknown message id and broadcast delete, 409 for `POST /freedata/broadcasts` with group chat disabled, `PATCH /freedata/broadcasts/{domain}/read` | separate process |
+| `test_fading_channel.py` | The HF fading channel simulator in `tools/channel_sim.py` (Doppler spread, SNR, power, Doppler shift) and decoding on a clean channel; the mode measurements themselves are in [fading-channels.md](fading-channels.md) | no |
 | `test_p2p_connection.py` | Disabled, see section 5 | — |
 
 ## 3. Test environment isolation

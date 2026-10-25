@@ -20,6 +20,7 @@ of known issues and oddities that remain in the source.
 | [message-system.md](message-system.md) | SQLite database and schema, P2P message lifecycle and wire format, attachments, beacons, stations, broadcasts |
 | [encryption.md](encryption.md) | Per-station AES-256-GCM message encryption: keys, wire format, send/receive flow, database, API, legal note |
 | [pskreporter.md](pskreporter.md) | Reporting heard stations to PSK Reporter: runtime switch, spot sources, upload rules, IPFIX datagram layout |
+| [fading-channels.md](fading-channels.md) | Fading channel simulator and how the modes cope with fading, including auroral (high-latitude) paths |
 | [testing.md](testing.md) | Running the test suite, test-mode mechanics, test isolation, writing tests, known gaps |
 
 ## Big picture
