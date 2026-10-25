@@ -321,7 +321,7 @@ Pinia store with `serialDevices` and `loadSerialDevices()` (`getSerialDevices()`
 | Visual | Source |
 |---|---|
 | Spinner instead of `bi-activity` icon | `state.is_network_traffic` (reference-counted in `apiRequest()` in [api.js](../src/js/api.js); stays on until the last concurrent request finishes) |
-| Background colour | `getOverallHealth()` ([eventHandler.js](../src/js/eventHandler.js)): +5 not connected, +3 modem not running, +2 `radio_status === false`, +1 `process.env.FDUpdateAvail === "1"`. `> 4` red, `2..4` yellow, `< 2` none |
+| Background colour | `getOverallHealth()` ([eventHandler.js](../src/js/eventHandler.js)): +5 not connected, +3 modem not running, +2 `radio_status === false`. `> 4` red, `2..4` yellow, `< 2` none |
 
 `getOverallHealth()` also writes state (sets `is_modem_running` and `radio_status` to `false` when disconnected) and is called directly from the template.
 

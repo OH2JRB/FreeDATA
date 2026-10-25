@@ -33,22 +33,23 @@ From [package.json](../package.json). "Used in" lists the files that import the 
 
 ### 1.2 Dev dependencies and scripts
 
-Dev dependencies: `@vue/cli-service` (webpack build and dev server), `eslint`, `eslint-plugin-vue`, `globals`.
+Dev dependencies: `vite` and `@vitejs/plugin-vue` (build and dev server), `eslint`, `eslint-plugin-vue`, `globals`. Vite needs Node `^20.19` or `>=22.12`. `package.json` has `"type": "module"`.
 
 | Script | Command | Notes |
 |---|---|---|
-| `npm run serve` | `vue-cli-service serve` | Dev server with hot reload. Vue CLI's default port is 8080, which the URL logic in 3 relies on |
-| `npm run build` | `npm i && vue-cli-service build` | Runs `npm i` first, then writes the production bundle to `dist/` |
+| `npm run serve` | `vite` | Dev server with hot reload at `http://localhost:8080/gui/`. Port 8080 is set in `vite.config.js`, which the URL logic in 3 relies on |
+| `npm run build` | `npm i && vite build` | Runs `npm i` first, then writes the production bundle to `dist/` |
+| `npm run preview` | `vite preview` | Serves the built `dist/` locally (without the FreeDATA server) |
 | `npm run lint` | `npx eslint .` | Uses [eslint.config.js](../eslint.config.js) |
 
 After the current round of bug fixes (working tree), `npm run build` and `npx eslint .` both completed without errors. The development commands in [README.md](README.md#development) (`npm install`, `npm run serve`, `npm run build`, `npm run lint`) match the scripts above. The top-level [../README.md](../README.md) lists the same commands; its heading "Lints and fixes files" overstates `npm run lint`, which does not pass `--fix`.
 
 ### 1.3 Build configuration
 
-- [vue.config.js](../vue.config.js): `publicPath: "/gui/"`, so every asset URL in the built `index.html` is prefixed with `/gui/`. `transpileDependencies` is empty.
-- There is no Babel step: `@vue/cli-plugin-babel` is not installed (removed in commit `d4ccda12`, "adjusted linting packages"), and the leftover `babel.config.js`, `core-js` and the Babel packages have been removed. Code is bundled by webpack as written, so `browserslist` in `package.json` has no effect on JS transpilation.
-- [jsconfig.json](../jsconfig.json) declares the `@/* -> src/*` alias for editors. The webpack alias itself comes from Vue CLI's defaults, and code uses it (`@/js/i18n`, `@/js/api`, `@/js/mobile_devices`).
-- [public/index.html](../public/index.html): favicons, `manifest.json` link, iOS web-app meta tags, and an inline script that writes `window.visualViewport.height` (or `innerHeight`) into the CSS variable `--app-height` on resize, orientation change and `DOMContentLoaded`.
+- [vite.config.js](../vite.config.js): `base: "/gui/"`, so every asset URL in the built `index.html` is prefixed with `/gui/`; the `@ -> src` alias; dev server port 8080; `chunkSizeWarningLimit: 2000` (kB), because the main screen and the lazily loaded map data are large chunks on purpose.
+- The build was moved from Vue CLI (webpack) to Vite, which removed the old webpack dev-server toolchain and all `npm audit` findings it carried. Vite builds for its default modern browser target; `browserslist` in `package.json` is not used.
+- [jsconfig.json](../jsconfig.json) declares the `@/* -> src/*` alias for editors; `vite.config.js` declares it for the build. Code uses it (`@/js/i18n`, `@/js/api`, `@/js/mobile_devices`).
+- [index.html](../index.html) (in `freedata_gui/`, as Vite requires): loads `/src/main.js` as a module script; favicons and icons use root paths (`/favicon.ico`), which Vite prefixes with the base;  `manifest.json` link, iOS web-app meta tags, and an inline script that writes `window.visualViewport.height` (or `innerHeight`) into the CSS variable `--app-height` on resize, orientation change and `DOMContentLoaded`.
 - [public/manifest.json](../public/manifest.json): PWA manifest (`display: standalone`, `start_url: "."`, 192/512 px icons). No service worker is registered.
 - [src/styles.css](../src/styles.css): global styles. Disables body scrolling, applies safe-area insets, centres text in progress bars, sticky table headers, emoji-picker sizing and a `.force-gpu` helper.
 
@@ -92,8 +93,8 @@ Imports `styles.css`, Bootstrap CSS and Bootstrap Icons. Renders `<Suspense>` wi
 
 ### 2.3 i18n ([i18n.js](../src/js/i18n.js))
 
-- `require.context("../locales", true, /[A-Za-z0-9-_,\s]+\.json$/i)` bundles every JSON file in [src/locales/](../src/locales/) at build time.
-- Each key is matched with `/\.\/([^_]+)_([^.]+)\.json$/i`: the part before the first `_` is the language code, the rest is the display name. Files that do not match are skipped.
+- `import.meta.glob("../locales/*.json", { eager: true, import: "default" })` bundles every JSON file in [src/locales/](../src/locales/) at build time.
+- Each key (`../locales/en_English.json`) is matched with `/\/([^/_]+)_([^/.]+)\.json$/i`: the part before the first `_` is the language code, the rest is the display name. Files that do not match are skipped.
 - Each file becomes `resources[iso] = { translation: <json> }` and is pushed to the exported `availableLanguages` array (`{iso, name}`), which the GUI settings use for the language picker.
 - `i18next.init({ lng: "en", fallbackLng: "en", resources })`. `main.js` then switches to `settings.local.language`.
 
@@ -135,7 +136,7 @@ new WebSocket(`${wsProtocol}//${hostname}:${adjustedPort}/${endpoint}`);
 Consequences:
 
 - In production the page is `http://host:5000/gui/`, so calls go to `http://host:5000/...`.
-- In development (`npm run serve` on port 8080) calls are redirected to port 5000 on the same hostname. If Vue CLI falls back to another port (8081, ...), or the server runs on a port other than 5000, the dev GUI cannot reach it. There is no dev-server proxy in `vue.config.js`; CORS on the server (`allow_origins=["*"]`) makes the cross-port calls work.
+- In development (`npm run serve` on port 8080) calls are redirected to port 5000 on the same hostname. If port 8080 is taken, Vite falls back to another port (8081, ...); then, or if the server runs on a port other than 5000, the dev GUI cannot reach it. There is no dev-server proxy in `vite.config.js`; CORS on the server (`allow_origins=["*"]`) makes the cross-port calls work.
 - Behind a reverse proxy on a default port, `window.location.port` is `""` and the URL becomes `http://host:/...`, which browsers treat as the default port.
 
 ---
@@ -517,10 +518,10 @@ The modem lifecycle event (`{"freedata_server": "started"|"restarted"|"stopped"|
 - **`displayToast` still takes HTML.** Server fields in `eventHandler.js`, API error messages and attachment file names are escaped with `escapeHtml`, but the function itself does not escape, so every new caller has to.
 - **GET errors are silent.** `apiGet` only logs failures (no call passes `notify = true`), so failed background loads (messages, domains, devices, config) give no user feedback beyond stale data.
 - **Unused API wrappers**: `getVersion()`, `getFreedataBroadcasts()` and `sendModemARQRaw()` have no callers.
-- **`getOverallHealth()`** reads `process.env.FDUpdateAvail`, which nothing defines; its result is discarded by `loadAllData()`.
+- **`getOverallHealth()`**: its result is discarded by `loadAllData()`. (Its `process.env.FDUpdateAvail` check, which nothing defined, was removed with the move to Vite.)
 - **`settingsStore.local.host` / `port` are dead**; the server address always comes from `window.location` with the hard-coded 8080 -> 5000 mapping.
 - **`stateStore.hamlib_status`** is read by rig-control components but never written.
 - **`GET /freedata/broadcasts/undefined/`** at startup: `broadcast.selectedDomain` starts as `undefined` and `loadAllData()` requests that domain anyway.
 - **Build tooling**: `npm run build` runs `npm i` every time.
-- **`freedata.js` `btoa_FD` / `atob_FD` / `atob`** use Node's `Buffer`, which webpack 5 does not polyfill; they are not called anywhere.
+- **`freedata.js` `btoa_FD` / `atob_FD` / `atob`** use Node's `Buffer`, which the browser build does not provide; they are not called anywhere.
 - Server-side mismatches that the GUI cannot fix are listed in section 8 (`hello-client` never sent, `buffer-overflow` not handled).

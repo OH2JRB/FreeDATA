@@ -1,7 +1,7 @@
 # FreeDATA GUI — Developer Documentation
 
 `freedata_gui` is the browser front end of FreeDATA: a Vue 3 single-page app (Pinia stores,
-Bootstrap 5, gridstack dashboard, Chart.js, d3) built with Vue CLI. The production build in `dist/`
+Bootstrap 5, gridstack dashboard, Chart.js, d3) built with Vite. The production build in `dist/`
 is served by the FreeDATA server at `/gui`. The GUI talks to the server over REST and four
 WebSocket streams.
 
