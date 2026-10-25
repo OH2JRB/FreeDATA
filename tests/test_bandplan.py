@@ -26,6 +26,15 @@ class TestBandplanData(unittest.TestCase):
         for unknown in (None, 0, "---", ""):
             self.assertFalse(bandplan.on_amateur_band(unknown))
 
+    def test_on_amateur_band_by_region(self):
+        # 40 m is 7.0-7.2 MHz in Region 1 and 3, up to 7.3 MHz in Region 2
+        self.assertTrue(bandplan.on_amateur_band(7250000))
+        self.assertFalse(bandplan.on_amateur_band(7250000, 1))
+        self.assertTrue(bandplan.on_amateur_band(7250000, 2))
+        self.assertFalse(bandplan.on_amateur_band(7250000, 3))
+        # anything but 1, 2 or 3 checks all regions
+        self.assertTrue(bandplan.on_amateur_band(7250000, 7))
+
     def test_segments_inside_band_edges(self):
         known_modes = set(bandplan.load_bandplan()["mode_tags"])
         for region in ("1", "2", "3"):

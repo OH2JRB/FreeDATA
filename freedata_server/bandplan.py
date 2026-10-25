@@ -65,14 +65,15 @@ def fits_in_segment(region, low_hz, high_hz, mode="digimodes"):
     return False
 
 
-def on_amateur_band(frequency_hz):
-    """True when frequency_hz is inside an amateur band of any IARU region.
+def on_amateur_band(frequency_hz, region=0):
+    """True when frequency_hz is inside an amateur band of the IARU region
+    (1, 2 or 3). Region 0, the default, checks all three regions.
 
-    The station's region is not configured, so all three regions are checked.
     Returns False for a missing or unreadable frequency.
     """
     try:
         frequency_hz = int(float(frequency_hz))
     except (TypeError, ValueError):
         return False
-    return any(find_band(region, frequency_hz) is not None for region in load_bandplan()["regions"])
+    regions = [region] if region in (1, 2, 3) else load_bandplan()["regions"]
+    return any(find_band(r, frequency_hz) is not None for r in regions)

@@ -359,6 +359,7 @@ Defined in `CONFIG.config_types`; example values from [config.ini.example](../co
 | | `enable_explorer` | bool | `False` |
 | | `enable_stats` | bool | `False` |
 | | `respond_to_cq` | bool | `True` |
+| | `iaru_region` | int | `0` (all regions; 1, 2 or 3 for one IARU region, used by the amateur band check for encrypted messages) |
 | | `enable_callsign_blacklist` | bool | `False` |
 | | `callsign_blacklist` | list | `[]` |
 | AUDIO | `input_device` | str | `5a1c` |

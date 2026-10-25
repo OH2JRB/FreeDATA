@@ -69,6 +69,7 @@ const defaultConfig = {
       mygrid: "",
       ssid_list: [],
       respond_to_cq: false,
+      iaru_region: 0,
       enable_callsign_blacklist: false,
       callsign_blacklist: [],
     },

@@ -130,6 +130,40 @@
 
   </div>
 
+  <!-- IARU Region, for the amateur band check of encrypted messages -->
+  <div class="input-group input-group-sm mb-1">
+    <span class="input-group-text w-50 text-wrap">
+      {{ $t('settings.station.iaruregion') }}
+      <button
+        type="button"
+        class="btn btn-link p-0 ms-2"
+        data-bs-toggle="tooltip"
+        :title="$t('settings.station.iaruregion_help')"
+      >
+        <i class="bi bi-question-circle" />
+      </button>
+    </span>
+    <select
+      id="iaruRegion"
+      v-model.number="settings.remote.STATION.iaru_region"
+      class="form-select form-select-sm w-50"
+      @change="onChange"
+    >
+      <option value="0">
+        {{ $t('settings.station.iaruregion_all') }}
+      </option>
+      <option value="1">
+        {{ $t('settings.station.iaruregion_1') }}
+      </option>
+      <option value="2">
+        {{ $t('settings.station.iaruregion_2') }}
+      </option>
+      <option value="3">
+        {{ $t('settings.station.iaruregion_3') }}
+      </option>
+    </select>
+  </div>
+
   <!-- Respond to CQ Callings -->
   <div class="input-group input-group-sm mb-1">
     <label class="input-group-text w-50 text-wrap">

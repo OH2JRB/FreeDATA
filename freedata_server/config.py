@@ -23,6 +23,7 @@ class CONFIG:
             "enable_explorer": bool,
             "enable_stats": bool,
             "respond_to_cq": bool,
+            "iaru_region": int,
             "enable_callsign_blacklist": bool,
             "callsign_blacklist": list,
         },

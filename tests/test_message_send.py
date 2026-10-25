@@ -68,8 +68,9 @@ class TestEncryptedSendOnAmateurBand(unittest.TestCase):
         cls.ctx.state_manager.radio_frequency = 0
         cls.ctx.shutdown()
 
-    def transmit(self, frequency, encrypt=True):
+    def transmit(self, frequency, encrypt=True, region=0):
         self.ctx.state_manager.radio_frequency = frequency
+        self.ctx.config_manager.config["STATION"]["iaru_region"] = region
         command = command_message_send.SendMessageCommand(self.ctx, {"destination": "AA1AAA-5", "body": "secret"})
         queued = DatabaseManagerMessages(self.ctx).get_message_by_id(command.message.id)
         with (
@@ -107,11 +108,32 @@ class TestEncryptedSendOnAmateurBand(unittest.TestCase):
         event.assert_not_called()
         self.assertEqual(status, "transmitting")
 
+    def test_region_setting(self):
+        # 7.25 MHz is an amateur band in Region 2 only
+        iss_class, event, status = self.transmit(7250000, region=1)
+        iss_class.return_value.start.assert_called_once()
+        self.assertEqual(status, "transmitting")
+        iss_class, event, status = self.transmit(7250000, region=2)
+        iss_class.assert_not_called()
+        self.assertEqual(status, "failed")
+
+    def test_invalid_region_checks_all_regions(self):
+        self.ctx.config_manager.config["STATION"]["iaru_region"] = 4
+        self.assertEqual(self.ctx.iaru_region(), 0)
+
     def test_radio_event_flags_amateur_band(self):
         self.ctx.state_manager.radio_frequency = 7050000
         self.assertTrue(self.ctx.state_manager.get_radio_status()["radio_amateur_band"])
         self.ctx.state_manager.radio_frequency = 15000000
         self.assertFalse(self.ctx.state_manager.get_radio_event(True)["radio_amateur_band"])
+        self.ctx.state_manager.radio_frequency = 7250000
+        self.ctx.config_manager.config["STATION"]["iaru_region"] = 1
+        self.assertFalse(self.ctx.state_manager.get_radio_status()["radio_amateur_band"])
+        self.ctx.config_manager.config["STATION"]["iaru_region"] = 2
+        self.assertTrue(self.ctx.state_manager.get_radio_status()["radio_amateur_band"])
+
+    def tearDown(self):
+        self.ctx.config_manager.config["STATION"]["iaru_region"] = 0
 
 
 if __name__ == "__main__":

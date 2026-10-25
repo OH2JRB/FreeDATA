@@ -51,7 +51,7 @@ class SendMessageCommand(TxCommand):
         failed, so it does not block the queue, and the GUI is told.
         """
         frequency = self.ctx.state_manager.radio_frequency
-        if not encrypt or not on_amateur_band(frequency):
+        if not encrypt or not on_amateur_band(frequency, self.ctx.iaru_region()):
             return False
         self.log(
             f"Not sending encrypted message to {destination}: {frequency} Hz is on an amateur band", isWarning=True
