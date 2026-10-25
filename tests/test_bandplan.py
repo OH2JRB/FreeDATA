@@ -39,6 +39,8 @@ class TestBandplanData(unittest.TestCase):
 class TestBandplanLookup(unittest.TestCase):
     def test_find_band(self):
         self.assertEqual(bandplan.find_band(1, 14_100_000)["name"], "20m")
+        self.assertEqual(bandplan.find_band(1, 70_200_000)["name"], "4m")
+        self.assertIsNone(bandplan.find_band(2, 70_200_000))  # 4 m is a Region 1 band only
         self.assertEqual(bandplan.find_band(2, 7_250_000)["name"], "40m")
         self.assertIsNone(bandplan.find_band(1, 7_250_000))  # 40 m ends at 7.2 MHz in Region 1
         self.assertIsNone(bandplan.find_band(3, 11_000_000))
