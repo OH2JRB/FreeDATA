@@ -37,6 +37,25 @@ To fetch the python dependencies create a virtual environment and next use pip:
 To fetch the `npm` dependencies go inside `./freedata_gui` and run `npm
 install`. See `./freedata_gui/README.md` for additional informations.
 
+## Third-party licenses
+
+`THIRD-PARTY-LICENSES.txt` lists the licenses of everything FreeDATA builds
+ship besides FreeDATA itself: codec2, Hamlib, PortAudio and the other native
+libraries, and the Python and GUI packages with their license texts. The
+Windows installer and the AppImage contain it (and `LICENSE.txt`) next to
+`freedata-server`; their workflows regenerate it for the packages each build
+installs.
+
+After adding or updating a dependency, regenerate it in your environment
+(after `pip install .` and `npm install` in `freedata_gui`) and commit it:
+
+```
+python tools/third_party_licenses.py
+```
+
+The texts of the native libraries live in `tools/licenses/`; add one there
+(and an entry in the script) when bundling a new library.
+
 ## Linting and Formatting (python-only)
 
 The python sources must be formatted and checked using `ruff`. There is a CI
