@@ -192,11 +192,13 @@ def _modulator(vhf):
     return modulator
 
 
-def _burst(modulator, mode, freedv, payload, gap_ms):
+def _burst(modulator, mode, freedv, payload, gap_ms, fsk_preamble=False):
     """One frame plus gap_ms of silence, as int16 samples."""
     if isinstance(mode, FskCandidate):
-        # FSK_LDPC is sent without preamble and postamble, like data_vhf_1
-        burst = modulator.transmit_create_frame(bytes(), freedv, bytearray(payload))
+        # FSK_LDPC is sent without preamble and postamble, like data_vhf_1,
+        # unless fsk_preamble asks for codec2's FSK preamble
+        burst = modulator.transmit_add_preamble(bytes(), freedv) if fsk_preamble else bytes()
+        burst = modulator.transmit_create_frame(burst, freedv, bytearray(payload))
         burst = modulator.transmit_add_silence(burst, gap_ms)
     else:
         burst = modulator.create_burst(mode, 1, gap_ms, bytearray(payload))
@@ -210,6 +212,7 @@ class Result:
     frames_ok: int
     payload_bytes: int
     frame_seconds: float
+    duplicates: int = 0  # frames decoded more than once
 
     @property
     def success_rate(self):
@@ -221,7 +224,22 @@ class Result:
         return self.payload_bytes * 8 / self.frame_seconds
 
 
-def run_mode(mode, channel, snr_db, frames=10, seed=1, doppler_shift_hz=0.0, gap_ms=500, continuous=False):
+def is_fsk(mode):
+    return isinstance(mode, FskCandidate) or mode == codec2.FREEDV_MODE.data_vhf_1
+
+
+def run_mode(
+    mode,
+    channel,
+    snr_db,
+    frames=10,
+    seed=1,
+    doppler_shift_hz=0.0,
+    gap_ms=500,
+    continuous=False,
+    fsk_restart=False,
+    fsk_preamble=False,
+):
     """Send frames through the channel and count the frames decoded with the
     right payload.
 
@@ -230,10 +248,19 @@ def run_mode(mode, channel, snr_db, frames=10, seed=1, doppler_shift_hz=0.0, gap
     how the mode copes with the channel without the receiver having to find
     each burst again; the FSK receiver needs this (see fading-channels.md).
     mode is a FREEDV_MODE or an FskCandidate.
+
+    fsk_restart tries a receiver fix for FSK modes: after every decoded frame the
+    receiver is opened again and the last frame length of audio is fed to it
+    again. codec2's FSK_LDPC receiver otherwise stays locked to the timing of the
+    frame it just decoded and misses a burst that starts less than about a frame
+    later; freedv_set_sync() and freedv_set_frames_per_burst() do not reset it.
+    fsk_preamble sends codec2's FSK preamble (all tones in turn) before every FSK
+    frame, which helps the receiver estimate the tone frequencies.
     """
     rng = np.random.default_rng(seed)
     vhf = mode == codec2.FREEDV_MODE.data_vhf_1
-    modulator = _modulator(vhf)
+    # enable_vhf leaves out the preamble of data_vhf_1
+    modulator = _modulator(vhf and not fsk_preamble)
     if continuous:
         gap_ms = 0
 
@@ -244,19 +271,24 @@ def run_mode(mode, channel, snr_db, frames=10, seed=1, doppler_shift_hz=0.0, gap
     audio = [np.zeros(FS // 2, dtype=np.int16)]
     burst_samples = 0
     for payload in payloads:
-        burst = _burst(modulator, mode, tx, payload, gap_ms)
+        burst = _burst(modulator, mode, tx, payload, gap_ms, fsk_preamble)
         burst_samples = len(burst) - int(FS * gap_ms / 1000)
         audio.append(burst)
     # the receivers decode with up to a frame of delay; keep the audio running
     audio.append(np.zeros(max(FS * 2, 2 * burst_samples), dtype=np.int16))
     rx_audio = to_int16(apply_channel(np.concatenate(audio), channel, snr_db, rng, doppler_shift_hz))
 
+    restart = fsk_restart and is_fsk(mode)
+    frame_samples = codec2.api.freedv_get_n_tx_modem_samples(tx)
+    if fsk_preamble:
+        frame_samples += codec2.api.freedv_get_n_tx_preamble_modem_samples(tx)
     rx = _open(mode)
     codec2.api.freedv_set_frames_per_burst(rx, 0 if continuous else 1)
     bytes_per_frame = payload_bytes + 2
     bytes_out = ctypes.create_string_buffer(bytes_per_frame)
     expected = set(payloads)
     decoded = set()
+    duplicates = 0
     pos = 0
     nin = codec2.api.freedv_nin(rx)
     while pos + nin <= len(rx_audio):
@@ -267,6 +299,11 @@ def run_mode(mode, channel, snr_db, frames=10, seed=1, doppler_shift_hz=0.0, gap
         if nbytes == bytes_per_frame:
             payload = bytes_out.raw[:payload_bytes]
             if payload in expected:
+                duplicates += payload in decoded
                 decoded.add(payload)
+            if restart:
+                rx = _open(mode)
+                pos = max(0, pos - frame_samples)
+                nin = codec2.api.freedv_nin(rx)
 
-    return Result(mode.name, frames, len(decoded), payload_bytes, burst_samples / FS)
+    return Result(mode.name, frames, len(decoded), payload_bytes, burst_samples / FS, duplicates)

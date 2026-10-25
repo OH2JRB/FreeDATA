@@ -18,6 +18,7 @@ python tools/fading_measure.py --channels hl_moderate --snr 10 20 --frames 10
 python tools/fading_measure.py --custom 5 2          # Doppler spread 5 Hz, path delay 2 ms
 python tools/fading_measure.py --shift 20            # add a 20 Hz Doppler shift
 python tools/fading_measure.py --fsk --stream        # also the HF FSK candidates, see section 6
+python tools/fading_measure.py --fsk --restart       # FSK bursts with the receiver restart, see section 7
 ```
 
 ## 2. Channel model
@@ -185,7 +186,7 @@ the ARQ speed levels (`arq_session.SPEED_LEVEL_DICT`) are in bold.
 - One burst per frame with 500 ms gaps; the ARQ timing and retries are not part
   of the test.
 - `data_vhf_1` and the FSK candidates decode only 50 to 60% of single-frame
-  bursts even on a clean channel; see section 6 for the cause.
+  bursts even on a clean channel; see section 7 for the cause and a fix.
 - The results depend on the seed; 20 frames per cell give a rough share, not an
   exact frame error rate.
 
@@ -324,11 +325,136 @@ per burst with 500 ms gaps, as ARQ does.
 
 ### Next steps this points to
 
-1. Fix FSK burst acquisition (preamble or a change in how bursts are received),
-   then measure the candidates in burst form again.
+1. Fix FSK burst acquisition: done in the simulator, see section 7.
 2. Add a 50 baud 4FSK mode (`fsk4_50w` or close to it) to `codec2.py` and the
    modulator, decoders and frame handling, and use it for signalling and as the
    lowest ARQ speed level on disturbed paths.
 3. Choose that level from failures and channel measurements, not from SNR alone,
    since the auroral channel looks strong but defeats the OFDM modes.
+
+## 7. FSK burst acquisition
+
+### Why single-frame FSK bursts are lost
+
+From codec2's FSK_LDPC receiver (`freedv_rx_fsk_ldpc_data()` in `src/freedv_fsk.c`, read in the
+codec2 main branch; FreeDATA ships its own libcodec2 build, whose behaviour matches):
+
+- The receiver collects demodulated bits one frame length at a time into a
+  buffer of two frames and processes the buffer once per frame length. A frame is
+  decoded only after the receiver has collected the frame length that follows
+  it, which is why the last frame of a transmission needs more audio after it.
+- Out of sync (state 0) it searches every bit position of the buffer for the
+  unique word and accepts the best one with at most 5 bit errors.
+- In sync (state 1) it checks the unique word **only at the position of the
+  frame it last decoded**. After one bad check (more than 6 errors,
+  `fsk_ldpc_baduw_thresh = 1`) it falls back to searching, but only from the
+  next frame length on.
+- So after a decoded burst, the receiver spends one frame length checking the
+  wrong position. A burst that starts during that time has shifted out of the
+  search range by the time the receiver searches again, and is lost. Back-to-back
+  frames keep the same position and all decode; bursts with gaps of less than
+  about two frame lengths lose about every other frame.
+- FreeDATA cannot reset this state: `freedv_set_sync()` (called by
+  `Demodulator.reset_data_sync()` while transmitting) and
+  `freedv_set_frames_per_burst()` act only on the OFDM modes. While FreeDATA
+  transmits, the demodulator drops the received audio, so the FSK receiver
+  does not even see time pass, and the next burst arrives at another position.
+
+### What was tried
+
+20 single-frame bursts with 500 ms gaps:
+
+| Mode | Channel | SNR | As is | Receiver restart | FSK preamble | Both | Back to back |
+|---|---|---|---|---|---|---|---|
+| data_vhf_1 | awgn | 20 dB | 65% | 100% | 75% | 100% | 100% |
+| data_vhf_1 | awgn | 0 dB | 65% | 95% | 75% | 100% | 100% |
+| fsk4_100 | awgn | 20 dB | 55% | 100% | 60% | 95% | 100% |
+| fsk4_100 | hl_moderate | 10 dB | 50% | 95% | 60% | 80% | 90% |
+| fsk4_50w | awgn | 20 dB | 50% | 95% | 55% | 100% | 100% |
+| fsk4_50w | hl_moderate | 10 dB | 50% | 95% | 55% | 100% | 95% |
+| fsk4_50w | hl_disturbed | 10 dB | 40% | 60% | 50% | 70% | 80% |
+
+- **Receiver restart** (`run_mode(..., fsk_restart=True)`): after every decoded
+  frame the receiver is opened again and the last frame length of audio is fed to
+  it again, so a burst that has already started is not missed. This alone brings
+  bursts up to the back-to-back results. No frame was decoded twice.
+- **FSK preamble** (`fsk_preamble=True`, codec2's `freedv_rawdatapreambletx()`,
+  all tones in turn): helps the receiver find the tones but not the timing
+  lock, so on its own it adds little. It costs 37% more airtime (0.5 s for
+  `data_vhf_1`, 1 s at 100 baud, 2 s at 50 baud), and on top of the restart it
+  gave no consistent gain.
+
+### Bursts with the receiver restart
+
+`python tools/fading_measure.py --modes datac4 data_vhf_1 fsk4_100 fsk4_50 fsk4_50w
+fsk2_100 fsk4_25 fsk4_100_long --restart --frames 10 --channels awgn mid_disturbed
+hl_moderate hl_disturbed`, single-frame bursts with 500 ms gaps, 10 frames per cell:
+
+#### `awgn`: no fading, noise only (Doppler spread 0 Hz, delay 0 ms)
+
+| mode | payload bps | -5 dB | 0 dB | 5 dB | 10 dB | 15 dB | 20 dB | 30 dB |
+|---|---|---|---|---|---|---|---|---|
+| **datac4** | 80 | 100% | 100% | 100% | 100% | 100% | 100% | 100% |
+| data_vhf_1, restart | 176 | 30% | 80% | 100% | 100% | 100% | 100% | 100% |
+| *fsk4_100* (500 Hz), restart | 88 | 100% | 100% | 100% | 100% | 100% | 100% | 100% |
+| *fsk4_50* (400 Hz), restart | 44 | 100% | 100% | 100% | 100% | 100% | 100% | 100% |
+| *fsk4_50w* (550 Hz), restart | 44 | 100% | 100% | 100% | 100% | 100% | 100% | 100% |
+| *fsk2_100* (400 Hz), restart | 44 | 100% | 100% | 100% | 100% | 100% | 100% | 100% |
+| *fsk4_25* (350 Hz), restart | 22 | 100% | 100% | 90% | 90% | 90% | 100% | 100% |
+| *fsk4_100_long* (500 Hz), restart | 97 | 90% | 100% | 100% | 100% | 100% | 100% | 100% |
+
+#### `mid_disturbed`: mid-latitude disturbed (codec2 MPP) (Doppler spread 1 Hz, delay 2 ms)
+
+| mode | payload bps | -5 dB | 0 dB | 5 dB | 10 dB | 15 dB | 20 dB | 30 dB |
+|---|---|---|---|---|---|---|---|---|
+| **datac4** | 80 | 80% | 100% | 100% | 100% | 100% | 100% | 100% |
+| data_vhf_1, restart | 176 | 0% | 40% | 80% | 100% | 100% | 100% | 100% |
+| *fsk4_100* (500 Hz), restart | 88 | 40% | 80% | 100% | 100% | 100% | 100% | 100% |
+| *fsk4_50* (400 Hz), restart | 44 | 60% | 70% | 100% | 100% | 80% | 80% | 90% |
+| *fsk4_50w* (550 Hz), restart | 44 | 70% | 100% | 100% | 90% | 90% | 80% | 90% |
+| *fsk2_100* (400 Hz), restart | 44 | 60% | 100% | 90% | 100% | 100% | 80% | 100% |
+| *fsk4_25* (350 Hz), restart | 22 | 80% | 70% | 90% | 80% | 80% | 70% | 90% |
+| *fsk4_100_long* (500 Hz), restart | 97 | 40% | 90% | 100% | 100% | 100% | 100% | 100% |
+
+#### `hl_moderate`: high-latitude moderate, auroral (Doppler spread 10 Hz, delay 3 ms)
+
+| mode | payload bps | -5 dB | 0 dB | 5 dB | 10 dB | 15 dB | 20 dB | 30 dB |
+|---|---|---|---|---|---|---|---|---|
+| **datac4** | 80 | 0% | 0% | 0% | 0% | 0% | 0% | 0% |
+| data_vhf_1, restart | 176 | 0% | 0% | 0% | 0% | 0% | 0% | 0% |
+| *fsk4_100* (500 Hz), restart | 88 | 0% | 100% | 100% | 90% | 100% | 100% | 100% |
+| *fsk4_50* (400 Hz), restart | 44 | 60% | 90% | 100% | 80% | 100% | 100% | 70% |
+| *fsk4_50w* (550 Hz), restart | 44 | 80% | 90% | 90% | 100% | 100% | 90% | 90% |
+| *fsk2_100* (400 Hz), restart | 44 | 70% | 100% | 100% | 100% | 100% | 90% | 100% |
+| *fsk4_25* (350 Hz), restart | 22 | 60% | 70% | 70% | 70% | 70% | 90% | 80% |
+| *fsk4_100_long* (500 Hz), restart | 97 | 0% | 100% | 100% | 100% | 90% | 90% | 90% |
+
+#### `hl_disturbed`: high-latitude disturbed, strong aurora (Doppler spread 30 Hz, delay 7 ms)
+
+| mode | payload bps | -5 dB | 0 dB | 5 dB | 10 dB | 15 dB | 20 dB | 30 dB |
+|---|---|---|---|---|---|---|---|---|
+| **datac4** | 80 | 0% | 0% | 0% | 0% | 0% | 0% | 0% |
+| data_vhf_1, restart | 176 | 0% | 0% | 0% | 0% | 0% | 0% | 0% |
+| *fsk4_100* (500 Hz), restart | 88 | 0% | 0% | 0% | 0% | 0% | 0% | 0% |
+| *fsk4_50* (400 Hz), restart | 44 | 20% | 90% | 60% | 70% | 50% | 40% | 70% |
+| *fsk4_50w* (550 Hz), restart | 44 | 40% | 60% | 30% | 70% | 50% | 40% | 30% |
+| *fsk2_100* (400 Hz), restart | 44 | 0% | 0% | 0% | 0% | 0% | 0% | 0% |
+| *fsk4_25* (350 Hz), restart | 22 | 10% | 0% | 0% | 0% | 0% | 10% | 0% |
+| *fsk4_100_long* (500 Hz), restart | 97 | 0% | 0% | 0% | 0% | 0% | 0% | 0% |
+
+With the restart, the FSK candidates reach in burst form what they reached back
+to back in section 6: 90 to 100% on `hl_moderate` from 0 dB up for every
+candidate except `fsk4_25`, and 40 to 90% for the 50 baud 4FSK candidates on
+`hl_disturbed`.
+
+### What it would take in FreeDATA
+
+1. In `demodulator.py`, keep the last frame length of audio of each FSK mode,
+   and after a decoded FSK frame open the codec2 instance again and feed that
+   audio to it first.
+2. Do the same in `reset_data_sync()` for FSK modes (without the audio), since
+   `freedv_set_sync()` does not reset them.
+3. Alternatively, fix it in codec2: let `freedv_set_sync()` reset the FSK_LDPC
+   state, or let the receiver search for the unique word again right after a
+   decoded frame when it is set to one frame per burst.
 

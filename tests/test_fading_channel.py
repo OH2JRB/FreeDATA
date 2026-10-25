@@ -70,6 +70,14 @@ class TestModesThroughChannel(unittest.TestCase):
         self.assertEqual(result.frames_ok, 3)
         self.assertEqual(result.payload_bytes, 30)
 
+    def test_fsk_bursts_decode_with_receiver_restart(self):
+        # codec2's FSK receiver stays locked to the last frame's timing and misses
+        # bursts that follow soon after; restarting it after each frame fixes that
+        candidate = next(c for c in cs.FSK_CANDIDATES if c.name == "fsk4_100")
+        result = cs.run_mode(candidate, cs.CHANNELS["awgn"], 20, frames=6, gap_ms=500, fsk_restart=True)
+        self.assertEqual(result.frames_ok, 6)
+        self.assertEqual(result.duplicates, 0)
+
 
 if __name__ == "__main__":
     unittest.main()

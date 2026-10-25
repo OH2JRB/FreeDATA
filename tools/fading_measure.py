@@ -27,6 +27,11 @@ def main():
         action="store_true",
         help="add a row per FSK mode with the frames sent back to back instead of one burst each",
     )
+    parser.add_argument(
+        "--restart",
+        action="store_true",
+        help="restart the FSK receiver after every decoded frame (fsk_restart in channel_sim.run_mode)",
+    )
     parser.add_argument("--shift", type=float, default=0.0, help="Doppler shift in Hz, added to every channel")
     parser.add_argument(
         "--custom",
@@ -53,7 +58,10 @@ def main():
         if args.stream and (isinstance(mode, cs.FskCandidate) or mode == cs.codec2.FREEDV_MODE.data_vhf_1):
             rows.append((mode, True))
     started = time.time()
-    print(f"{args.frames} frames per cell, Doppler shift {args.shift:g} Hz, seed {args.seed}")
+    print(
+        f"{args.frames} frames per cell, Doppler shift {args.shift:g} Hz, seed {args.seed}"
+        + (", FSK receiver restarted after each frame" if args.restart else "")
+    )
     for channel_name in args.channels:
         channel = cs.CHANNELS[channel_name]
         print(
@@ -76,6 +84,7 @@ def main():
                     seed=seed,
                     doppler_shift_hz=args.shift,
                     continuous=stream,
+                    fsk_restart=args.restart and not stream,
                 )
                 bps = result.raw_bps
                 cells.append(f"{100 * result.success_rate:.0f}%")
@@ -84,6 +93,8 @@ def main():
                 name = f"*{mode.name}* ({mode.bandwidth_hz} Hz)"
             if stream:
                 name += ", stream"
+            elif args.restart and cs.is_fsk(mode):
+                name += ", restart"
             print(f"| {name} | {bps:.0f} | " + " | ".join(cells) + " |", flush=True)
     print(f"\n(took {time.time() - started:.0f} s; ARQ speed level modes in bold, FSK candidates in italics)")
 
