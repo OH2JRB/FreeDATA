@@ -50,6 +50,7 @@ class ScheduleManager:
         self.events = {
             "check_for_queued_messages": {"function": self.check_for_queued_messages, "interval": 15},
             "explorer_publishing": {"function": self.push_to_explorer, "interval": 60},
+            "pskreporter_upload": {"function": self.upload_to_pskreporter, "interval": 60},
             "transmitting_beacon": {"function": self.transmit_beacon, "interval": 600},
             "beacon_cleanup": {"function": self.delete_beacons, "interval": 600},
             "update_transmission_state": {"function": self.update_transmission_state, "interval": 10},
@@ -163,6 +164,13 @@ class ScheduleManager:
                 explorer.Explorer(self.ctx).push()
             except Exception as e:
                 print(e)
+
+    def upload_to_pskreporter(self):
+        # PSKReporter.flush itself keeps uploads at least five minutes apart
+        try:
+            self.ctx.pskreporter.flush()
+        except Exception as e:
+            self.log.warning("[SCHEDULE] PSK Reporter upload failed", error=e)
 
     def check_for_queued_messages(self):
         """Checks for and sends queued messages.

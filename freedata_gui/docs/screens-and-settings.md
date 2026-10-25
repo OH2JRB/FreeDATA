@@ -284,6 +284,7 @@ Visible only when `RADIO.control == "rigctld_bundle"` (`d-none` otherwise):
 | Field | Path | Input |
 |---|---|---|
 | Publish to explorer | `remote.STATION.enable_explorer` | switch |
+| Report heard stations to PSK Reporter | none, server runtime state | switch; reads `GET /modem/pskreporter` on mount, writes `POST /modem/pskreporter` on change and shows the state the server returns. Not part of the config, so it is off after every server start |
 
 #### [settings_exp.vue](../src/components/settings_exp.vue) - Experimental
 

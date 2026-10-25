@@ -9,6 +9,7 @@ from freedata_server.message_system_db_attachments import DatabaseManagerAttachm
 from freedata_server.websocket_manager import wsm as WebsocketManager
 from freedata_server import constants
 from freedata_server.encryption import StationKeyStore
+from freedata_server.pskreporter import PSKReporter
 from fastapi import Request, WebSocket
 
 
@@ -32,6 +33,7 @@ class AppContext:
         self.socket_interface_manager = None  # Socket interface instance, We start it as we need it
         self.rf_modem = None  # Modem instnace, we start it as we need it
         self.station_keys = StationKeyStore()  # pre-shared encryption keys, memory only
+        self.pskreporter = PSKReporter(self)  # PSK Reporter uploads, runtime only and off at start
         self.message_system_db_manager = DatabaseManager(self)
         self.message_system_db_attachments = DatabaseManagerAttachments(self)
 

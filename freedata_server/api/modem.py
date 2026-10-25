@@ -215,6 +215,50 @@ async def post_beacon(
     return api_response({"enabled": enabled, "away_from_key": away})
 
 
+@router.get(
+    "/pskreporter",
+    summary="Get PSK Reporter Status",
+    tags=["Modem"],
+    responses={
+        200: {
+            "description": "Current PSK Reporter reporting state.",
+            "content": {"application/json": {"example": {"enabled": False, "pending_spots": 0}}},
+        },
+    },
+)
+async def get_pskreporter(ctx: AppContext = Depends(get_ctx)):
+    """
+    Get whether heard stations are reported to PSK Reporter. Reporting is off after every server start.
+    """
+    return api_response(ctx.pskreporter.status())
+
+
+@router.post(
+    "/pskreporter",
+    summary="Enable/Disable PSK Reporter",
+    tags=["Modem"],
+    responses={
+        200: {
+            "description": "PSK Reporter state updated successfully.",
+            "content": {"application/json": {"example": {"enabled": True, "pending_spots": 0}}},
+        },
+        400: {
+            "description": "Invalid input parameters.",
+            "content": {"application/json": {"example": {"error": "Expected a boolean for 'enabled'"}}},
+        },
+    },
+)
+async def post_pskreporter(payload: dict, ctx: AppContext = Depends(get_ctx)):
+    """
+    Switch reporting of heard stations to PSK Reporter on or off. The state is not saved to the config.
+    """
+    enabled = payload.get("enabled")
+    if not isinstance(enabled, bool):
+        api_abort("Expected a boolean for 'enabled'", 400)
+    ctx.pskreporter.set_enabled(enabled)
+    return api_response(ctx.pskreporter.status())
+
+
 @router.post(
     "/ping_ping",
     summary="Trigger Modem to PING a Station",
