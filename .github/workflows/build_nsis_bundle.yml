@@ -75,6 +75,7 @@ jobs:
             --include-data-files=lib/hamlib/bin/*.exe=lib/hamlib/bin/ `
             --include-data-files=lib/hamlib/bin/*.dll=lib/hamlib/bin/ `
             --include-data-files=config.ini.example=config.ini.example `
+            --include-data-dir=data=data `
             --include-data-files=../LICENSE=LICENSE.txt `
             --include-data-files=../THIRD-PARTY-LICENSES.txt=THIRD-PARTY-LICENSES.txt `
             --nofollow-import-to=sqlalchemy.dialects.mysql,sqlalchemy.dialects.mariadb,sqlalchemy.dialects.postgresql,sqlalchemy.dialects.oracle,sqlalchemy.dialects.mssql `
