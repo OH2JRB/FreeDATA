@@ -131,6 +131,7 @@ component. Construction order matters because several managers start threads in 
 | `radio_manager` | `None` | Created only by the service manager (`start_radio_manager()` on `start`/`restart`); reset to `None` on `stop`/`restart`. API code must handle `None` (e.g. `POST /radio/` returns 503). |
 | `socket_interface_manager` | `None` | Set by the service manager if `SOCKET_INTERFACE.enable`. |
 | `rf_modem` | `None` (then `False` from `SM.__init__`) | `modem.RF` instance once started; `None` after stop. |
+| `pskreporter` | `PSKReporter(self)` | PSK Reporter uploader; `enabled` is runtime only and `False` at every start. See [pskreporter.md](pskreporter.md). |
 | `message_system_db_manager` | `DatabaseManager(self)` | |
 | `message_system_db_attachments` | `DatabaseManagerAttachments(self)` | |
 | `TESTMODE` | `False` | When true, events are also copied to `TESTMODE_EVENTS`, and `start_modem` skips the audio test. |
@@ -486,6 +487,7 @@ when the scheduler starts.
 |---|---|---|---|
 | `check_for_queued_messages` | 15 | `not getARQ()`, `channel_busy_event.is_set()` (channel available), modem running | `DatabaseManagerMessages.get_first_queued_message()` -> `SendMessageCommand(ctx, msg).transmit()` |
 | `explorer_publishing` | 60 | `STATION.enable_explorer` and modem running | `explorer.Explorer(ctx).push()` |
+| `pskreporter_upload` | 60 | `ctx.pskreporter.enabled`; `flush()` itself uploads at most every 300 s | `ctx.pskreporter.flush()` sends pending spots to PSK Reporter |
 | `transmitting_beacon` | 600 | not ARQ busy, `is_beacon_running`, modem running | `command_beacon.BeaconCommand(ctx).run()` |
 | `beacon_cleanup` | 600 | always | `DatabaseManagerBeacon.beacon_cleanup_older_than_days(2)` |
 | `update_transmission_state` | 10 | always | IRS sessions idle > 90 s: removed from the state manager if `ENDED`, otherwise set to `RESUME` (unless already `RESUME`). ISS sessions idle > 90 s in `ABORTED`/`FAILED` are removed. |
@@ -525,6 +527,10 @@ Most jobs catch exceptions and `print()` them.
   frequency, strength, band `"USB"`, version, bandwidth, beacon, away-from-key) and a `lastheard` list
   built from `state_manager.heard_stations` to `EXPLORER_API_URL`. Skips the default callsigns
   `AA1AAA-1` and `XX1XXX-6`.
+- **[pskreporter.py](../pskreporter.py)** - `PSKReporter(ctx)` collects heard stations from
+  `FrameHandler.add_to_heard_stations()` and uploads them in batches over UDP/IPFIX to
+  `report.pskreporter.info:4739` with mode `FREEDATA`. Off at every start, switched with
+  `POST /modem/pskreporter`. See [pskreporter.md](pskreporter.md).
 - **[adif_udp_logger.py](../adif_udp_logger.py)** - `send_adif_qso_data(ctx, adif_data)`: if
   `QSO_LOGGING.enable_adif_udp`, sends the ADIF string via UDP to `adif_udp_host:adif_udp_port` in a
   daemon thread (3 s timeout) and emits a `message-logging` event with `endpoint="udp"` and

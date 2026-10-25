@@ -136,6 +136,8 @@ Validation rewrites these to `"AA1AAA"` and `"JN48ea"`.
 | GET | `/modem/state` | none | `state_manager.sendState()`, see below | 404 if `None` | none |
 | POST | `/modem/cqcqcq` | none | `{"message":"ok"}` | 503 `Modem not running`; 500 `Failed to send CQ.` | `command_cq.CQCommand` |
 | POST | `/modem/beacon` | `{"enabled": bool, "away_from_key": bool}` | `{"enabled": bool, "away_from_key": bool}` | 400 `Expected booleans for 'enabled' and 'away_from_key'`; 503 `Modem not running`; 500 `Failed to send beacon.` | `command_beacon.BeaconCommand` (only when `enabled` is true and no ARQ session is active) |
+| GET | `/modem/pskreporter` | none | `{"enabled": bool, "pending_spots": int}` | none | none |
+| POST | `/modem/pskreporter` | `{"enabled": bool}` | `{"enabled": bool, "pending_spots": int}` | 400 `Expected a boolean for 'enabled'` | none, calls `ctx.pskreporter.set_enabled()` |
 | POST | `/modem/ping_ping` | `{"dxcall": str}` | `{"message": true}` | 503 `Modem not running`; 400 `Invalid 'dxcall' parameter.`; 500 `Failed to send ping.` | `command_ping.PingCommand` |
 | POST | `/modem/send_test_frame` | none | `{"message":"ok"}` | 503 `Modem not running`; 500 `Failed to send test frame.` | `command_test.TestCommand` |
 | POST | `/modem/fec_transmit` | ignored | never succeeds | always 501 `FEC transmission is not implemented.` (see note) | none |
@@ -163,6 +165,8 @@ Validation rewrites these to `"AA1AAA"` and `"JN48ea"`.
 ```
 
 **Beacon.** The handler sets `is_beacon_running` and `is_away_from_key` via `state_manager.set(...)`, which pushes a `state-change` frame to `/states`. `BeaconCommand` gets the payload but does not use it. The beacon frame reads `state_manager.is_away_from_key` instead.
+
+**PSK Reporter.** The switch is runtime only: it is off after every server start and is not stored in the config. It works whether or not the modem is running. See [pskreporter.md](pskreporter.md).
 
 **FEC.** FEC transmission is not implemented. The `FEC` / `FEC_WAKEUP` frame types are disabled in [modem_frametypes.py](../modem_frametypes.py), and there is no FEC command class (the old, non-working `command_fec.py` was removed). The handler therefore aborts with 501 straight away and does not check the modem state or the body.
 

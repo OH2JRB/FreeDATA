@@ -184,6 +184,15 @@ export async function setModemBeacon(enabled = false, away_from_key = false) {
   return await apiPost("/modem/beacon", { enabled, away_from_key });
 }
 
+// PSK Reporter uploads are a runtime switch on the server, off after every start
+export async function getPSKReporter() {
+  return await apiGet("/modem/pskreporter");
+}
+
+export async function setPSKReporter(enabled = false) {
+  return await apiPost("/modem/pskreporter", { enabled });
+}
+
 export async function sendModemCQ() {
   return await apiPost("/modem/cqcqcq");
 }

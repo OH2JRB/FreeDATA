@@ -404,6 +404,8 @@ Callers still get `undefined` for any failure and cannot tell an HTTP error from
 | `getAudioDevices()` | GET `/devices/audio` | | Returns `{in, out}` |
 | `getSerialDevices()` | GET `/devices/serial` | | Returns list |
 | `setModemBeacon(enabled=false, away_from_key=false)` | POST `/modem/beacon` | `{enabled, away_from_key}` | Returns body |
+| `getPSKReporter()` | GET `/modem/pskreporter` | none | Returns body (`{enabled, pending_spots}`) |
+| `setPSKReporter(enabled=false)` | POST `/modem/pskreporter` | `{enabled}` | Returns body |
 | `sendModemCQ()` | POST `/modem/cqcqcq` | `{}` | Returns body |
 | `sendModemPing(dxcall)` | POST `/modem/ping_ping` | `{dxcall}` | Appends `-0` if no SSID, upper-cases; sends only if it then matches `^[A-Za-z0-9]{1,7}-[0-9]{1,3}$`, else returns `undefined` |
 | `sendModemARQRaw(dxcall, data, type = "raw")` | POST `/modem/send_arq_raw` | `{dxcall, type, data}` (`data` base64, `type` one of `raw`, `raw_lzma`, `raw_gzip`) | Returns body. No callers |

@@ -375,7 +375,9 @@
             "enableexplorer": "Publish station details",
             "enableexplorer_help": "Share your station's status with FreeDATA web service",
             "enablestats":"Publish statistics",
-            "enablestats_help": "Share your station's statistics with FreeDATA web service"
+            "enablestats_help": "Share your station's statistics with FreeDATA web service",
+            "enablepskreporter": "Report heard stations to PSK Reporter",
+            "enablepskreporter_help": "Upload stations FreeDATA hears to pskreporter.info with mode FREEDATA, every 5 minutes. Not saved: always off after the server starts"
         },
         "exp": {
             "introduction": "Warning: These features may be incomplete. They are for experienced users ONLY!",
