@@ -447,14 +447,27 @@ to back in section 6: 90 to 100% on `hl_moderate` from 0 dB up for every
 candidate except `fsk4_25`, and 40 to 90% for the 50 baud 4FSK candidates on
 `hl_disturbed`.
 
-### What it would take in FreeDATA
+### In FreeDATA
 
-1. In `demodulator.py`, keep the last frame length of audio of each FSK mode,
-   and after a decoded FSK frame open the codec2 instance again and feed that
-   audio to it first.
-2. Do the same in `reset_data_sync()` for FSK modes (without the audio), since
-   `freedv_set_sync()` does not reset them.
-3. Alternatively, fix it in codec2: let `freedv_set_sync()` reset the FSK_LDPC
-   state, or let the receiver search for the unique word again right after a
-   decoded frame when it is set to one frame per burst.
+The demodulator does this now (`Demodulator.restart_fsk()`, see
+[modem-audio-radio.md](modem-audio-radio.md), "FSK receiver restart"):
+
+1. It keeps the last frame length of audio of each FSK mode, and after a
+   decoded FSK frame opens the codec2 instance again and feeds that audio to it
+   first.
+2. `reset_data_sync()` marks the FSK modes, and their decoding threads open the
+   instances again once transmitting has ended, since `freedv_set_sync()` does
+   not reset them.
+
+A cleaner fix would be in codec2: let `freedv_set_sync()` reset the FSK_LDPC
+state, or let the receiver search for the unique word again right after a
+decoded frame when it is set to one frame per burst.
+
+The replay covers one frame length, as measured above. codec2 decodes a frame
+between 0 and a little more than one frame length after its end, so when that
+delay is long, the replay starts after the next burst has begun and that burst
+is lost (one of eight bursts in `tests/test_demodulator_fsk.py`, and probably the
+remaining 0 to 10% losses in the tables above). Replaying 1.5 frame lengths finds
+those bursts too, but then decodes some frames twice, and filtering duplicates
+must not swallow a genuine ARQ repeat, so it was left for later.
 

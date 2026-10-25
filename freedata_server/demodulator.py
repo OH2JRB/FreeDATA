@@ -1,9 +1,11 @@
 from freedata_server import codec2
+import copy
 import ctypes
 import structlog
 import threading
 from freedata_server.audio_backend import loaded_sounddevice
 import itertools
+import numpy as np
 from freedata_server.audio_buffer import CircularBuffer
 
 TESTMODE = False
@@ -23,10 +25,19 @@ class Demodulator:
             "state_buffer": [],
             "name": mode.name.upper(),
             "decoding_thread": None,
+            # FSK modes only, see restart_fsk()
+            "frame_samples": 0,
+            "fsk_history": None,
+            "fsk_replay": None,
+            "fsk_reset": False,
+            "retired_instance": None,
         }
 
     def __init__(self, ctx):
         self.ctx = ctx
+        # each demodulator gets its own copy: its decoding threads replace codec2
+        # instances in it (restart_fsk), which must not reach another demodulator
+        self.MODE_DICT = copy.deepcopy(Demodulator.MODE_DICT)
 
         self.log = structlog.get_logger("Demodulator")
 
@@ -106,6 +117,54 @@ class Demodulator:
         self.MODE_DICT[mode]["bytes_out"] = bytes_out
         self.MODE_DICT[mode]["audio_buffer"] = audio_buffer
         self.MODE_DICT[mode]["nin"] = nin
+        self.MODE_DICT[mode]["frame_samples"] = codec2.api.freedv_get_n_tx_modem_samples(c2instance)
+        self.MODE_DICT[mode]["fsk_history"] = np.zeros(0, dtype=np.int16)
+        self.MODE_DICT[mode]["fsk_replay"] = np.zeros(0, dtype=np.int16)
+
+    @staticmethod
+    def is_fsk_mode(mode) -> bool:
+        """True for the FSK_LDPC modes (codec2.fsk_configurations)."""
+        return mode in codec2.fsk_configurations
+
+    def restart_fsk(self, mode, replay: bool):
+        """Opens the codec2 instance of an FSK mode again.
+
+        codec2's FSK_LDPC receiver, once it has decoded a frame, checks for the
+        next frame only at the same position and searches again one frame
+        length later, so a burst that starts within about a frame of the
+        previous one is lost. freedv_set_sync() does not reset it. A new
+        instance searches from the start.
+
+        With replay, the last frame length of audio is fed to the new instance
+        first, so a burst that has already begun is not missed.
+
+        Runs in the mode's decoding thread only. The replaced instance is
+        closed at the next restart, so a pointer another thread has just read
+        from MODE_DICT stays valid meanwhile.
+
+        Returns:
+            The new codec2 instance.
+        """
+        data = self.MODE_DICT[mode]
+        if data["retired_instance"] is not None:
+            codec2.api.freedv_close(data["retired_instance"])
+        data["retired_instance"] = data["instance"]
+
+        instance = codec2.open_instance(mode)
+        codec2.api.freedv_set_frames_per_burst(instance, 1)
+        data["instance"] = instance
+        data["nin"] = codec2.api.freedv_nin(instance)
+        empty = np.zeros(0, dtype=np.int16)
+        data["fsk_replay"] = data["fsk_history"].copy() if replay else empty
+        data["fsk_history"] = empty
+        data["fsk_reset"] = False
+        return instance
+
+    def remember_fsk_audio(self, mode, samples) -> None:
+        """Keeps the last frame length of audio fed to an FSK mode."""
+        data = self.MODE_DICT[mode]
+        history = np.concatenate([data["fsk_history"], samples])
+        data["fsk_history"] = history[-data["frame_samples"] :]
 
     def start(self, stream):
         if self.ctx.TESTMODE:
@@ -150,16 +209,32 @@ class Demodulator:
         bytes_per_frame = self.MODE_DICT[mode]["bytes_per_frame"]
         state_buffer = self.MODE_DICT[mode]["state_buffer"]
         mode_name = self.MODE_DICT[mode]["name"]
+        is_fsk = self.is_fsk_mode(mode)
 
         last_rx_status = 0
 
         try:
             while self.stream and self.stream.active and not self.shutdown_flag.is_set() or self.ctx.TESTMODE:
                 threading.Event().wait(0.01)
-                if audiobuffer.nbuffer >= nin and not self.shutdown_flag.is_set():
+                # FSK receivers are reset after transmitting (reset_data_sync)
+                if is_fsk and self.MODE_DICT[mode]["fsk_reset"] and not self.ctx.state_manager.isTransmitting():
+                    freedv = self.restart_fsk(mode, replay=False)
+                    nin = self.MODE_DICT[mode]["nin"]
+                # after a decoded FSK frame, the audio of the last frame length is decoded
+                # again; its last block is completed with new audio, without a gap
+                replay = self.MODE_DICT[mode]["fsk_replay"] if is_fsk else None
+                n_replay = min(len(replay), nin) if replay is not None else 0
+                n_live = nin - n_replay
+                if audiobuffer.nbuffer >= n_live and not self.shutdown_flag.is_set():
+                    if n_replay == 0:
+                        samples = audiobuffer.buffer[:nin]
+                    elif n_live == 0:
+                        samples = replay[:nin]
+                    else:
+                        samples = np.concatenate([replay, audiobuffer.buffer[:n_live]])
                     # demodulate audio
                     if not self.ctx.state_manager.isTransmitting():
-                        nbytes = codec2.api.freedv_rawdatarx(freedv, bytes_out, audiobuffer.buffer.ctypes)
+                        nbytes = codec2.api.freedv_rawdatarx(freedv, bytes_out, samples.ctypes)
 
                         # get current freedata_server states and write to list
                         # 1 trial
@@ -192,7 +267,12 @@ class Demodulator:
                         self.reset_data_sync()
                         # audiobuffer.nbuffer = 0
 
-                    audiobuffer.pop(nin)
+                    if is_fsk:
+                        self.remember_fsk_audio(mode, samples)
+                    if n_replay:
+                        self.MODE_DICT[mode]["fsk_replay"] = replay[n_replay:]
+                    if n_live:
+                        audiobuffer.pop(n_live)
                     nin = codec2.api.freedv_nin(freedv)
                     if nbytes == bytes_per_frame:
                         self.log.debug(
@@ -204,7 +284,9 @@ class Demodulator:
                         self.get_scatter(freedv)
 
                         item = {
-                            "payload": bytes_out,
+                            # a copy: bytes_out is reused by the next decode, which with the
+                            # FSK replay can follow right away
+                            "payload": bytes(bytes_out),
                             "freedv": freedv,
                             "bytes_per_frame": bytes_per_frame,
                             "snr": snr,
@@ -215,6 +297,10 @@ class Demodulator:
                         self.ctx.rf_modem.data_queue_received.put(item)
 
                         state_buffer = []
+
+                        if is_fsk:
+                            freedv = self.restart_fsk(mode, replay=True)
+                            nin = self.MODE_DICT[mode]["nin"]
         except Exception as e:
             error_message = str(e)
             # we expect this error when shutdown
@@ -321,7 +407,12 @@ class Demodulator:
         :type frames_per_burst: int
         """
         for mode in self.MODE_DICT:
-            codec2.api.freedv_set_sync(self.MODE_DICT[mode]["instance"], 0)
+            if self.is_fsk_mode(mode):
+                # freedv_set_sync() only acts on OFDM modes; the decoding
+                # thread opens FSK instances again once transmitting has ended
+                self.MODE_DICT[mode]["fsk_reset"] = True
+            else:
+                codec2.api.freedv_set_sync(self.MODE_DICT[mode]["instance"], 0)
 
     def set_decode_mode(self, modes_to_decode=None, is_arq_irs=False, is_p2p_connection=False):
         # Reset all modes to not decode
