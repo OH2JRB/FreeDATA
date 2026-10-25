@@ -63,6 +63,13 @@ class TestModesThroughChannel(unittest.TestCase):
             result = cs.run_mode(mode, cs.CHANNELS["awgn"], 20, frames=3)
             self.assertEqual(result.frames_ok, 3, mode.name)
 
+    def test_fsk_candidate_decodes(self):
+        candidate = next(c for c in cs.FSK_CANDIDATES if c.name == "fsk4_100")
+        self.assertEqual(candidate.bandwidth_hz, 500)
+        result = cs.run_mode(candidate, cs.CHANNELS["awgn"], 20, frames=3, continuous=True)
+        self.assertEqual(result.frames_ok, 3)
+        self.assertEqual(result.payload_bytes, 30)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -135,12 +135,72 @@ ARQ_MODES = {
 }
 
 
+@dataclass(frozen=True)
+class FskCandidate:
+    """An FSK mode that FreeDATA does not have, opened directly from codec2
+    (freedv_open_advanced, FSK_LDPC) to try it in the simulator."""
+
+    name: str
+    M: int  # number of tones
+    Rs: int  # symbol rate, baud
+    tone_spacing: int  # Hz
+    codename: str  # LDPC code
+    description: str
+
+    @property
+    def bandwidth_hz(self):
+        """Approximate occupied bandwidth: tone span plus one symbol rate on each side."""
+        return (self.M - 1) * self.tone_spacing + 2 * self.Rs
+
+    def open(self):
+        config = codec2.create_default_fsk_config()
+        config.interleave_frames = 1
+        config.M = self.M
+        config.Rs = self.Rs
+        config.tone_spacing = self.tone_spacing
+        config.codename = self.codename.encode("utf-8")
+        config.first_tone = codec2.get_centered_first_tone(config)
+        # the config must outlive the instance, codec2 keeps pointers into it
+        self._configs.append(config)
+        return ctypes.cast(codec2.api.freedv_open_advanced(9, ctypes.byref(config)), ctypes.c_void_p)
+
+    _configs = []
+
+
+# HF FSK candidates for auroral paths: longer symbols than data_vhf_1 (200 baud,
+# 5 ms symbols), so that path delays of a few ms smear less of each symbol, and
+# tone spacings well above the Doppler spread. All fit in about 500 Hz.
+FSK_CANDIDATES = [
+    FskCandidate("fsk4_100", 4, 100, 100, "H_256_512_4", "4FSK 100 baud, 100 Hz spacing"),
+    FskCandidate("fsk4_50", 4, 50, 100, "H_256_512_4", "4FSK 50 baud, 100 Hz spacing"),
+    FskCandidate("fsk4_50w", 4, 50, 150, "H_256_512_4", "4FSK 50 baud, 150 Hz spacing"),
+    FskCandidate("fsk2_100", 2, 100, 200, "H_256_512_4", "2FSK 100 baud, 200 Hz spacing"),
+    FskCandidate("fsk4_25", 4, 25, 100, "H_256_512_4", "4FSK 25 baud, 100 Hz spacing"),
+    FskCandidate("fsk4_100_long", 4, 100, 100, "H_1024_2048_4f", "4FSK 100 baud, longer LDPC code"),
+]
+
+
+def _open(mode):
+    return mode.open() if isinstance(mode, FskCandidate) else codec2.open_instance(mode.value)
+
+
 def _modulator(vhf):
     config = {"MODEM": {"tx_delay": 0}, "EXP": {"enable_vhf": vhf}}
     ctx = types.SimpleNamespace(config_manager=types.SimpleNamespace(config=config))
     modulator = Modulator(ctx)
     modulator.log = types.SimpleNamespace(debug=lambda *a, **k: None)
     return modulator
+
+
+def _burst(modulator, mode, freedv, payload, gap_ms):
+    """One frame plus gap_ms of silence, as int16 samples."""
+    if isinstance(mode, FskCandidate):
+        # FSK_LDPC is sent without preamble and postamble, like data_vhf_1
+        burst = modulator.transmit_create_frame(bytes(), freedv, bytearray(payload))
+        burst = modulator.transmit_add_silence(burst, gap_ms)
+    else:
+        burst = modulator.create_burst(mode, 1, gap_ms, bytearray(payload))
+    return np.frombuffer(burst, dtype=np.int16)
 
 
 @dataclass
@@ -161,27 +221,38 @@ class Result:
         return self.payload_bytes * 8 / self.frame_seconds
 
 
-def run_mode(mode, channel, snr_db, frames=10, seed=1, doppler_shift_hz=0.0, gap_ms=500):
-    """Send frames bursts of one frame each through the channel and count the
-    frames decoded with the right payload."""
+def run_mode(mode, channel, snr_db, frames=10, seed=1, doppler_shift_hz=0.0, gap_ms=500, continuous=False):
+    """Send frames through the channel and count the frames decoded with the
+    right payload.
+
+    By default every frame is its own burst followed by gap_ms of silence, as
+    in ARQ. With continuous=True the frames are sent back to back, which shows
+    how the mode copes with the channel without the receiver having to find
+    each burst again; the FSK receiver needs this (see fading-channels.md).
+    mode is a FREEDV_MODE or an FskCandidate.
+    """
     rng = np.random.default_rng(seed)
     vhf = mode == codec2.FREEDV_MODE.data_vhf_1
     modulator = _modulator(vhf)
+    if continuous:
+        gap_ms = 0
 
-    tx = codec2.open_instance(mode.value)
+    tx = _open(mode)
     payload_bytes = int(codec2.api.freedv_get_bits_per_modem_frame(tx) / 8) - 2
 
     payloads = [rng.integers(0, 256, payload_bytes, dtype=np.uint8).tobytes() for _ in range(frames)]
-    audio = [np.zeros(int(FS * gap_ms / 1000), dtype=np.int16)]
+    audio = [np.zeros(FS // 2, dtype=np.int16)]
     burst_samples = 0
     for payload in payloads:
-        burst = np.frombuffer(modulator.create_burst(mode, 1, gap_ms, bytearray(payload)), dtype=np.int16)
+        burst = _burst(modulator, mode, tx, payload, gap_ms)
         burst_samples = len(burst) - int(FS * gap_ms / 1000)
         audio.append(burst)
+    # the receivers decode with up to a frame of delay; keep the audio running
+    audio.append(np.zeros(max(FS * 2, 2 * burst_samples), dtype=np.int16))
     rx_audio = to_int16(apply_channel(np.concatenate(audio), channel, snr_db, rng, doppler_shift_hz))
 
-    rx = codec2.open_instance(mode.value)
-    codec2.api.freedv_set_frames_per_burst(rx, 1)
+    rx = _open(mode)
+    codec2.api.freedv_set_frames_per_burst(rx, 0 if continuous else 1)
     bytes_per_frame = payload_bytes + 2
     bytes_out = ctypes.create_string_buffer(bytes_per_frame)
     expected = set(payloads)

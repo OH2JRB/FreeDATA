@@ -17,6 +17,7 @@ python tools/fading_measure.py                       # all modes, channels and S
 python tools/fading_measure.py --channels hl_moderate --snr 10 20 --frames 10
 python tools/fading_measure.py --custom 5 2          # Doppler spread 5 Hz, path delay 2 ms
 python tools/fading_measure.py --shift 20            # add a 20 Hz Doppler shift
+python tools/fading_measure.py --fsk --stream        # also the HF FSK candidates, see section 6
 ```
 
 ## 2. Channel model
@@ -183,9 +184,151 @@ the ARQ speed levels (`arq_session.SPEED_LEVEL_DICT`) are in bold.
   here.
 - One burst per frame with 500 ms gaps; the ARQ timing and retries are not part
   of the test.
-- `data_vhf_1` decodes only about 60% of the frames even on a clean channel in
-  this harness. It is sent without preamble and postamble, as with
-  `EXP.enable_vhf`; the losses are probably at burst starts and were not
-  investigated.
+- `data_vhf_1` and the FSK candidates decode only 50 to 60% of single-frame
+  bursts even on a clean channel; see section 6 for the cause.
 - The results depend on the seed; 20 frames per cell give a rough share, not an
   exact frame error rate.
+
+## 6. HF FSK candidates
+
+The FSK finding above suggests an FSK mode with longer symbols for auroral
+paths. `tools/channel_sim.py` has a list of candidates, `FSK_CANDIDATES`, opened
+directly from codec2's FSK_LDPC mode (`freedv_open_advanced`); FreeDATA itself
+has none of them. All fit in about 500 Hz, like `data_ofdm_500`.
+
+| Candidate | Tones | Symbol rate | Symbol length | Tone spacing | LDPC code | Bandwidth | Payload | Payload bps |
+|---|---|---|---|---|---|---|---|---|
+| `fsk4_100` | 4 | 100 baud | 10 ms | 100 Hz | H_256_512_4 | 500 Hz | 30 bytes | 88 |
+| `fsk4_50` | 4 | 50 baud | 20 ms | 100 Hz | H_256_512_4 | 400 Hz | 30 bytes | 44 |
+| `fsk4_50w` | 4 | 50 baud | 20 ms | 150 Hz | H_256_512_4 | 550 Hz | 30 bytes | 44 |
+| `fsk2_100` | 2 | 100 baud | 10 ms | 200 Hz | H_256_512_4 | 400 Hz | 30 bytes | 44 |
+| `fsk4_25` | 4 | 25 baud | 40 ms | 100 Hz | H_256_512_4 | 350 Hz | 30 bytes | 22 |
+| `fsk4_100_long` | 4 | 100 baud | 10 ms | 100 Hz | H_1024_2048_4f | 500 Hz | 126 bytes | 97 |
+
+For comparison, `datac4` (the most robust ARQ speed level) carries 80 bps and
+`data_vhf_1` (4FSK, 200 baud, 400 Hz spacing) 176 bps.
+
+### Measurements
+
+`python tools/fading_measure.py --modes datac4 signalling data_vhf_1 fsk4_100
+fsk4_50 fsk4_50w fsk2_100 fsk4_25 fsk4_100_long --stream --frames 10
+--channels awgn mid_disturbed hl_moderate hl_disturbed`, 10 frames per cell.
+Rows marked "stream" send the frames back to back; the others send one frame
+per burst with 500 ms gaps, as ARQ does.
+
+#### `awgn`: no fading, noise only (Doppler spread 0 Hz, delay 0 ms)
+
+| mode | payload bps | -5 dB | 0 dB | 5 dB | 10 dB | 15 dB | 20 dB | 30 dB |
+|---|---|---|---|---|---|---|---|---|
+| **datac4** | 80 | 100% | 100% | 100% | 100% | 100% | 100% | 100% |
+| signalling | 51 | 100% | 100% | 100% | 100% | 100% | 100% | 100% |
+| data_vhf_1 | 176 | 30% | 60% | 60% | 60% | 60% | 60% | 60% |
+| data_vhf_1, stream | 176 | 90% | 100% | 100% | 100% | 100% | 100% | 100% |
+| *fsk4_100* (500 Hz) | 88 | 50% | 60% | 60% | 60% | 60% | 60% | 60% |
+| *fsk4_100* (500 Hz), stream | 88 | 100% | 100% | 100% | 100% | 100% | 100% | 100% |
+| *fsk4_50* (400 Hz) | 44 | 50% | 50% | 50% | 50% | 50% | 50% | 50% |
+| *fsk4_50* (400 Hz), stream | 44 | 100% | 100% | 100% | 100% | 100% | 100% | 100% |
+| *fsk4_50w* (550 Hz) | 44 | 50% | 50% | 50% | 50% | 50% | 50% | 50% |
+| *fsk4_50w* (550 Hz), stream | 44 | 100% | 100% | 100% | 100% | 100% | 100% | 100% |
+| *fsk2_100* (400 Hz) | 44 | 50% | 50% | 50% | 50% | 50% | 50% | 50% |
+| *fsk2_100* (400 Hz), stream | 44 | 100% | 100% | 100% | 100% | 100% | 100% | 100% |
+| *fsk4_25* (350 Hz) | 22 | 50% | 50% | 40% | 50% | 50% | 50% | 50% |
+| *fsk4_25* (350 Hz), stream | 22 | 100% | 100% | 100% | 100% | 100% | 100% | 100% |
+| *fsk4_100_long* (500 Hz) | 97 | 50% | 50% | 50% | 50% | 50% | 50% | 50% |
+| *fsk4_100_long* (500 Hz), stream | 97 | 90% | 100% | 100% | 100% | 100% | 100% | 100% |
+
+#### `mid_disturbed`: mid-latitude disturbed (codec2 MPP) (Doppler spread 1 Hz, delay 2 ms)
+
+| mode | payload bps | -5 dB | 0 dB | 5 dB | 10 dB | 15 dB | 20 dB | 30 dB |
+|---|---|---|---|---|---|---|---|---|
+| **datac4** | 80 | 80% | 100% | 100% | 100% | 100% | 100% | 100% |
+| signalling | 51 | 70% | 100% | 100% | 100% | 100% | 100% | 100% |
+| data_vhf_1 | 176 | 0% | 40% | 60% | 60% | 60% | 60% | 60% |
+| data_vhf_1, stream | 176 | 20% | 50% | 90% | 100% | 90% | 100% | 100% |
+| *fsk4_100* (500 Hz) | 88 | 40% | 60% | 60% | 60% | 60% | 60% | 60% |
+| *fsk4_100* (500 Hz), stream | 88 | 50% | 80% | 90% | 100% | 100% | 100% | 100% |
+| *fsk4_50* (400 Hz) | 44 | 50% | 50% | 50% | 50% | 50% | 50% | 50% |
+| *fsk4_50* (400 Hz), stream | 44 | 100% | 90% | 90% | 100% | 100% | 90% | 100% |
+| *fsk4_50w* (550 Hz) | 44 | 50% | 50% | 50% | 50% | 50% | 50% | 50% |
+| *fsk4_50w* (550 Hz), stream | 44 | 90% | 100% | 100% | 80% | 100% | 90% | 100% |
+| *fsk2_100* (400 Hz) | 44 | 40% | 50% | 50% | 50% | 50% | 50% | 50% |
+| *fsk2_100* (400 Hz), stream | 44 | 80% | 90% | 100% | 100% | 100% | 100% | 90% |
+| *fsk4_25* (350 Hz) | 22 | 50% | 50% | 50% | 50% | 40% | 50% | 40% |
+| *fsk4_25* (350 Hz), stream | 22 | 100% | 100% | 100% | 90% | 90% | 90% | 100% |
+| *fsk4_100_long* (500 Hz) | 97 | 20% | 50% | 50% | 50% | 50% | 50% | 50% |
+| *fsk4_100_long* (500 Hz), stream | 97 | 30% | 90% | 100% | 100% | 100% | 100% | 100% |
+
+#### `hl_moderate`: high-latitude moderate, auroral (Doppler spread 10 Hz, delay 3 ms)
+
+| mode | payload bps | -5 dB | 0 dB | 5 dB | 10 dB | 15 dB | 20 dB | 30 dB |
+|---|---|---|---|---|---|---|---|---|
+| **datac4** | 80 | 0% | 0% | 0% | 0% | 0% | 0% | 0% |
+| signalling | 51 | 0% | 0% | 0% | 0% | 0% | 0% | 0% |
+| data_vhf_1 | 176 | 0% | 0% | 0% | 0% | 0% | 0% | 0% |
+| data_vhf_1, stream | 176 | 0% | 0% | 0% | 0% | 0% | 0% | 0% |
+| *fsk4_100* (500 Hz) | 88 | 0% | 50% | 50% | 60% | 60% | 60% | 50% |
+| *fsk4_100* (500 Hz), stream | 88 | 40% | 100% | 100% | 90% | 100% | 100% | 100% |
+| *fsk4_50* (400 Hz) | 44 | 50% | 50% | 50% | 50% | 50% | 50% | 50% |
+| *fsk4_50* (400 Hz), stream | 44 | 90% | 100% | 100% | 90% | 90% | 90% | 90% |
+| *fsk4_50w* (550 Hz) | 44 | 40% | 50% | 50% | 50% | 50% | 50% | 50% |
+| *fsk4_50w* (550 Hz), stream | 44 | 90% | 100% | 100% | 90% | 90% | 100% | 100% |
+| *fsk2_100* (400 Hz) | 44 | 40% | 50% | 50% | 50% | 50% | 50% | 50% |
+| *fsk2_100* (400 Hz), stream | 44 | 90% | 100% | 100% | 100% | 100% | 100% | 90% |
+| *fsk4_25* (350 Hz) | 22 | 40% | 50% | 50% | 50% | 40% | 50% | 50% |
+| *fsk4_25* (350 Hz), stream | 22 | 90% | 100% | 90% | 100% | 90% | 90% | 100% |
+| *fsk4_100_long* (500 Hz) | 97 | 0% | 50% | 50% | 50% | 50% | 50% | 50% |
+| *fsk4_100_long* (500 Hz), stream | 97 | 20% | 100% | 100% | 100% | 100% | 100% | 100% |
+
+#### `hl_disturbed`: high-latitude disturbed, strong aurora (Doppler spread 30 Hz, delay 7 ms)
+
+| mode | payload bps | -5 dB | 0 dB | 5 dB | 10 dB | 15 dB | 20 dB | 30 dB |
+|---|---|---|---|---|---|---|---|---|
+| **datac4** | 80 | 0% | 0% | 0% | 0% | 0% | 0% | 0% |
+| signalling | 51 | 0% | 0% | 0% | 0% | 0% | 0% | 0% |
+| data_vhf_1 | 176 | 0% | 0% | 0% | 0% | 0% | 0% | 0% |
+| data_vhf_1, stream | 176 | 0% | 0% | 0% | 0% | 0% | 0% | 0% |
+| *fsk4_100* (500 Hz) | 88 | 0% | 0% | 0% | 0% | 0% | 0% | 0% |
+| *fsk4_100* (500 Hz), stream | 88 | 0% | 0% | 0% | 0% | 0% | 0% | 0% |
+| *fsk4_50* (400 Hz) | 44 | 20% | 30% | 40% | 50% | 30% | 40% | 40% |
+| *fsk4_50* (400 Hz), stream | 44 | 20% | 90% | 60% | 70% | 60% | 50% | 90% |
+| *fsk4_50w* (550 Hz) | 44 | 20% | 40% | 40% | 40% | 40% | 30% | 40% |
+| *fsk4_50w* (550 Hz), stream | 44 | 40% | 70% | 60% | 80% | 60% | 100% | 80% |
+| *fsk2_100* (400 Hz) | 44 | 0% | 0% | 0% | 0% | 0% | 0% | 0% |
+| *fsk2_100* (400 Hz), stream | 44 | 0% | 0% | 0% | 0% | 0% | 0% | 0% |
+| *fsk4_25* (350 Hz) | 22 | 10% | 0% | 0% | 0% | 0% | 10% | 0% |
+| *fsk4_25* (350 Hz), stream | 22 | 10% | 0% | 10% | 0% | 10% | 10% | 0% |
+| *fsk4_100_long* (500 Hz) | 97 | 0% | 0% | 0% | 0% | 0% | 0% | 0% |
+| *fsk4_100_long* (500 Hz), stream | 97 | 0% | 0% | 0% | 0% | 0% | 0% | 0% |
+
+### What the FSK measurements show
+
+- **On `hl_moderate` (10 Hz, 3 ms) every candidate works** where all current modes fail:
+  90 to 100% of the frames from 0 dB up when streamed. `data_vhf_1` still fails,
+  so the longer symbols (10 ms or more instead of 5 ms) are what makes the difference.
+- **On `hl_disturbed` (30 Hz, 7 ms) only the 50 baud 4FSK candidates get through**:
+  `fsk4_50w` 60 to 100% and `fsk4_50` 50 to 90% when streamed. The 100 baud candidates
+  fail because the 7 ms echo covers most of a 10 ms symbol, and 25 baud fails because
+  a 40 ms symbol is longer than the channel stays the same at 30 Hz of spread.
+  50 baud (20 ms symbols) is the sweet spot, and the wider 150 Hz tone spacing helps
+  a little.
+- The price is speed: 44 bps of payload for the 50 baud candidates, against 80 bps
+  for `datac4` on a good channel. On an auroral path the comparison is 44 bps
+  against nothing.
+- **FSK in single-frame bursts loses about half of the frames, even without noise.**
+  codec2's FSK receiver decodes a frame only about one frame length after it ends,
+  and with silence between bursts it misses frames depending on how the gap lines up
+  with its frame-length processing. Back-to-back frames all decode. This affects
+  `data_vhf_1` too (FreeDATA's VHF mode). Before an FSK mode can carry ARQ bursts
+  this has to be fixed, for example with a preamble the receiver can sync on, or by
+  sending FSK frames as one continuous transmission.
+
+### Next steps this points to
+
+1. Fix FSK burst acquisition (preamble or a change in how bursts are received),
+   then measure the candidates in burst form again.
+2. Add a 50 baud 4FSK mode (`fsk4_50w` or close to it) to `codec2.py` and the
+   modulator, decoders and frame handling, and use it for signalling and as the
+   lowest ARQ speed level on disturbed paths.
+3. Choose that level from failures and channel measurements, not from SNR alone,
+   since the auroral channel looks strong but defeats the OFDM modes.
+
