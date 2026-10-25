@@ -1,13 +1,14 @@
 # Per-station message encryption
 
 P2P chat messages can be encrypted with AES-256-GCM and a key the two operators
-share in advance. Encryption is **off by default** and is switched on per station in the GUI.
+share in advance. Encryption is **off by default** and is switched on per station in the GUI,
+or for all stations with a [common key](#common-key).
 
 > **Legal note.** Most amateur radio regulations prohibit messages encoded to
 > obscure their meaning: ITU Radio Regulations 25.2A, and national rules such as
 > FCC §97.113(a)(4). Only use encryption on frequencies and under licences that
 > allow it. The GUI shows this warning and asks for confirmation every time
-> encryption is turned on for a station.
+> encryption is turned on for a station or the common key setting is switched on.
 
 ## What is and isn't encrypted
 
@@ -24,13 +25,14 @@ data was sent.
 
 | File | Role |
 |---|---|
-| [encryption.py](../encryption.py) | `parse_key`, `encrypt`, `decrypt`, `key_fingerprint`, `StationKeyStore`, `DecryptionError`, `KeyMissingError` |
+| [encryption.py](../encryption.py) | `parse_key`, `encrypt`, `decrypt`, `decrypt_any`, `key_fingerprint`, `StationKeyStore`, `DecryptionError`, `KeyMissingError` |
 | [arq_data_type_handler.py](../arq_data_type_handler.py) | ARQ type `p2pmsg_zlib_aesgcm = 21`: compress, then encrypt (and the reverse) |
-| [message_p2p.py](../message_p2p.py) | `encrypted_message_received`, `decrypt_pending_messages`, `decompress_p2pmsg` |
-| [command_message_send.py](../command_message_send.py) | Picks the encrypted type for stations with encryption on, holds messages without a key |
+| [message_p2p.py](../message_p2p.py) | `encryption_wanted`, `encrypted_message_received`, `decrypt_pending_messages`, `common_key_changed`, `decompress_p2pmsg` |
+| [command_message_send.py](../command_message_send.py) | Picks the encrypted type when `encryption_wanted()`, holds messages without a key |
 | [message_system_db_encryption.py](../message_system_db_encryption.py) | `DatabaseManagerEncryption`: pending received messages, messages waiting for a key |
 | [message_system_db_station.py](../message_system_db_station.py) | `is_encryption_enabled`, `set_encryption_enabled` |
-| [api/freedata.py](../api/freedata.py) | `/freedata/station/{callsign}/encryption` endpoints |
+| [api/freedata.py](../api/freedata.py) | `/freedata/station/{callsign}/encryption` and `/freedata/encryption/common-key` endpoints |
+| [api/config.py](../api/config.py) | Calls `common_key_changed()` when `POST /config` switches the common key setting on |
 
 ## Keys
 
@@ -49,6 +51,31 @@ data was sent.
   as `XXXX XXXX XXXX XXXX`. The GUI shows it so both operators can check they
   entered the same key.
 
+## Common key
+
+One key shared by a group of stations, switched on in *Settings → Chat* (config
+`[MESSAGES] enable_common_key`, default `False`).
+
+- **On:** messages to **every** station are encrypted, whether or not encryption is on
+  for the station (`encryption_wanted()`). A station's own key takes precedence:
+  `StationKeyStore.key_for()` returns the station key if one is entered, otherwise the
+  common key.
+- **Receiving** tries the station key first, then the common key
+  (`keys_for()` + `decrypt_any()`). The wire format has no key id, and a wrong key fails
+  the GCM tag check, so trying both is safe.
+- **Off:** the common key is not used, even if it is still in memory. Only stations
+  with encryption switched on are encrypted, as before.
+- **Storage:** like station keys, in memory only (`StationKeyStore.set_common()`). It
+  has to be entered again after a server restart; until then, messages wait with
+  status `key_required`.
+- **Entering the key**, or switching the setting on while the key is in memory, runs
+  `common_key_changed()`: it decrypts the pending received messages of all stations
+  that the common key fits and queues all `key_required` messages again. Unlike a
+  station key, a common key is never rejected because it doesn't fit pending messages
+  (they may be from stations that use their own key).
+- Stations that don't know the common key can't read your messages while the setting
+  is on. Enter a station key for them, or switch the setting off.
+
 ## Wire format
 
 ARQ type byte `21` (`p2pmsg_zlib_aesgcm`). The ARQ payload is:
@@ -66,10 +93,10 @@ the data.
 
 ```mermaid
 flowchart TD
-    A[POST /freedata/messages] --> B{encryption on for destination?}
+    A[POST /freedata/messages] --> B{encryption on for destination, or common key setting on?}
     B -- no --> Q[status queued]
     B -- yes --> K{key in memory?}
-    K -- yes --> Q
+    K -- "yes (station key, else common key)" --> Q
     K -- no --> R[status key_required + event key_required/send]
     Q --> T[SendMessageCommand.transmit]
     T --> K2{encryption on? key in memory?}
@@ -95,8 +122,9 @@ flowchart TD
 
 `handle_p2pmsg_zlib_aesgcm` calls `encrypted_message_received(ctx, dxcall, data, stats)`:
 
-1. Key known and it fits: decrypt, inflate, `message_received(..., encrypted=True)`.
-2. No key, or a key that doesn't decrypt: the encrypted payload goes into the
+1. The station key, or else the common key (if that setting is on), fits: decrypt,
+   inflate, `message_received(..., encrypted=True)`.
+2. No key, or no key that decrypts: the encrypted payload goes into the
    `pending_encrypted_message` table and the event
    `{"type": "encryption", "status": "key_required", "callsign": ..., "reason": "receive" | "wrong_key"}`
    is sent. The GUI then opens the key dialog.
@@ -127,13 +155,23 @@ Older databases are migrated by the normal additive schema update
 | PATCH | `/freedata/station/{callsign}/encryption` | `{"enabled": true\|false}` | status object | 400 `'enabled' must be true or false`; 500 on a database error |
 | PUT | `/freedata/station/{callsign}/encryption/key` | `{"key": "<64 hex chars or passphrase>"}` | status object plus `decrypted` and `requeued` counts | 400 invalid key, or key doesn't decrypt the waiting messages |
 | DELETE | `/freedata/station/{callsign}/encryption/key` | none | status object | 400 invalid callsign |
+| GET | `/freedata/encryption/common-key` | none | `{"enabled", "key_loaded", "fingerprint"}` | none |
+| PUT | `/freedata/encryption/common-key` | `{"key": "<64 hex chars or passphrase>"}` | common key status plus `decrypted` and `requeued` counts | 400 invalid key |
+| DELETE | `/freedata/encryption/common-key` | none | common key status | none |
 
-Status object:
+The common key setting itself is `MESSAGES.enable_common_key` in `POST /config`.
+
+Status object of a station:
 
 ```json
-{"callsign": "AA1AAA-0", "enabled": true, "key_loaded": true,
- "fingerprint": "E1FA C658 B808 9106", "pending_received": 0, "waiting_to_send": 0}
+{"callsign": "AA1AAA-0", "enabled": true, "encrypted": true, "common_key_enabled": false,
+ "key_loaded": true, "fingerprint": "E1FA C658 B808 9106", "key_source": "station",
+ "pending_received": 0, "waiting_to_send": 0}
 ```
+
+`enabled` is the station's own switch, `encrypted` whether messages to it are encrypted
+(its switch or the common key setting). `key_loaded` and `fingerprint` refer to the
+station key; `key_source` is `"station"`, `"common"` or `null` (no usable key).
 
 The GUI side is described in
 [freedata_gui/docs/chat-and-broadcasts.md](../../freedata_gui/docs/chat-and-broadcasts.md#encryption).
@@ -142,7 +180,7 @@ The GUI side is described in
 
 - No key exchange and no forward secrecy: anyone who later gets the key can decrypt
   recorded traffic.
-- One key per station, used in both directions.
+- One key per station, used in both directions, plus at most one common key.
 - Random 96-bit nonces are safe for far more messages than an HF link can carry.
 - Message history in the local database is stored decrypted, as before.
 - There is no replay protection beyond the duplicate message-id check in the database.

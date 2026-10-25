@@ -395,6 +395,7 @@ Defined in `CONFIG.config_types`; example values from [config.ini.example](../co
 | | `cmd_port` | int | `9000` |
 | | `data_port` | int | `9001` |
 | MESSAGES | `enable_auto_repeat` | bool | `True` |
+| | `enable_common_key` | bool | `False` |
 | QSO_LOGGING | `enable_adif_udp` | bool | `False` |
 | | `adif_udp_host` | str | `127.0.0.1` |
 | | `adif_udp_port` | int | `2237` |

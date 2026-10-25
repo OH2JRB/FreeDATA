@@ -220,6 +220,9 @@ The message is stored with `status="queued"`, `direction="transmit"`. All of thi
 | PATCH | `/freedata/station/{callsign}/encryption` | `{"enabled": bool}` | encryption status | 400 `'enabled' must be true or false`; 500 database error |
 | PUT | `/freedata/station/{callsign}/encryption/key` | `{"key": str}` | encryption status plus `decrypted`, `requeued` | 400 invalid key / key doesn't decrypt the waiting messages |
 | DELETE | `/freedata/station/{callsign}/encryption/key` | none | encryption status | 400 invalid callsign |
+| GET | `/freedata/encryption/common-key` | none | `{"enabled", "key_loaded", "fingerprint"}` | none |
+| PUT | `/freedata/encryption/common-key` | `{"key": str}` | common key status plus `decrypted`, `requeued` | 400 invalid key |
+| DELETE | `/freedata/encryption/common-key` | none | common key status | none |
 
 The encryption endpoints are described in [encryption.md](encryption.md#api).
 

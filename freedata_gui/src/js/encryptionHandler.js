@@ -11,6 +11,9 @@ import {
   setStationEncryptionEnabled,
   setStationEncryptionKey,
   deleteStationEncryptionKey,
+  getCommonEncryptionKey,
+  setCommonEncryptionKey,
+  deleteCommonEncryptionKey,
 } from "./api";
 
 export async function loadEncryptionStatus(callsign) {
@@ -58,6 +61,35 @@ export async function enterEncryptionKey(callsign, key) {
 
 export async function forgetEncryptionKey(callsign) {
   return storeResult(callsign, await deleteStationEncryptionKey(callsign));
+}
+
+export async function loadCommonKeyStatus() {
+  const result = await getCommonEncryptionKey();
+  if (result) encryption.common = result;
+  return result;
+}
+
+// The common key changes the key (and encryption) of every station without
+// its own key, so the cached station states are reloaded too.
+async function commonKeyChanged(result) {
+  if (result.ok) {
+    await loadCommonKeyStatus();
+    await Promise.all(Object.keys(encryption.status).map(loadEncryptionStatus));
+  }
+  return result;
+}
+
+export async function enterCommonKey(key) {
+  return commonKeyChanged(await setCommonEncryptionKey(key));
+}
+
+export async function forgetCommonKey() {
+  return commonKeyChanged(await deleteCommonEncryptionKey());
+}
+
+// After the common key setting was switched on or off.
+export async function commonKeySettingChanged() {
+  return commonKeyChanged({ ok: true });
 }
 
 // Random 256 bit key as 64 hex characters, to share with the other operator.

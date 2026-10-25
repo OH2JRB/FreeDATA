@@ -74,6 +74,7 @@ const defaultConfig = {
     },
     MESSAGES: {
       enable_auto_repeat: false,
+      enable_common_key: false,
     },
     SOCKET_INTERFACE: {
       enable: false,

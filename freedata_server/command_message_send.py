@@ -1,9 +1,8 @@
 from freedata_server.command import TxCommand
 from freedata_server.arq_session_iss import ARQSessionISS
-from freedata_server.message_p2p import MessageP2P
+from freedata_server.message_p2p import MessageP2P, encryption_wanted
 from freedata_server.arq_data_type_handler import ARQ_SESSION_TYPES
 from freedata_server.message_system_db_messages import DatabaseManagerMessages
-from freedata_server.message_system_db_station import DatabaseManagerStations
 from freedata_server import encryption
 import threading
 import numpy as np
@@ -42,9 +41,7 @@ class SendMessageCommand(TxCommand):
 
     def key_missing(self, destination):
         """True if messages to destination are to be encrypted, but its key is unknown."""
-        return DatabaseManagerStations(self.ctx).is_encryption_enabled(destination) and not self.ctx.station_keys.has(
-            destination
-        )
+        return encryption_wanted(self.ctx, destination) and self.ctx.station_keys.key_for(destination) is None
 
     def transmit(self):
         """Transmits the first queued message using ARQ.
@@ -89,7 +86,7 @@ class SendMessageCommand(TxCommand):
                 )
                 self.ctx.event_manager.send_encryption_key_required(message.destination, "send")
                 return
-            encrypt = DatabaseManagerStations(self.ctx).is_encryption_enabled(message.destination)
+            encrypt = encryption_wanted(self.ctx, message.destination)
 
             # wait some random time and wait if we have an ongoing codec2 transmission
             # on our channel. This should prevent some packet collision

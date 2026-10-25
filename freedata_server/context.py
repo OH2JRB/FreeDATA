@@ -31,7 +31,8 @@ class AppContext:
         self.radio_manager = None  # Radio manager instance, started by the service manager on "start"
         self.socket_interface_manager = None  # Socket interface instance, We start it as we need it
         self.rf_modem = None  # Modem instnace, we start it as we need it
-        self.station_keys = StationKeyStore()  # pre-shared encryption keys, memory only
+        # pre-shared encryption keys, memory only
+        self.station_keys = StationKeyStore(common_key_enabled=self.common_key_enabled)
         self.message_system_db_manager = DatabaseManager(self)
         self.message_system_db_attachments = DatabaseManagerAttachments(self)
 
@@ -43,6 +44,11 @@ class AppContext:
             Queue()
         )  # This is a helper queue which holds received bursts for helping using tests
         self.TESTMODE_EVENTS = Queue()  # This is a helper queue which holds events
+
+    def common_key_enabled(self):
+        """True if the "common encryption key for all stations" setting is on."""
+        config = self.config_manager.config or {}
+        return bool(config.get("MESSAGES", {}).get("enable_common_key", False))
 
     def startup(self):
         # initially read config
