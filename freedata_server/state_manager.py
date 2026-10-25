@@ -55,6 +55,10 @@ class StateManager:
         self.arq_iss_sessions = {}
         self.arq_irs_sessions = {}
 
+        # IDs of queued messages a SendMessageCommand is currently sending
+        self.messages_in_transmit = set()
+        self.messages_in_transmit_lock = threading.Lock()
+
         self.p2p_connection_sessions = {}
 
         # self.mesh_routing_table = []
@@ -288,6 +292,34 @@ class StateManager:
         channel is detected as busy.
         """
         self.channel_busy_event.wait(2)
+
+    def claim_message_transmit(self, message_id):
+        """Claims a queued message for sending.
+
+        The API and the scheduler can both start sending the first queued
+        message. Only the caller that claims it may send it.
+
+        Args:
+            message_id (str): The ID of the message.
+
+        Returns:
+            bool: True if the message was claimed, False if another caller is
+            already sending it.
+        """
+        with self.messages_in_transmit_lock:
+            if message_id in self.messages_in_transmit:
+                return False
+            self.messages_in_transmit.add(message_id)
+            return True
+
+    def release_message_transmit(self, message_id):
+        """Releases a message claimed with claim_message_transmit.
+
+        Args:
+            message_id (str): The ID of the message.
+        """
+        with self.messages_in_transmit_lock:
+            self.messages_in_transmit.discard(message_id)
 
     def register_arq_iss_session(self, session):
         """Registers an ARQ ISS session.

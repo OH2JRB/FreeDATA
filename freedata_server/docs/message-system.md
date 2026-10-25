@@ -385,6 +385,7 @@ sequenceDiagram
     Cmd->>DB: add_message(direction=transmit, status=queued)
     API->>Cmd: run() in thread -> transmit()
     Cmd->>DB: get_first_queued_message()
+    Note over Cmd: claim the message id (state_manager.claim_message_transmit),<br/>return if another command is already sending it
     Note over Cmd: random 0-9 s wait, 10 s channel check
     alt codec2 signal heard
         Cmd-->>Cmd: return (stays queued, scheduler retries every 15 s)
