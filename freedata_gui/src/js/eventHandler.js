@@ -662,6 +662,5 @@ export function getOverallHealth() {
   }
   if (!stateStore.is_modem_running) health += 3;
   if (stateStore.radio_status === false) health += 2;
-  if (process.env.FDUpdateAvail === "1") health += 1;
   return health;
 }
