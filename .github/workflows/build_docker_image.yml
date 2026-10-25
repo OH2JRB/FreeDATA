@@ -1,5 +1,9 @@
 name: Build and Release Docker Image
-on: [push]
+on:
+  push:
+    branches: [main]
+    tags: ["*"]
+  workflow_dispatch:
 
 
 jobs:

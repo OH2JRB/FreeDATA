@@ -7,18 +7,18 @@ updates:
     directory: "/"
     schedule:
       interval: "monthly"
-    target-branch: "develop"
+    target-branch: "main"
     
   # Maintain dependencies for npm
   - package-ecosystem: "npm"
     directory: "/freedata_gui"
     schedule:
       interval: "monthly"
-    target-branch: "develop"
+    target-branch: "main"
 
   # Maintain dependencies for pip
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
       interval: "monthly"
-    target-branch: "develop"
+    target-branch: "main"
