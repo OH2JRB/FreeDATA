@@ -43,7 +43,7 @@ jobs:
           fileName: "hamlib-w64-*.zip"
           # latest: true
           extract: true
-          tag: '4.6.5'
+          tag: '4.7.2'
           out-file-path: "freedata_server/lib/hamlib"
 
       - name: Move Hamlib Files
