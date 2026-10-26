@@ -191,16 +191,84 @@ class TestFskBurstAck(unittest.TestCase):
         ctx = types.SimpleNamespace()
         ctx.config_manager = CONFIG(ctx, testenv.config_path())
         factory = DataFrameFactory(ctx)
-        ack = factory.build_arq_burst_ack(7, 0, flag_final=True, flag_checksum=True, offset=46)
+        ack = factory.build_arq_burst_ack(
+            7, 0, flag_final=True, flag_checksum=True, offset=46, burst_id=200, frames_received=0b101
+        )
         frame = factory.deconstruct(bytes(ack) + bytes(2), mode_name="DATA_FSK4_50")
         self.assertEqual(frame["frame_type_int"], FRAME_TYPE.ARQ_BURST_ACK.value)
         self.assertEqual(frame["session_id"], 7)
         self.assertEqual(frame["speed_level"], 0)
         self.assertEqual(frame["offset"], 46)
+        self.assertEqual(frame["burst_id"], 200)
+        self.assertEqual(frame["frames_received"], 0b101)
         self.assertTrue(frame["flag"]["FINAL"])
         self.assertTrue(frame["flag"]["CHECKSUM"])
         # DATAC14 burst ACKs stay without
         self.assertEqual(len(factory.build_arq_burst_ack(7, 0)), 3)
+
+
+class TestSelectiveRepeats(unittest.TestCase):
+    def make_iss(self):
+        iss = make_iss(ARQSessionISS.FSK_LEVEL)
+        iss.fsk = True
+        iss.burst_id = 5
+        iss.state = ISS_State.BURST_SENT
+        iss.total_length = 1000
+        iss.fsk_frames_per_burst = 4
+        iss.last_burst = {"offsets": [0, 22, 44, 66], "size": 22}
+        iss.irs_holds = set()
+        return iss
+
+    def ack(self, offset, frames_received=0, burst_id=5):
+        return {
+            "frame_type_int": FRAME_TYPE.ARQ_BURST_ACK.value,
+            "offset": offset,
+            "burst_id": burst_id,
+            "frames_received": frames_received,
+        }
+
+    def test_frames_held_after_the_gap(self):
+        iss = self.make_iss()
+        iss.adapt_fsk_burst(self.ack(22, 0b11))  # holds 44 and 66
+        self.assertEqual(iss.irs_holds, {44, 66})
+        self.assertEqual(iss.fsk_frames_per_burst, 4)  # 1 of 4 lost: unchanged
+
+    def test_more_frames_after_a_clean_burst(self):
+        iss = self.make_iss()
+        iss.adapt_fsk_burst(self.ack(88))
+        self.assertEqual(iss.fsk_frames_per_burst, 5)
+        iss.fsk_frames_per_burst = ARQSessionISS.FSK_FRAMES_PER_BURST_MAX
+        iss.adapt_fsk_burst(self.ack(88))
+        self.assertEqual(iss.fsk_frames_per_burst, ARQSessionISS.FSK_FRAMES_PER_BURST_MAX)
+
+    def test_fewer_frames_after_losses(self):
+        iss = self.make_iss()
+        iss.adapt_fsk_burst(self.ack(22))  # 3 of 4 lost
+        self.assertEqual(iss.fsk_frames_per_burst, 2)
+        iss.adapt_fsk_burst(self.ack(0))
+        self.assertEqual(iss.fsk_frames_per_burst, ARQSessionISS.FSK_FRAMES_PER_BURST_MIN)
+
+    def test_stale_ack_ignored(self):
+        iss = self.make_iss()
+        self.assertTrue(iss.is_stale_frame(self.ack(22, burst_id=4)))
+        self.assertFalse(iss.is_stale_frame(self.ack(22, burst_id=5)))
+        # DATAC14 ACKs carry no burst id
+        self.assertFalse(iss.is_stale_frame({"frame_type_int": FRAME_TYPE.ARQ_BURST_ACK.value}))
+
+    def test_irs_reports_frames_held(self):
+        irs = ARQSessionIRS.__new__(ARQSessionIRS)
+        irs.fsk = True
+        irs.id = 9
+        irs.speed_level = 0
+        irs.received_bytes = 22
+        irs.burst_id = 5
+        irs.burst_frame_size = 22
+        irs.pending_frames = {44: b"", 88: b""}
+        irs.frame_factory = mock.Mock()
+        irs.build_burst_ack()
+        kwargs = irs.frame_factory.build_arq_burst_ack.call_args.kwargs
+        self.assertEqual((kwargs["offset"], kwargs["burst_id"]), (22, 5))
+        self.assertEqual(kwargs["frames_received"], 0b101)  # 44 = gap + 1 frame, 88 = gap + 3 frames
 
 
 class SessionOnFadingPath:
@@ -292,7 +360,7 @@ class TestAuroralPath(SessionOnFadingPath, unittest.TestCase):
         self.assertEqual(modes[:2], [FREEDV_MODE.signalling] * 2)
         self.assertTrue(all(mode is FSK for mode in modes[2:]), modes)
         self.assertIn(FSK, self.frames(FRAME_TYPE.ARQ_SESSION_OPEN_ACK, "IRS"))
-        # 22 bytes per frame at the FSK level, 4 frames per burst: 2 bursts, 2 ACKs
+        # 21 bytes per frame at the FSK level, 4 frames in the first burst: 2 bursts, 2 ACKs
         self.assertEqual(len(self.frames(FRAME_TYPE.ARQ_BURST_FRAME)), 5)
         self.assertEqual(len(self.frames(FRAME_TYPE.ARQ_BURST_ACK)), 2)
 
@@ -336,17 +404,21 @@ class TestLostFskFrames(SessionOnFadingPath, unittest.TestCase):
         return self.fsk_burst_frames - 1 in self.LOST_BURST_FRAMES
 
     def test_bursts_continue_from_the_gap(self):
-        payload = np.random.default_rng(3).bytes(150)  # 7 frames of 22 bytes
+        payload = np.random.default_rng(3).bytes(150)  # 8 frames of 21 bytes
         self.assertTrue(self.transfer(payload))
         self.assertEqual(self.received(), payload)
 
         offsets = [int.from_bytes(f[3:7], "big") for s, m, t, f in self.sent if t == FRAME_TYPE.ARQ_BURST_FRAME.value]
-        acked = [int.from_bytes(f[4:8], "big") for s, m, t, f in self.sent if t == FRAME_TYPE.ARQ_BURST_ACK.value]
-        # burst 1 loses 22: the IRS keeps 44 and 66 and asks for 22. Burst 2
-        # fills the gap, so the IRS has up to 88, but loses its last frame (88):
-        # the timer answers 88. Burst 3 finishes.
-        self.assertEqual(offsets, [0, 22, 44, 66, 22, 44, 66, 88, 88, 110, 132])
-        self.assertEqual(acked, [22, 88, 150])
+        acks = [f for s, m, t, f in self.sent if t == FRAME_TYPE.ARQ_BURST_ACK.value]
+        acked = [(int.from_bytes(f[4:8], "big"), int.from_bytes(f[9:11], "big")) for f in acks]
+        # burst 1 loses 21: the IRS keeps 42 and 63 and asks for 21, saying it
+        # holds the two frames after it. Burst 2 sends 21 and new frames only,
+        # so the IRS has up to 126, but loses its last frame (126): the timer
+        # answers. Burst 3 finishes.
+        self.assertEqual(offsets, [0, 21, 42, 63, 21, 84, 105, 126, 126, 147])
+        self.assertEqual(acked, [(21, 0b11), (126, 0), (150, 0)])
+        # each ACK answers the burst before it
+        self.assertEqual([f[8] for f in acks], [1, 2, 3])
 
 
 if __name__ == "__main__":

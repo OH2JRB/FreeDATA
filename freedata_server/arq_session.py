@@ -74,6 +74,9 @@ class ARQSession:
     # 38 s instead of 22 s for one frame (22 bytes); longer bursts lose more
     # time when the ACK is lost. At most 15 (burst_info)
     FSK_FRAMES_PER_BURST = 4
+    # the ISS adapts it to the losses, between these
+    FSK_FRAMES_PER_BURST_MIN = 2
+    FSK_FRAMES_PER_BURST_MAX = 8
 
     def __init__(self, ctx, dxcall: str):
         """Initializes a new ARQ session.
@@ -263,6 +266,9 @@ class ARQSession:
         Args:
             frame: The received frame.
         """
+        if self.is_stale_frame(frame):
+            self.log(f"Ignoring {frame['frame_type']} for an earlier burst")
+            return
         self.event_frame_received.set()
         self.log(f"Received {frame['frame_type']}")
         # the other side has fallen back to FSK: follow, so answers reach it
@@ -284,6 +290,10 @@ class ARQSession:
             return
 
         self.log(f"Ignoring unknown transition from state {self.state.name} with frame {frame['frame_type']}")
+
+    def is_stale_frame(self, frame) -> bool:
+        """True for a frame that answers an earlier burst, which must not count as an answer."""
+        return False
 
     def is_session_outdated(self):
         """Checks if the session is outdated.

@@ -107,6 +107,13 @@ class ARQSessionISS(arq_session.ARQSession):
         self.confirmed_bytes = 0
         self.expected_byte_offset = 0
 
+        # FSK bursts: the last burst sent, the frames the IRS holds after a gap
+        # (from its ACK), and the frames per burst, adapted to the losses
+        self.burst_id = 0
+        self.last_burst = {"offsets": [], "size": 0}
+        self.irs_holds = set()
+        self.fsk_frames_per_burst = self.FSK_FRAMES_PER_BURST
+
         # instance of p2p connection
         self.running_p2p_connection = None
 
@@ -448,11 +455,21 @@ class ARQSessionISS(arq_session.ARQSession):
 
         payload_size = self.get_data_payload_size()
         # on FSK several frames per burst: the IRS's decoding delay and the ACK
-        # then come once per burst instead of once per frame
-        frames_per_burst = self.FSK_FRAMES_PER_BURST if self.fsk else self.frames_per_burst
-        offsets = list(range(self.confirmed_bytes, self.total_length, payload_size))[:frames_per_burst]
+        # then come once per burst instead of once per frame. Frames the IRS
+        # already holds after a gap are left out
+        if "frames_received" in irs_frame:
+            self.adapt_fsk_burst(irs_frame)
+        frames_per_burst = self.fsk_frames_per_burst if self.fsk else self.frames_per_burst
+        offsets = []
+        offset = self.confirmed_bytes
+        while offset < self.total_length and len(offsets) < frames_per_burst:
+            if offset not in self.irs_holds:
+                offsets.append(offset)
+            offset += payload_size
         if not offsets:
             offsets = [self.confirmed_bytes]
+        self.burst_id = (self.burst_id + 1) % 256
+        self.last_burst = {"offsets": offsets, "size": payload_size}
         burst = []
         for number, offset in enumerate(offsets, start=1):
             payload = self.data[offset : offset + payload_size]
@@ -465,11 +482,47 @@ class ARQSessionISS(arq_session.ARQSession):
                 self.speed_level,
                 burst_number=number,
                 burst_total=len(offsets),
+                burst_id=self.burst_id,
             )
             burst.append(data_frame)
         self.launch_twr(burst, self.TIMEOUT_TRANSFER, self.RETRIES_DATA, mode="auto", isARQBurst=True)
         self.set_state(ISS_State.BURST_SENT)
         return None, None
+
+    def adapt_fsk_burst(self, ack):
+        """Takes note of an FSK burst ACK: which frames the IRS holds after the gap,
+        and how many frames the next burst gets.
+
+        More frames per burst when none was lost, half as many when more than a
+        quarter was, between FSK_FRAMES_PER_BURST_MIN and _MAX.
+
+        Args:
+            ack: The ARQ_BURST_ACK, with offset, burst_id and frames_received.
+        """
+        size = self.last_burst["size"]
+        self.irs_holds = {ack["offset"] + (i + 1) * size for i in range(16) if ack["frames_received"] >> i & 1}
+        if ack["burst_id"] != self.burst_id:
+            return
+        sent = self.last_burst["offsets"]
+        lost = len([o for o in sent if o >= ack["offset"] and o not in self.irs_holds])
+        # the frame at the end of the data counts as lost only if it is not acknowledged
+        if self.total_length <= ack["offset"]:
+            lost = 0
+        if lost == 0:
+            self.fsk_frames_per_burst = min(self.fsk_frames_per_burst + 1, self.FSK_FRAMES_PER_BURST_MAX)
+        elif lost * 4 > len(sent):
+            self.fsk_frames_per_burst = max(self.fsk_frames_per_burst // 2, self.FSK_FRAMES_PER_BURST_MIN)
+        self.log(f"FSK burst: {lost} of {len(sent)} frames lost, next burst {self.fsk_frames_per_burst} frames")
+
+    def is_stale_frame(self, frame) -> bool:
+        """True for an FSK burst ACK that answers an earlier burst than the last one
+        sent: a repeated or late ACK, which must not count as the answer."""
+        return (
+            frame.get("frame_type_int") == FRAME_TYPE.ARQ_BURST_ACK.value
+            and "burst_id" in frame
+            and self.state == ISS_State.BURST_SENT
+            and frame["burst_id"] != self.burst_id
+        )
 
     def transmission_ended(self, irs_frame):
         """Handles the successful completion of the transmission.

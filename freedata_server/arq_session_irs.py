@@ -142,6 +142,8 @@ class ARQSessionIRS(arq_session.ARQSession):
         self.pending_frames = {}
         self.burst_ack_timer = None
         self.burst_ack_lock = threading.RLock()
+        self.burst_id = 0
+        self.burst_frame_size = 0
 
     def all_data_received(self):
         """Checks if all data has been received.
@@ -393,6 +395,9 @@ class ARQSessionIRS(arq_session.ARQSession):
             return None, None
 
         with self.burst_ack_lock:
+            # for the FSK burst ACK: which burst, and the data size of its frames
+            self.burst_id = burst_frame["burst_id"]
+            self.burst_frame_size = len(burst_frame["data"])
             self.process_incoming_data(burst_frame)
             # update statistics
             self.update_histograms(self.received_bytes, self.total_length)
@@ -450,8 +455,22 @@ class ARQSessionIRS(arq_session.ARQSession):
         Args:
             **flags: flag_final, flag_checksum, flag_abort for build_arq_burst_ack.
         """
-        offset = self.received_bytes if self.fsk else None
-        return self.frame_factory.build_arq_burst_ack(self.id, self.speed_level, offset=offset, **flags)
+        if not self.fsk:
+            return self.frame_factory.build_arq_burst_ack(self.id, self.speed_level, **flags)
+        # frames held after the gap: bit i for the frame i + 1 frames after it
+        frames_received = 0
+        if self.burst_frame_size:
+            for i in range(16):
+                if self.received_bytes + (i + 1) * self.burst_frame_size in self.pending_frames:
+                    frames_received |= 1 << i
+        return self.frame_factory.build_arq_burst_ack(
+            self.id,
+            self.speed_level,
+            offset=self.received_bytes,
+            burst_id=self.burst_id,
+            frames_received=frames_received,
+            **flags,
+        )
 
     def schedule_burst_ack(self, delay):
         """Sends the burst ACK after delay seconds, unless send_burst_ack() comes first.

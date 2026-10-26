@@ -75,8 +75,8 @@ class TestDataFrameFactory(unittest.TestCase):
 
     def test_available_payload(self):
         available = self.factory.get_available_data_payload_for_mode(FRAME_TYPE.ARQ_BURST_FRAME, FREEDV_MODE.datac3)
-        # 128 bytes less 2 CRC, 1 type, 1 session id, 1 speed level, 4 offset, 1 burst info
-        self.assertEqual(available, 118)
+        # 128 bytes less 2 CRC, 1 type, 1 session id, 1 speed level, 4 offset, 1 burst info, 1 burst id
+        self.assertEqual(available, 117)
 
 
 if __name__ == "__main__":
