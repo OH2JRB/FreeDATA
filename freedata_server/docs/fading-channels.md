@@ -465,13 +465,14 @@ A cleaner fix would be in codec2: let `freedv_set_sync()` reset the FSK_LDPC
 state, or let the receiver search for the unique word again right after a
 decoded frame when it is set to one frame per burst.
 
-The replay covers one frame length, as measured above. codec2 decodes a frame
-between 0 and a little more than one frame length after its end, so when that
-delay is long, the replay starts after the next burst has begun and that burst
-is lost (one of eight bursts in `tests/test_demodulator_fsk.py`, and probably the
-remaining 0 to 10% losses in the tables above). Replaying 1.5 frame lengths finds
-those bursts too, but then decodes some frames twice, and filtering duplicates
-must not swallow a genuine ARQ repeat, so it was left for later.
+The replay covered one frame length at first, as measured above. codec2
+decodes a frame between 0 and a little more than one frame length after its
+end, so when that delay is long, the replay started after the next burst had
+begun and that burst was lost (one of eight bursts in
+`tests/test_demodulator_fsk.py`, and probably the remaining 0 to 10% losses in
+the tables above). The replay now covers 1.5 frame lengths, and the frames it
+decodes twice are dropped (a frame decoded again within two frame lengths of
+audio; ARQ repeats come 20 s or more later): all eight bursts decode.
 
 ## 8. The HF FSK mode `data_fsk4_50`
 
@@ -577,15 +578,43 @@ codec2's FSK receiver decodes a frame only after it has collected the frame
 length that follows it (section 7). With 5.44 s frames that is a long time: a
 single frame followed by noise was decoded **3.9 to 5.1 s after its end**,
 depending on where it fell in the receiver's processing blocks (`datac4`: 0.06 s,
-`data_vhf_1`: 0.3 to 1.3 s). The receiver needs that audio, so the IRS cannot
-answer earlier, and the ISS has to wait for it (see below).
+`data_vhf_1`: 0.3 to 1.3 s). An ARQ burst pays it twice: for the burst and for
+its ACK.
+
+Changing codec2 would mean building and shipping new libraries for every
+platform, so FreeDATA works around it (`freedata_server/fsk_early.py`,
+`FskEarlyDecoder`). About once a second it opens a fresh receiver on the last
+1.25 frame lengths of audio, followed by a frame length of silence in place of
+the audio still to come. The LDPC code takes the silence as erasures, so a frame
+decodes from its end on, often even up to 2.6 s before it (the CRC16 confirms
+it). Such a frame must not be passed on before its end: the station would answer
+while the other one still transmits. So the decoder modulates the decoded frame
+again and finds where it lies in the received audio by its tone energies, symbol
+by symbol, which does not depend on the phase and so not on the fading. The
+demodulator passes the frame on 0.2 s after that end; the regular receiver's
+own decode of it comes later and is dropped as a duplicate. A poor match is left
+to the regular receiver.
+
+Bursts of two frames back to back with 500 ms gaps, 10 frames per channel, simulator:
+
+| Channel | SNR | Decoded early | End located within | Passed on after the frame's end |
+|---|---|---|---|---|
+| `awgn` | -5, 10 dB | 10/10 | 1 ms | 0 to 0.06 s |
+| `hl_moderate` | 0, 10 dB | 8/10 | 2 ms | 0 to 1.1 s |
+| `hl_disturbed` | 0, 10 dB | 5 to 6/10 | 6 ms | 0 to 0.5 s |
+
+At the right position the match scores 0.75 to 0.96 (mean share of the tone
+energy on the frame's tones), against about 0.35 for a wrong frame; the decoder
+needs 0.6. The frames the early decoder misses come from the regular receiver as
+before, 4 to 5 s after their end. It costs about 1% of one CPU core per FSK mode.
 
 ### In ARQ
 
 `data_fsk4_50` is ARQ speed level 0, below `datac4`, and sessions move to it,
-signalling included, after failures rather than by SNR
-([arq-sessions.md](arq-sessions.md), section 4.1). `ARQ_PROTOCOL_VERSION` is 2,
-since the speed level numbers in the frames moved up by one.
+signalling included, after failures rather than by SNR, and back to OFDM when a
+probe shows it works again ([arq-sessions.md](arq-sessions.md), section 4.1).
+`ARQ_PROTOCOL_VERSION` is 2, since the speed level numbers in the frames moved up
+by one and the burst frames gained two bytes.
 
 - **Speed level.** Level 0 in `ARQSession.SPEED_LEVEL_DICT`, counted as 500 Hz
   (about 550). `get_appropriate_speed_level()` never picks it: the SNR does not
@@ -593,64 +622,75 @@ since the speed level numbers in the frames moved up by one.
 - **Fallback from failures.** The ISS moves the session to FSK when a signalling
   frame (`ARQ_SESSION_OPEN`, `ARQ_SESSION_INFO`) goes unanswered twice in DATAC13,
   or when two bursts at `datac4` fail; failed bursts at the higher levels step
-  down to `datac4` first. A station that receives an ARQ frame in FSK follows.
-  The session then stays on FSK: there is no way back up yet.
+  down to `datac4` first. The IRS steps down as well when OFDM frames arrive but
+  fail to decode (rx status 10, twice since its last answer): to `datac4`, held
+  there for three answers whatever the SNR says, or from `datac4` to FSK. In the
+  simulator that happens on `hl_moderate`; on `hl_disturbed` the OFDM modes do
+  not even sync, so there the ISS's fallback remains. A station that receives an
+  ARQ frame in FSK follows.
+- **Way back up.** On FSK every fifth burst is a single `datac4` frame instead.
+  If the IRS hears it, it leaves FSK and answers in DATAC14; when that answer
+  arrives, the ISS leaves FSK too. Without an answer the ISS goes on with FSK at
+  once, and its next FSK burst brings the IRS back to FSK.
 - **Signalling.** On FSK every ARQ frame of both sides goes in `data_fsk4_50`;
   the signalling frames (14 bytes) are padded to its 30. The burst ACK carries
   its frame type there, since only DATAC14 frames are known as burst ACKs by
   their mode. The demodulator decodes `data_fsk4_50` all the time: it costs
-  0.05 s of CPU per minute of audio, `datac4` 0.31 s.
-- **Bursts.** On FSK a burst has 4 frames (`FSK_FRAMES_PER_BURST`) in one
-  transmission. The IRS answers after the last one, or from a timer when that
-  one is lost, keeps frames that follow a lost one, and tells the ISS in the
-  ACK up to which offset it has the data in a row; the ISS continues from there.
-  Back to back, with the receiver restart, frames decode as well as in section
-  6: 20/20 on `awgn`, 18/20 on `hl_moderate` and 14/20 on `hl_disturbed` at
-  10 dB, with no frame decoded twice.
+  0.05 s of CPU per minute of audio, `datac4` 0.31 s (plus the early decoder).
+- **Bursts.** On FSK a burst starts with 4 frames (21 bytes of data each) in one
+  transmission; the ISS adds one after a clean burst, up to 8, and halves the
+  number when more than a quarter was lost, down to 2. The IRS answers after the
+  last frame, or from a timer when that one is lost, keeps frames that follow a
+  lost one, and tells the ISS in the ACK up to which offset it has the data in a
+  row and which frames after it it holds; the ISS sends only the missing ones.
+  Each burst has an id, which the ACK echoes, so a late or repeated ACK is not
+  taken for the answer to the next burst. Back to back, with the receiver
+  restart, frames decode as well as in section 6: 20/20 on `awgn`, 18/20 on
+  `hl_moderate` and 14/20 on `hl_disturbed` at 10 dB, with no frame decoded
+  twice.
 - **Timeouts.** After an FSK frame the ISS waits `TIMEOUT_* + 3 x 5.44 s`: the
-  IRS decodes the frame up to one frame length late, and its FSK answer takes
-  5.44 s on the air and is decoded as late (`get_response_timeout()`). After a
-  burst of several frames one more frame length is added for the IRS's ACK
-  timer. The IRS's own timeouts (`TIMEOUT_CONNECT` 55 s, `TIMEOUT_DATA` 90 s)
-  are long enough.
+  IRS may decode the frame up to one frame length late (when the early decoder
+  misses it), and its FSK answer takes 5.44 s on the air and may be decoded as
+  late (`get_response_timeout()`). After a burst of several frames one more
+  frame length is added for the IRS's ACK timer. These are the longest waits;
+  with the early decoder the answer usually comes much sooner. The IRS's own
+  timeouts (`TIMEOUT_CONNECT` 55 s, `TIMEOUT_DATA` 90 s) are long enough.
+- **P2P connections** fall back the same way: after two unanswered attempts of a
+  frame that fits an FSK frame, and when a frame arrives in FSK. On FSK, data up
+  to 26 bytes goes in one FSK payload frame, larger data in an ARQ session that
+  starts on FSK.
 - **Tests.** `tests/test_arq_fsk.py` runs whole sessions between two test-mode
   stations whose channel drops every OFDM frame (the session moves to FSK after
-  two OPEN attempts and completes in it) or only the OFDM data bursts (the
-  bursts step down from `data_ofdm_2438` to `datac4` to FSK, and the burst ACKs
-  follow), or FSK frames too (one inside a burst, and the last one of the next
-  burst, which the ACK timer covers), plus unit tests of each rule.
+  two OPEN attempts and completes in it), only the OFDM data bursts (the bursts
+  step down from `data_ofdm_2438` to `datac4` to FSK, and the burst ACKs
+  follow), FSK frames too (one inside a burst, and the last one of the next
+  burst, which the ACK timer covers; only the missing frames are sent again),
+  or every OFDM frame until the first probe (the second probe brings the
+  session back to OFDM), plus unit tests of each rule. `tests/test_fsk_early.py`
+  checks the early decoder, `tests/test_p2p_fsk.py` the P2P fallback.
 
-What one burst costs on FSK: 4 x 5.44 s for the frames, up to 5.44 s until the
-IRS has decoded the last one, 5.44 s for the ACK and up to 5.44 s until the ISS
-has decoded that, plus PTT and audio latency: about 33 to 38 s for 88 bytes of
-data, 18 to 21 bps, against 44 bps for the mode itself and 8 to 11 bps with one
-frame per burst. A burst that loses frames costs the frames from the first lost
-one on; on `hl_disturbed`, where every other frame or so is lost, that eats
-most of the gain.
+What one burst costs on FSK, when the early decoder gets the last frame and the
+ACK: N x 5.44 s for the frames, up to about 1 s until the IRS has it, 5.44 s for
+the ACK and up to about 1 s until the ISS has that, plus PTT and audio latency:
+about 30 s for 4 frames (84 bytes, 22 bps), 51 s for 8 frames (168 bytes,
+26 bps), against 44 bps for the mode itself and 8 to 11 bps with one frame per
+burst and no early decoding. When the early decoder misses a frame, that burst
+takes up to 8 s longer. These are estimates from the frame lengths and the
+delays measured above, not measured sessions.
 
 ### Still open
 
-1. **Selective repeats.** The ISS repeats every frame from the first lost one,
-   although the IRS keeps the frames after it. An ACK that lists the frames
-   received (it has room: 30 bytes) would let the ISS send only the lost ones.
-   The number of frames per burst could also follow the losses. And if the
-   IRS's ACK timer fires and the last frame of the burst is still decoded
-   after it (the timer allows a full frame length for decoding jitter), the IRS
-   sends a second ACK, which the ISS would take for the next one.
-2. **Decoding delay.** A codec2 change that lets the FSK_LDPC receiver decode a
-   frame as soon as it is complete would save two frame lengths per burst.
-3. **Way back up.** A session on FSK stays there. Probing an OFDM level now and
-   then (a datac4 burst every so many FSK bursts) would find out when the
-   channel has recovered.
-4. **IRS-side detection.** The IRS could use failed decodes with sync (rx status
-   10 in the demodulator's `state_buffer`) as an early sign of a fading channel,
-   instead of waiting for the ISS's retries.
-5. **Lost bursts.** The remaining 5% of lost bursts (above) could be recovered by
-   replaying 1.5 frame lengths. In ARQ the duplicates this produces are probably
-   harmless: the IRS sets `received_bytes` back to the offset of a frame it did
-   not expect and writes its data there again (`arq_session_irs.py`), so a
-   duplicate rewrites the same bytes. Whether it then sends a second ACK that
-   confuses the ISS has to be checked.
-6. **P2P connections** still send their own signalling in DATAC13/DATAC14 only.
-7. **Air tests.** All numbers here are from the simulator (section 5); the
-   fallback should be tried on a real high-latitude path.
+1. **Air tests.** All numbers here are from the simulator (section 5). The
+   fallback, the early decoder's frame location and the probing should be tried
+   on a real high-latitude path, with real radios' PTT and audio latencies.
+2. **Session measurements.** The ARQ tests check the protocol in test mode,
+   without audio. A test that runs whole sessions through the channel simulator
+   in real time would measure the data rates above instead of estimating them.
+3. **codec2.** The early decoder works around the FSK_LDPC receiver's decoding
+   delay. A codec2 change that lets the receiver decode a frame as soon as it is
+   complete, and that `freedv_set_sync()` resets it, would make the early
+   decoder and the receiver restart unnecessary.
+4. **IRS detection on `hl_disturbed`.** There the OFDM modes do not sync, so the
+   IRS sees no failed decodes and only the ISS's retries move the session to
+   FSK. Counting syncs that end without a frame might work there, but could also
+   be set off by other stations' signals.

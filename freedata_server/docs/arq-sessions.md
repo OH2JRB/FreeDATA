@@ -348,41 +348,55 @@ higher levels, to FSK from datac4 (section 2.3).
 
 Auroral and other strongly fading paths defeat every OFDM mode, signalling included, from a few Hz of
 Doppler spread, while the SNR still looks good ([fading-channels.md](fading-channels.md)). The 50 baud 4FSK
-mode `data_fsk4_50` (level 0, 44 bps, 22 bytes of data per frame) still gets through, so sessions fall back to it on
-failures, not on SNR:
+mode `data_fsk4_50` (level 0, 44 bps, 21 bytes of data per frame) still gets through, so sessions fall back to
+it on failures, not on SNR:
 
 | Trigger | Where |
 |---|---|
 | A signalling frame (`ARQ_SESSION_OPEN`, `ARQ_SESSION_INFO`) unanswered `RETRIES_BEFORE_FSK` (2) times | ISS `transmit_wait_and_retry` |
 | Two failed bursts at datac4 | ISS `transmit_wait_and_retry` |
+| `DECODE_FAILURES_TO_STEP_DOWN` (2) frames found but not decoded (rx status 10, `Demodulator.take_decode_failures`) in the current mode since the last answer, at datac4. At a higher level this steps down to datac4 and keeps the level there for `STEP_DOWN_HOLD` (3) answers | IRS `calibrate_speed_settings` |
 | Any ARQ frame received in `data_fsk4_50` | `ARQSession.on_frame_received`, both sides |
 
-`fall_back_to_fsk()` sets `fsk = True` and `speed_level = 0` for the rest of the session (`reset_session()`
-clears it). From then on:
+`fall_back_to_fsk()` sets `fsk = True` and `speed_level = 0` (`reset_session()` clears it). From then on:
 
 * every frame goes in `data_fsk4_50`: bursts by their level, signalling through `get_signalling_mode()`,
   which returns `data_fsk4_50` instead of `signalling` / `signalling_ack`. So the IRS answers in FSK as soon
   as a request arrives in FSK;
-* a burst has `FSK_FRAMES_PER_BURST` (4) frames, sent in one transmission, so the IRS's decoding delay and
-  the ACK come once per 88 bytes instead of once per 22. Each frame carries its place in the burst
-  (`burst_info`: number << 4 | total). The IRS answers after the last frame, or, if that one is lost, from a
-  timer set at each earlier frame to one frame length more than the frames still to come
+* a burst has several frames, sent in one transmission, so the IRS's decoding delay and the ACK come once per
+  burst instead of once per frame: `FSK_FRAMES_PER_BURST` (4) at first, one more after a burst without
+  losses (up to `FSK_FRAMES_PER_BURST_MAX`, 8), half as many when more than a quarter was lost (down to
+  `FSK_FRAMES_PER_BURST_MIN`, 2; `adapt_fsk_burst`). Each frame carries its place in the burst (`burst_info`:
+  number << 4 | total) and the burst's id (`burst_id`). The IRS answers after the last frame, or, if that one
+  is lost, from a timer set at each earlier frame to one frame length more than the frames still to come
   (`schedule_burst_ack`, `send_burst_ack`). Frames after a lost one are kept (`pending_frames`) until the gap
   is filled, frames it already has are skipped;
-* `ARQ_BURST_ACK` carries its frame type byte and the offset up to which the IRS has the data in a row
-  (`build_arq_burst_ack(..., offset=received_bytes)`); only in `signalling_ack` can the receiver tell a burst
-  ACK by its mode. The ISS continues from that offset (`send_data` takes `offset` from the ACK), so it
-  repeats the frames from the gap on;
-* the IRS stays at level 0 and the ISS ignores higher levels in ACKs. There is no way back up yet, since the
-  SNR cannot tell when the OFDM modes would work again;
-* the ISS waits `TIMEOUT_* + 3 x 5.44 s` for an answer (`get_response_timeout`): the IRS decodes an FSK frame
-  up to one frame length after its end, and its FSK answer takes 5.44 s on the air and is decoded as late.
-  After a burst of several frames one more frame length is added for the IRS's ACK timer: 25.3 s.
+* `ARQ_BURST_ACK` carries its frame type byte, the offset up to which the IRS has the data in a row, the id of
+  the burst it answers and a map of the frames it holds after that offset (bit i: the frame i + 1 frames
+  after it); only in `signalling_ack` can the receiver tell a burst ACK by its mode. The ISS continues from
+  that offset and leaves out the frames the IRS holds (`irs_holds`). It ignores a burst ACK for an earlier
+  burst (`is_stale_frame`), such as a timer ACK followed by a late one for the same burst, which would
+  otherwise start a second burst;
+* the IRS stays at level 0 and the ISS ignores higher levels in ACKs, except for the probe: every
+  `FSK_PROBE_INTERVAL` (5) bursts the ISS sends a single datac4 frame instead (`send_probe`). If the IRS hears
+  it, it leaves FSK (`leave_fsk`) and answers in DATAC14 at the level its SNR gives; when that answer arrives,
+  the ISS leaves FSK too. Without an answer (one try, `TIMEOUT_TRANSFER`) the ISS goes on with FSK at once,
+  and its next FSK burst brings the IRS back to FSK;
+* the ISS waits `TIMEOUT_* + 3 x 5.44 s` for an answer (`get_response_timeout`): the IRS may decode an FSK
+  frame up to one frame length after its end, and its FSK answer takes 5.44 s on the air and may be decoded as
+  late. After a burst of several frames one more frame length is added for the IRS's ACK timer: 25.3 s. The
+  demodulator's early FSK decoder usually passes frames on within a second of their end
+  ([modem-audio-radio.md](modem-audio-radio.md), "Early FSK decoding"), so answers come sooner.
 
 The demodulator decodes `data_fsk4_50` at all times (unless `EXP.enable_vhf`); it costs less CPU than
 `datac4`. A session that cannot reach the other station at all now takes longer to fail: two `signalling`
 attempts (2.2 s of airtime + 4.5 s each) and three FSK attempts (5.44 s of airtime + 4.5 + 3 x 5.44 s each),
 about 92 s instead of about 34 s.
+
+P2P connections ([p2p_connection.py](../p2p_connection.py)) fall back the same way for their own frames:
+after `RETRIES_BEFORE_FSK` (2) unanswered attempts of a frame that fits an FSK frame (then at least
+`RETRIES_FSK`, 3, attempts in FSK), and when a frame arrives in FSK. On FSK, data up to `FSK_PAYLOAD_SIZE` (26)
+bytes goes in one FSK payload frame, larger data in an ARQ session that starts on FSK.
 
 ---
 
