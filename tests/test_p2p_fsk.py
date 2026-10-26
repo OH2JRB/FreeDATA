@@ -2,6 +2,7 @@
 after two unanswered attempts of a frame, and when a frame arrives in FSK (see
 freedata_server/docs/arq-sessions.md, section 4.1)."""
 
+import types
 import unittest
 from unittest import mock
 
@@ -24,6 +25,7 @@ def make_connection():
     connection.transmission_in_progress = False
     connection.logger = mock.Mock()
     connection.ctx = mock.Mock()
+    connection.ctx.config_manager = types.SimpleNamespace(config={"MODEM": {"enable_fsk": True}})
     connection.session_failed = mock.Mock()
     connection.event_frame_received = mock.Mock()
     return connection
@@ -58,6 +60,16 @@ class TestP2PFskFallback(unittest.TestCase):
         connection = make_connection()
         modes, _ = self.run_twr(connection, 4)
         self.assertEqual(modes.count(FSK), 3)
+
+    def test_fsk_modes_disabled(self):
+        # "Enable FSK modes" off: the attempts stay on OFDM, and a frame in FSK
+        # does not move the connection there
+        connection = make_connection()
+        connection.ctx.config_manager.config["MODEM"]["enable_fsk"] = False
+        modes, _ = self.run_twr(connection, 3)
+        self.assertEqual(modes, [FREEDV_MODE.signalling] * 3)
+        connection.fall_back_to_fsk()
+        self.assertFalse(connection.fsk)
 
     def test_too_large_for_fsk_stays(self):
         connection = make_connection()

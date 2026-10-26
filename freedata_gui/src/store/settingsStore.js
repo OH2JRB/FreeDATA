@@ -29,6 +29,7 @@ const defaultConfig = {
       tx_delay: 0,
       enable_morse_identifier: false,
       maximum_bandwidth: 2438,
+      enable_fsk: false,
     },
     NETWORK: {
       modemaddress: "127.0.0.1",

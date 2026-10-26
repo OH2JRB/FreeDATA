@@ -371,6 +371,8 @@
             "txdelay_help": "Delay before transmitting, in milliseconds",
             "maximumbandwidth": "Maximum used bandwidth",
             "maximumbandwidth_help": "Select the maximum bandwidth the modem will use",
+            "enablefsk": "Enable FSK modes",
+            "enablefsk_help": "Let ARQ sessions and P2P connections fall back to the 50 baud 4FSK mode when the OFDM modes fail, as on auroral paths. Both stations need it enabled",
             "enabletxautoadjust": "Auto TX audio level", 
             "enablerxautoadjust": "Auto RX audio level",
             "enabletxautoadjust_help": "Set TX audio level automatically to highest possible value", 

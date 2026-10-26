@@ -392,6 +392,7 @@ Defined in `CONFIG.config_types`; example values from [config.ini.example](../co
 | MODEM | `enable_morse_identifier` | bool | `False` |
 | | `maximum_bandwidth` | int | `2438` |
 | | `tx_delay` | int | `50` |
+| | `enable_fsk` | bool | `False` (the FSK modes, see [arq-sessions.md](arq-sessions.md), section 4.1) |
 | SOCKET_INTERFACE | `enable` | bool | `False` |
 | | `host` | str | `127.0.0.1` |
 | | `cmd_port` | int | `9000` |

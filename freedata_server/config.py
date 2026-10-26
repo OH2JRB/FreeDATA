@@ -4,6 +4,14 @@ import json
 import os
 
 
+def fsk_modes_enabled(ctx) -> bool:
+    """True if the FSK modes may be used (MODEM.enable_fsk, "Enable FSK modes" in
+    the GUI). Off, the modem neither decodes nor sends data_fsk4_50, and ARQ
+    sessions and P2P connections stay on OFDM."""
+    config = getattr(getattr(ctx, "config_manager", None), "config", None) or {}
+    return bool(config.get("MODEM", {}).get("enable_fsk", False))
+
+
 class CONFIG:
     """
     CONFIG class for handling with config files
@@ -66,6 +74,7 @@ class CONFIG:
             "enable_morse_identifier": bool,
             "maximum_bandwidth": int,
             "tx_delay": int,
+            "enable_fsk": bool,
         },
         "SOCKET_INTERFACE": {
             "enable": bool,

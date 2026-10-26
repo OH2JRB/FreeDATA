@@ -11,6 +11,7 @@ import time
 from freedata_server.arq_data_type_handler import ARQDataTypeHandler, ARQ_SESSION_TYPES
 from freedata_server.arq_session_iss import ARQSessionISS
 from freedata_server import helpers
+from freedata_server.config import fsk_modes_enabled
 import zlib
 
 
@@ -238,7 +239,10 @@ class P2PConnection:
         self.log(f"Ignoring unknown transition from state {self.state.name} with frame {frame['frame_type']}")
 
     def fall_back_to_fsk(self):
-        """Sends all further frames of this connection in FSK_MODE."""
+        """Sends all further frames of this connection in FSK_MODE, unless the
+        FSK modes are disabled (config.fsk_modes_enabled)."""
+        if not fsk_modes_enabled(self.ctx):
+            return
         if not self.fsk:
             self.log(f"Falling back to {self.FSK_MODE.name} for this connection", isWarning=True)
         self.fsk = True
@@ -291,7 +295,8 @@ class P2PConnection:
             # on a path that defeats the OFDM modes, only FSK gets through
             if not self.fsk and failures == self.RETRIES_BEFORE_FSK and self.fits_fsk(burst):
                 self.fall_back_to_fsk()
-                retries = max(retries, self.RETRIES_FSK)
+                if self.fsk:
+                    retries = max(retries, self.RETRIES_FSK)
 
         # retries exhausted
         self.transmission_in_progress = False

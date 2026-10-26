@@ -5,6 +5,7 @@ from freedata_server import helpers
 from freedata_server import stats
 from freedata_server.modem_frametypes import FRAME_TYPE
 from freedata_server.codec2 import FREEDV_MODE
+from freedata_server.config import fsk_modes_enabled
 from enum import Enum
 import time
 from freedata_server.p2p_connection import States as P2PStates
@@ -222,7 +223,8 @@ class ARQSessionIRS(arq_session.ARQSession):
                     self.transmission_failed()
                 return
             if self.burst_heard_not_decoded(since):
-                self.answer_undecodable_burst()
+                if fsk_modes_enabled(self.ctx):
+                    self.answer_undecodable_burst()
                 since = time.monotonic()
 
     def burst_heard_not_decoded(self, since) -> bool:
@@ -683,7 +685,7 @@ class ARQSessionIRS(arq_session.ARQSession):
         # SNR does not show. Step down, and to FSK from datac4
         datac4_level = self.FSK_LEVEL + 1
         if self.take_decode_failures() >= self.DECODE_FAILURES_TO_STEP_DOWN:
-            if self.speed_level <= datac4_level:
+            if self.speed_level <= datac4_level and fsk_modes_enabled(self.ctx):
                 self.log("OFDM frames fail to decode at datac4, falling back to FSK", isWarning=True)
                 self.fall_back_to_fsk()
                 return self.speed_level

@@ -53,6 +53,7 @@ serial_rts = OFF
 enable_morse_identifier = False
 tx_delay = 50
 maximum_bandwidth = 2438
+enable_fsk = False
 
 [SOCKET_INTERFACE]
 enable = False

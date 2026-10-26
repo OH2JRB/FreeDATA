@@ -3,6 +3,7 @@ from freedata_server import codec2
 from freedata_server import data_frame_factory
 import random
 from freedata_server.codec2 import FREEDV_MODE
+from freedata_server.config import fsk_modes_enabled
 from freedata_server.modem_frametypes import FRAME_TYPE
 from freedata_server import arq_session
 from freedata_server import helpers
@@ -296,9 +297,16 @@ class ARQSessionISS(arq_session.ARQSession):
 
             if mode is FREEDV_MODE.signalling and not self.fsk and (heard or failures == self.RETRIES_BEFORE_FSK):
                 self.fall_back_to_fsk()
-                retries = max(retries, self.RETRIES_FSK_SIGNALLING)
+                if self.fsk:
+                    retries = max(retries, self.RETRIES_FSK_SIGNALLING)
 
-            if heard and isARQBurst and not self.fsk and self.state not in [ISS_State.ABORTED, ISS_State.ABORTING]:
+            if (
+                heard
+                and isARQBurst
+                and not self.fsk
+                and fsk_modes_enabled(self.ctx)
+                and self.state not in [ISS_State.ABORTED, ISS_State.ABORTING]
+            ):
                 # the IRS answers, but in OFDM nothing gets here: on with FSK at once
                 self.fall_back_to_fsk()
                 self.send_data(
@@ -408,7 +416,10 @@ class ARQSessionISS(arq_session.ARQSession):
             # the IRS answers FSK frames at the FSK level; once there, the session stays
             if new_speed_level == self.FSK_LEVEL or self.fsk:
                 self.fall_back_to_fsk()
-                return
+                if self.fsk:
+                    return
+                # FSK modes disabled here: the lowest OFDM level instead
+                new_speed_level = max(new_speed_level, self.FSK_LEVEL + 1)
             # Ensure the new speed level is within the allowable range
             if 0 <= new_speed_level < len(self.SPEED_LEVEL_DICT):
                 # Log the speed level change if it's different from the current speed level

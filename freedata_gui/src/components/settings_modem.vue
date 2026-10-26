@@ -444,6 +444,36 @@ function reloadModem(){
       </option>
     </select>
   </div>
+
+  <!-- Enable FSK modes -->
+  <div class="input-group input-group-sm mb-1">
+    <label class="input-group-text w-50 text-wrap">
+      {{ $t('settings.modem.enablefsk') }}
+      <button
+        type="button"
+        class="btn btn-link p-0 ms-2"
+        data-bs-toggle="tooltip"
+        :title="$t('settings.modem.enablefsk_help')"
+      >
+        <i class="bi bi-question-circle" />
+      </button>
+    </label>
+    <label class="input-group-text w-50">
+      <div class="form-check form-switch form-check-inline">
+        <input
+          id="enableFSKSwitch"
+          v-model="settings.remote.MODEM.enable_fsk"
+          class="form-check-input"
+          type="checkbox"
+          @change="onChange"
+        >
+        <label
+          class="form-check-label"
+          for="enableFSKSwitch"
+        >{{ $t('settings.enable') }}</label>
+      </div>
+    </label>
+  </div>
 </template>
 
 

@@ -673,7 +673,8 @@ probe.
 
 `data_fsk4_50` is ARQ speed level 0, below `datac4`, and sessions move to it,
 signalling included, after failures rather than by SNR, and back to OFDM when a
-probe shows it works again ([arq-sessions.md](arq-sessions.md), section 4.1).
+probe shows it works again ([arq-sessions.md](arq-sessions.md), section 4.1),
+when "Enable FSK modes" (`MODEM.enable_fsk`, off by default) is on at both stations.
 `ARQ_PROTOCOL_VERSION` is 2, since the speed level numbers in the frames moved up
 by one and the burst frames gained two bytes.
 
