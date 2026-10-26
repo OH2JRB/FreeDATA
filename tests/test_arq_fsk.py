@@ -111,6 +111,17 @@ class TestResponseTimeout(unittest.TestCase):
         iss.transmit_frame.assert_called_once_with(b"frame", FSK)
         self.assertAlmostEqual(event.wait.call_args.args[0], ARQSessionISS.TIMEOUT_CONNECT_ACK + FSK_ROUND_TRIP)
 
+    def test_burst_of_several_frames(self):
+        # sent in one transmission; the IRS may answer a frame length late if
+        # it misses the last frame (its ACK timer)
+        iss = make_iss(ARQSessionISS.FSK_LEVEL)
+        event = answer_after(0)
+        burst = [b"1", b"2", b"3", b"4"]
+        with mock.patch("freedata_server.arq_session_iss.threading.Event", return_value=event):
+            iss.transmit_wait_and_retry(burst, ARQSessionISS.TIMEOUT_TRANSFER, 1, "auto", isARQBurst=True)
+        iss.transmit_frame.assert_called_once_with(burst, "auto")
+        self.assertAlmostEqual(event.wait.call_args.args[0], ARQSessionISS.TIMEOUT_TRANSFER + FSK_ROUND_TRIP + 5.44)
+
 
 class TestFallback(unittest.TestCase):
     def run_twr(self, iss, failures, mode, retries, is_burst=False):
@@ -176,23 +187,24 @@ class TestFallback(unittest.TestCase):
 
 
 class TestFskBurstAck(unittest.TestCase):
-    def test_burst_ack_in_fsk_carries_its_frame_type(self):
+    def test_burst_ack_in_fsk_carries_type_and_offset(self):
         ctx = types.SimpleNamespace()
         ctx.config_manager = CONFIG(ctx, testenv.config_path())
         factory = DataFrameFactory(ctx)
-        ack = factory.build_arq_burst_ack(7, 0, flag_final=True, flag_checksum=True, with_frame_type=True)
+        ack = factory.build_arq_burst_ack(7, 0, flag_final=True, flag_checksum=True, offset=46)
         frame = factory.deconstruct(bytes(ack) + bytes(2), mode_name="DATA_FSK4_50")
         self.assertEqual(frame["frame_type_int"], FRAME_TYPE.ARQ_BURST_ACK.value)
         self.assertEqual(frame["session_id"], 7)
         self.assertEqual(frame["speed_level"], 0)
+        self.assertEqual(frame["offset"], 46)
         self.assertTrue(frame["flag"]["FINAL"])
         self.assertTrue(frame["flag"]["CHECKSUM"])
-        # DATAC14 burst ACKs stay without it
+        # DATAC14 burst ACKs stay without
         self.assertEqual(len(factory.build_arq_burst_ack(7, 0)), 3)
 
 
 class SessionOnFadingPath:
-    """Two stations in test mode; the channel drops the OFDM frames lost() picks."""
+    """Two stations in test mode; the channel drops the frames lost() picks."""
 
     @classmethod
     def setUpClass(cls):
@@ -214,7 +226,7 @@ class SessionOnFadingPath:
             patcher = mock.patch.object(ARQSessionISS, name, 0.5)
             patcher.start()
             self.addCleanup(patcher.stop)
-        self.sent = []  # (station, mode, frame type) of every frame sent
+        self.sent = []  # (station, mode, frame type, frame) of every frame sent
         self.running = True
         self.channels = [
             threading.Thread(target=self.channel, args=[self.ctx_ISS, self.ctx_IRS, "ISS"], daemon=True),
@@ -231,19 +243,21 @@ class SessionOnFadingPath:
     def channel(self, ctx_a, ctx_b, station):
         while self.running:
             try:
-                mode, frame = ctx_a.TESTMODE_TRANSMIT_QUEUE.get(timeout=0.2)
+                mode, frames = ctx_a.TESTMODE_TRANSMIT_QUEUE.get(timeout=0.2)
             except queue.Empty:
                 continue
-            frame = bytes(frame) + bytes(2)  # CRC
-            # DATAC14 burst ACKs carry no frame type
-            frame_type = FRAME_TYPE.ARQ_BURST_ACK.value if len(frame) == 5 else frame[0]
-            self.sent.append((station, mode, frame_type))
-            if mode is not FSK and self.lost(frame_type):
-                continue
-            # the demodulator names a frame's mode like this
-            ctx_b.service_manager.frame_dispatcher.process_data(
-                frame, None, len(frame), 15, 0, mode_name=mode.name.upper()
-            )
+            # a burst of several frames is one transmission
+            for frame in frames if isinstance(frames, list) else [frames]:
+                frame = bytes(frame) + bytes(2)  # CRC
+                # DATAC14 burst ACKs carry no frame type
+                frame_type = FRAME_TYPE.ARQ_BURST_ACK.value if len(frame) == 5 else frame[0]
+                self.sent.append((station, mode, frame_type, frame))
+                if self.lost(mode, frame_type):
+                    continue
+                # the demodulator names a frame's mode like this
+                ctx_b.service_manager.frame_dispatcher.process_data(
+                    frame, None, len(frame), 15, 0, mode_name=mode.name.upper()
+                )
 
     def transfer(self, payload):
         params = {"dxcall": "AA1AAA-1", "data": base64.b64encode(payload), "type": "raw"}
@@ -261,29 +275,32 @@ class SessionOnFadingPath:
 
     def frames(self, frame_type, station=None):
         """Modes of the frames of a type sent, in order."""
-        return [m for s, m, t in self.sent if t == frame_type.value and station in (None, s)]
+        return [m for s, m, t, _ in self.sent if t == frame_type.value and station in (None, s)]
 
 
 class TestAuroralPath(SessionOnFadingPath, unittest.TestCase):
-    def lost(self, frame_type):
-        return True  # no OFDM frame gets through, signalling included
+    def lost(self, mode, frame_type):
+        return mode is not FSK  # no OFDM frame gets through, signalling included
 
     def test_session_moves_to_fsk(self):
         payload = np.random.default_rng(1).bytes(100)
         self.assertTrue(self.transfer(payload))
         self.assertEqual(self.received(), payload)
 
-        modes = [mode for _, mode, _ in self.sent]
+        modes = [mode for _, mode, _, _ in self.sent]
         # two OPEN attempts in DATAC13, then everything in FSK, from both sides
         self.assertEqual(modes[:2], [FREEDV_MODE.signalling] * 2)
         self.assertTrue(all(mode is FSK for mode in modes[2:]), modes)
         self.assertIn(FSK, self.frames(FRAME_TYPE.ARQ_SESSION_OPEN_ACK, "IRS"))
-        self.assertEqual(len(self.frames(FRAME_TYPE.ARQ_BURST_FRAME)), 5)  # 23 bytes each at the FSK level
+        # 22 bytes per frame at the FSK level, 4 frames per burst: 2 bursts, 2 ACKs
+        self.assertEqual(len(self.frames(FRAME_TYPE.ARQ_BURST_FRAME)), 5)
+        self.assertEqual(len(self.frames(FRAME_TYPE.ARQ_BURST_ACK)), 2)
 
 
 class TestDataBurstsFail(SessionOnFadingPath, unittest.TestCase):
-    def lost(self, frame_type):
-        return frame_type == FRAME_TYPE.ARQ_BURST_FRAME.value  # signalling gets through, OFDM data does not
+    def lost(self, mode, frame_type):
+        # signalling gets through, OFDM data does not
+        return mode is not FSK and frame_type == FRAME_TYPE.ARQ_BURST_FRAME.value
 
     def test_bursts_step_down_to_fsk(self):
         payload = np.random.default_rng(2).bytes(60)
@@ -298,6 +315,38 @@ class TestDataBurstsFail(SessionOnFadingPath, unittest.TestCase):
         self.assertEqual(self.frames(FRAME_TYPE.ARQ_SESSION_OPEN), [FREEDV_MODE.signalling])
         acks = self.frames(FRAME_TYPE.ARQ_BURST_ACK, "IRS")
         self.assertTrue(acks and all(mode is FSK for mode in acks), acks)
+
+
+class TestLostFskFrames(SessionOnFadingPath, unittest.TestCase):
+    """On an auroral path, FSK frames are lost as well: one inside a burst, and
+    the last one of the next burst, which the IRS's ACK timer covers."""
+
+    LOST_BURST_FRAMES = {1, 7}  # counting the FSK burst frames sent from 0
+
+    def setUp(self):
+        super().setUp()
+        self.fsk_burst_frames = 0
+
+    def lost(self, mode, frame_type):
+        if mode is not FSK:
+            return True
+        if frame_type != FRAME_TYPE.ARQ_BURST_FRAME.value:
+            return False
+        self.fsk_burst_frames += 1
+        return self.fsk_burst_frames - 1 in self.LOST_BURST_FRAMES
+
+    def test_bursts_continue_from_the_gap(self):
+        payload = np.random.default_rng(3).bytes(150)  # 7 frames of 22 bytes
+        self.assertTrue(self.transfer(payload))
+        self.assertEqual(self.received(), payload)
+
+        offsets = [int.from_bytes(f[3:7], "big") for s, m, t, f in self.sent if t == FRAME_TYPE.ARQ_BURST_FRAME.value]
+        acked = [int.from_bytes(f[4:8], "big") for s, m, t, f in self.sent if t == FRAME_TYPE.ARQ_BURST_ACK.value]
+        # burst 1 loses 22: the IRS keeps 44 and 66 and asks for 22. Burst 2
+        # fills the gap, so the IRS has up to 88, but loses its last frame (88):
+        # the timer answers 88. Burst 3 finishes.
+        self.assertEqual(offsets, [0, 22, 44, 66, 22, 44, 66, 88, 88, 110, 132])
+        self.assertEqual(acked, [22, 88, 150])
 
 
 if __name__ == "__main__":

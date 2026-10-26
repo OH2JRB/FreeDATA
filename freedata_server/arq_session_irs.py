@@ -1,5 +1,6 @@
 import threading
 from freedata_server import arq_session
+from freedata_server import codec2
 from freedata_server import helpers
 from freedata_server import stats
 from freedata_server.modem_frametypes import FRAME_TYPE
@@ -136,6 +137,12 @@ class ARQSessionIRS(arq_session.ARQSession):
 
         self.abort = False
 
+        # FSK bursts (several frames): frames after a lost one by offset, and the
+        # timer that answers a burst whose last frame is lost
+        self.pending_frames = {}
+        self.burst_ack_timer = None
+        self.burst_ack_lock = threading.RLock()
+
     def all_data_received(self):
         """Checks if all data has been received.
 
@@ -249,6 +256,7 @@ class ARQSessionIRS(arq_session.ARQSession):
         # Get session info from ISS
         if self.received_bytes == 0:
             self.received_data = bytearray(info_frame["total_length"])
+            self.pending_frames = {}
         self.total_length = info_frame["total_length"]
         self.total_crc = info_frame["total_crc"]
         self.dx_snr.append(info_frame["snr"])
@@ -286,6 +294,21 @@ class ARQSessionIRS(arq_session.ARQSession):
         Returns:
             bool: True if the data was processed successfully, False otherwise.
         """
+        if frame["offset"] > self.received_bytes:
+            # a frame of an FSK burst after a lost one: keep it until the gap is
+            # filled, since the data is stored in a row (the ISS continues
+            # from the offset in the ACK)
+            self.log(f"Keeping data at offset {frame['offset']} until {self.received_bytes} has arrived")
+            self.pending_frames[frame["offset"]] = frame["data"]
+            return True
+
+        end = frame["offset"] + min(len(frame["data"]), self.total_length - frame["offset"])
+        if end <= self.received_bytes:
+            # a frame received before, repeated in the next FSK burst (sent from
+            # the offset of the gap) or after a lost ACK: same data, nothing to do
+            self.log(f"Already received data up to {end}")
+            return True
+
         if frame["offset"] != self.received_bytes:
             # TODO: IF WE HAVE AN OFFSET BECAUSE OF A SPEED LEVEL CHANGE FOR EXAMPLE,
             # TODO: WE HAVE TO DISCARD THE LAST BYTES, BUT NOT returning False!!
@@ -320,8 +343,15 @@ class ARQSessionIRS(arq_session.ARQSession):
         self.received_data[frame["offset"] :] = data_part
         # self.received_bytes += len(data_part)
         self.received_bytes = len(self.received_data)
-        print(self.received_bytes)
-        print(self.received_data)
+
+        # frames kept from after a gap that now follow on
+        pending = self.pending_frames.pop(self.received_bytes, None)
+        if pending is not None:
+            return self.process_incoming_data({"offset": self.received_bytes, "data": pending})
+        self.pending_frames = {
+            offset: data for offset, data in self.pending_frames.items() if offset > self.received_bytes
+        }
+
         self.log(f"Received {self.received_bytes}/{self.total_length} bytes")
         self.ctx.event_manager.send_arq_session_progress(
             False,
@@ -362,30 +392,23 @@ class ARQSessionIRS(arq_session.ARQSession):
             self.log("Ignoring burst frame, no active transfer (session needs to be re-opened)", isWarning=True)
             return None, None
 
-        self.process_incoming_data(burst_frame)
-        # update statistics
-        self.update_histograms(self.received_bytes, self.total_length)
+        with self.burst_ack_lock:
+            self.process_incoming_data(burst_frame)
+            # update statistics
+            self.update_histograms(self.received_bytes, self.total_length)
 
-        if not self.all_data_received():
-            self.calibrate_speed_settings(burst_frame=burst_frame)
-            ack = self.build_burst_ack(flag_abort=self.abort)
+            if not self.all_data_received():
+                number, total = self.frame_factory.decode_burst_info(burst_frame["burst_info"])
+                if number < total:
+                    # more frames of this burst to come: answer after the last one, or
+                    # when it should have been decoded if it is lost
+                    frame_duration = codec2.get_frame_duration(self.get_mode_by_speed_level(self.speed_level).value)
+                    self.schedule_burst_ack((total - number + 1) * frame_duration)
+                else:
+                    self.send_burst_ack()
+                return None, None
 
-            self.set_state(IRS_State.BURST_REPLY_SENT)
-            self.ctx.event_manager.send_arq_session_progress(
-                False,
-                self.id,
-                self.dxcall,
-                self.received_bytes,
-                self.total_length,
-                self.state.name,
-                self.speed_level,
-                statistics=self.calculate_session_statistics(self.received_bytes, self.total_length),
-            )
-
-            self.launch_transmit_and_wait(
-                ack, self.TIMEOUT_DATA, mode=self.get_signalling_mode(FREEDV_MODE.signalling_ack)
-            )
-            return None, None
+            self.cancel_burst_ack()
 
         if self.final_crc_matches():
             self.log("All data received successfully!")
@@ -421,12 +444,70 @@ class ARQSessionIRS(arq_session.ARQSession):
     def build_burst_ack(self, **flags):
         """Builds an ARQ burst ACK at the current speed level.
 
-        In FSK it carries its frame type: only signalling_ack frames go without.
+        In FSK it carries its frame type and the bytes received in a row: only
+        signalling_ack frames go without.
 
         Args:
             **flags: flag_final, flag_checksum, flag_abort for build_arq_burst_ack.
         """
-        return self.frame_factory.build_arq_burst_ack(self.id, self.speed_level, with_frame_type=self.fsk, **flags)
+        offset = self.received_bytes if self.fsk else None
+        return self.frame_factory.build_arq_burst_ack(self.id, self.speed_level, offset=offset, **flags)
+
+    def schedule_burst_ack(self, delay):
+        """Sends the burst ACK after delay seconds, unless send_burst_ack() comes first.
+
+        An FSK burst has several frames. The IRS answers after the last one; the
+        timer answers instead if that one is lost. A frame is decoded up to a
+        frame length after its end, so delay is one frame length more than the
+        frames still to come.
+
+        Args:
+            delay (float): Seconds until the ACK.
+        """
+        self.cancel_burst_ack()
+        self.burst_ack_timer = threading.Timer(delay, self.send_burst_ack)
+        self.burst_ack_timer.daemon = True
+        self.burst_ack_timer.start()
+
+    def cancel_burst_ack(self):
+        """Stops a pending burst ACK timer."""
+        if self.burst_ack_timer is not None:
+            self.burst_ack_timer.cancel()
+            self.burst_ack_timer = None
+
+    def send_burst_ack(self):
+        """Acknowledges a burst: the bytes received in a row and the next speed level.
+
+        Called after the last frame of a burst, or by the timer of
+        schedule_burst_ack() when the last frame is lost.
+        """
+        with self.burst_ack_lock:
+            self.cancel_burst_ack()
+            # the session may have ended or failed meanwhile
+            if self.received_data is None or self.state in [
+                IRS_State.ENDED,
+                IRS_State.FAILED,
+                IRS_State.ABORTED,
+            ]:
+                return
+            self.calibrate_speed_settings()
+            ack = self.build_burst_ack(flag_abort=self.abort)
+
+            self.set_state(IRS_State.BURST_REPLY_SENT)
+            self.ctx.event_manager.send_arq_session_progress(
+                False,
+                self.id,
+                self.dxcall,
+                self.received_bytes,
+                self.total_length,
+                self.state.name,
+                self.speed_level,
+                statistics=self.calculate_session_statistics(self.received_bytes, self.total_length),
+            )
+
+            self.launch_transmit_and_wait(
+                ack, self.TIMEOUT_DATA, mode=self.get_signalling_mode(FREEDV_MODE.signalling_ack)
+            )
 
     def calibrate_speed_settings(self, burst_frame=None):
         """Calibrates the speed settings for the ARQ session based on SNR and bandwidth.
@@ -566,8 +647,10 @@ class ARQSessionIRS(arq_session.ARQSession):
         self.log("Transmission failed!")
         # self.ctx.rf_modem.demodulator.set_decode_mode()
         session_stats = self.calculate_session_statistics(self.received_bytes, self.total_length)
+        self.cancel_burst_ack()
         self.received_data = None
         self.received_bytes = 0
+        self.pending_frames = {}
         self.ctx.event_manager.send_arq_session_finished(
             False, self.id, self.dxcall, False, self.state.name, statistics=session_stats
         )
@@ -591,6 +674,7 @@ class ARQSessionIRS(arq_session.ARQSession):
             self.log("session aborted")
             self.session_ended = time.time()
             self.set_state(IRS_State.ABORTED)
+            self.cancel_burst_ack()
             # break actual retries
             self.event_frame_received.set()
 

@@ -600,27 +600,43 @@ since the speed level numbers in the frames moved up by one.
   its frame type there, since only DATAC14 frames are known as burst ACKs by
   their mode. The demodulator decodes `data_fsk4_50` all the time: it costs
   0.05 s of CPU per minute of audio, `datac4` 0.31 s.
+- **Bursts.** On FSK a burst has 4 frames (`FSK_FRAMES_PER_BURST`) in one
+  transmission. The IRS answers after the last one, or from a timer when that
+  one is lost, keeps frames that follow a lost one, and tells the ISS in the
+  ACK up to which offset it has the data in a row; the ISS continues from there.
+  Back to back, with the receiver restart, frames decode as well as in section
+  6: 20/20 on `awgn`, 18/20 on `hl_moderate` and 14/20 on `hl_disturbed` at
+  10 dB, with no frame decoded twice.
 - **Timeouts.** After an FSK frame the ISS waits `TIMEOUT_* + 3 x 5.44 s`: the
   IRS decodes the frame up to one frame length late, and its FSK answer takes
-  5.44 s on the air and is decoded as late (`get_response_timeout()`). The IRS's
-  own timeouts (`TIMEOUT_CONNECT` 55 s, `TIMEOUT_DATA` 90 s) are long enough.
+  5.44 s on the air and is decoded as late (`get_response_timeout()`). After a
+  burst of several frames one more frame length is added for the IRS's ACK
+  timer. The IRS's own timeouts (`TIMEOUT_CONNECT` 55 s, `TIMEOUT_DATA` 90 s)
+  are long enough.
 - **Tests.** `tests/test_arq_fsk.py` runs whole sessions between two test-mode
   stations whose channel drops every OFDM frame (the session moves to FSK after
   two OPEN attempts and completes in it) or only the OFDM data bursts (the
   bursts step down from `data_ofdm_2438` to `datac4` to FSK, and the burst ACKs
-  follow), plus unit tests of each rule.
+  follow), or FSK frames too (one inside a burst, and the last one of the next
+  burst, which the ACK timer covers), plus unit tests of each rule.
 
-What one burst costs on FSK: 5.44 s for the burst, up to 5.44 s until the IRS
-has decoded it, 5.44 s for the ACK and up to 5.44 s until the ISS has decoded
-that, plus PTT and audio latency: about 16 to 22 s for 23 bytes of data, 8 to
-11 bps, against 44 bps for the mode itself. That still beats nothing on an
-auroral path, but leaves room for improvement.
+What one burst costs on FSK: 4 x 5.44 s for the frames, up to 5.44 s until the
+IRS has decoded the last one, 5.44 s for the ACK and up to 5.44 s until the ISS
+has decoded that, plus PTT and audio latency: about 33 to 38 s for 88 bytes of
+data, 18 to 21 bps, against 44 bps for the mode itself and 8 to 11 bps with one
+frame per burst. A burst that loses frames costs the frames from the first lost
+one on; on `hl_disturbed`, where every other frame or so is lost, that eats
+most of the gain.
 
 ### Still open
 
-1. **More frames per burst on FSK.** Back-to-back FSK frames decode well (section
-   6), and the decoding delay and the ACK would then be paid once per burst
-   instead of once per frame. `frames_per_burst` is 1 in all sessions so far.
+1. **Selective repeats.** The ISS repeats every frame from the first lost one,
+   although the IRS keeps the frames after it. An ACK that lists the frames
+   received (it has room: 30 bytes) would let the ISS send only the lost ones.
+   The number of frames per burst could also follow the losses. And if the
+   IRS's ACK timer fires and the last frame of the burst is still decoded
+   after it (the timer allows a full frame length for decoding jitter), the IRS
+   sends a second ACK, which the ISS would take for the next one.
 2. **Decoding delay.** A codec2 change that lets the FSK_LDPC receiver decode a
    frame as soon as it is complete would save two frame lengths per burst.
 3. **Way back up.** A session on FSK stays there. Probing an OFDM level now and

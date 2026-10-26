@@ -165,7 +165,7 @@ class ARQSessionISS(arq_session.ARQSession):
                 # Return False if all possible session IDs are exhausted
                 return False
 
-    def get_response_timeout(self, timeout, mode="auto") -> float:
+    def get_response_timeout(self, timeout, mode="auto", frames=1) -> float:
         """Returns how long to wait for the IRS's answer to a frame sent in mode.
 
         The TIMEOUT_* values count from the end of the transmission and assume
@@ -174,12 +174,15 @@ class ARQSessionISS(arq_session.ARQSession):
         (codec2.get_decode_delay), 5.44 s for data_fsk4_50, so that is added.
         The IRS answers an FSK_MODE frame in FSK_MODE, so the answer's airtime
         and its own decoding delay are added as well: 3.5 + 3 * 5.44 s after a
-        burst.
+        burst. After a burst of several frames the IRS may not hear the last
+        one and then answers one frame length after it should have been
+        decoded (ARQSessionIRS.schedule_burst_ack), so that is added too.
 
         Args:
             timeout (float): The timeout for an OFDM mode, in seconds.
             mode: The FreeDV mode the frame is sent in, or 'auto' for the
                 mode of the current speed level.
+            frames (int): The number of frames sent back to back.
 
         Returns:
             float: The timeout in seconds.
@@ -189,6 +192,8 @@ class ARQSessionISS(arq_session.ARQSession):
         wait = timeout + codec2.get_decode_delay(mode.value)
         if mode is self.FSK_MODE:
             wait += codec2.get_frame_duration(mode.value) + codec2.get_decode_delay(mode.value)
+        if frames > 1:
+            wait += codec2.get_frame_duration(mode.value)
         return wait
 
     def transmit_wait_and_retry(self, frame_or_burst, timeout, retries, mode, isARQBurst=False):
@@ -218,10 +223,13 @@ class ARQSessionISS(arq_session.ARQSession):
             else:
                 burst = [frame_or_burst]
             tx_mode = self.get_signalling_mode() if mode is FREEDV_MODE.signalling else mode
-            for f in burst:
-                self.transmit_frame(f, tx_mode)
+            if len(burst) > 1:
+                # one transmission, so the frames follow each other without PTT gaps
+                self.transmit_frame(burst, tx_mode)
+            else:
+                self.transmit_frame(burst[0], tx_mode)
             self.event_frame_received.clear()
-            wait = self.get_response_timeout(timeout, tx_mode)
+            wait = self.get_response_timeout(timeout, tx_mode, frames=len(burst))
             self.log(f"Waiting {wait} seconds...")
             if self.event_frame_received.wait(wait):
                 return
@@ -439,20 +447,24 @@ class ARQSessionISS(arq_session.ARQSession):
             return None, None
 
         payload_size = self.get_data_payload_size()
+        # on FSK several frames per burst: the IRS's decoding delay and the ACK
+        # then come once per burst instead of once per frame
+        frames_per_burst = self.FSK_FRAMES_PER_BURST if self.fsk else self.frames_per_burst
+        offsets = list(range(self.confirmed_bytes, self.total_length, payload_size))[:frames_per_burst]
+        if not offsets:
+            offsets = [self.confirmed_bytes]
         burst = []
-        for _ in range(0, self.frames_per_burst):
-            offset = self.confirmed_bytes
-            # self.expected_byte_offset = offset
+        for number, offset in enumerate(offsets, start=1):
             payload = self.data[offset : offset + payload_size]
-            # self.expected_byte_offset = offset + payload_size
             self.expected_byte_offset = offset + len(payload)
-            # print(f"EXPECTED----------------------{self.expected_byte_offset}")
             data_frame = self.frame_factory.build_arq_burst_frame(
                 self.SPEED_LEVEL_DICT[self.speed_level]["mode"],
                 self.id,
                 offset,
                 payload,
                 self.speed_level,
+                burst_number=number,
+                burst_total=len(offsets),
             )
             burst.append(data_frame)
         self.launch_twr(burst, self.TIMEOUT_TRANSFER, self.RETRIES_DATA, mode="auto", isARQBurst=True)

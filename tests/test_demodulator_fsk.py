@@ -179,6 +179,18 @@ class TestHfFsk(DemodulatorThread):
         # 10 Hz of Doppler spread, where every OFDM mode fails (fading-channels.md)
         self.assert_bursts_decode(self.make_payloads(4, seed=4), 3, snr_db=10, channel="hl_moderate")
 
+    def test_frames_back_to_back(self):
+        # ARQ sends several FSK frames in one transmission (FSK_FRAMES_PER_BURST);
+        # the receiver restart after each frame must not lose the next one
+        payloads = self.make_payloads(4, seed=5)
+        modulator = cs._modulator(vhf=False)
+        burst = modulator.create_burst(HF_FSK, 1, 500, [bytearray(p) for p in payloads])
+        audio = np.concatenate([np.zeros(cs.FS // 2, dtype=np.int16), np.frombuffer(burst, dtype=np.int16)])
+        rng = np.random.default_rng(5)
+        self.feed(cs.to_int16(cs.apply_channel(audio, cs.CHANNELS["awgn"], 10, rng)))
+        self.drain()
+        self.assertEqual(self.decoded(payloads), payloads)
+
 
 if __name__ == "__main__":
     unittest.main()

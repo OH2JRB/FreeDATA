@@ -139,8 +139,8 @@ Offsets include the type byte at offset 0. The "Size" column is the buffer that 
 | `ARQ_SESSION_INFO_ACK` | 14 | 0:1 type, 1:1 session_id, 2:4 offset, 6:1 snr, 7:1 speed_level, 8:1 frames_per_burst, 9:1 flag | `build_arq_session_info_ack(session_id, offset, snr, speed_level, frames_per_burst, flag_final, flag_abort)` |
 | `ARQ_STOP` | 14 | 0:1 type, 1:1 session_id | `build_arq_stop(session_id)` |
 | `ARQ_STOP_ACK` | 14 | 0:1 type, 1:1 session_id | `build_arq_stop_ack(session_id)` |
-| `ARQ_BURST_FRAME` | `bytes_per_frame(mode) - 2` | 0:1 type, 1:1 session_id, 2:1 speed_level, 3:4 offset, 7:n data | `build_arq_burst_frame(freedv_mode, session_id, offset, data, speed_level)` |
-| `ARQ_BURST_ACK` | 3 (4 in `data_fsk4_50`) | 0:1 session_id, 1:1 speed_level, 2:1 flag (**no type byte**, except in `data_fsk4_50`: then 0:1 type first) | `build_arq_burst_ack(session_id, speed_level, flag_final, flag_checksum, flag_abort, with_frame_type)` |
+| `ARQ_BURST_FRAME` | `bytes_per_frame(mode) - 2` | 0:1 type, 1:1 session_id, 2:1 speed_level, 3:4 offset, 7:1 burst_info (number in the burst << 4 \| frames in the burst), 8:n data | `build_arq_burst_frame(freedv_mode, session_id, offset, data, speed_level, burst_number, burst_total)` |
+| `ARQ_BURST_ACK` | 3 (8 in `data_fsk4_50`) | 0:1 session_id, 1:1 speed_level, 2:1 flag (**no type byte**). In `data_fsk4_50`: 0:1 type, 1:1 session_id, 2:1 speed_level, 3:1 flag, 4:4 offset (bytes received in a row) | `build_arq_burst_ack(session_id, speed_level, flag_final, flag_checksum, flag_abort, offset)` |
 
 The available payload per burst is
 `get_available_data_payload_for_mode(type, mode) = bytes_per_frame - 2 (CRC16) - 1 (type) - sum(fixed template fields)`,
@@ -243,7 +243,9 @@ every other frame, byte 0 is read as the frame type.
 
 An ARQ session that has fallen back to FSK ([arq-sessions.md](arq-sessions.md), section 4.1) sends its
 burst ACKs in `data_fsk4_50`, whose frames are not known by their mode, so there the ACK carries the type
-byte (`build_arq_burst_ack(..., with_frame_type=True)`) and is read like any other frame. All other ARQ
+byte, followed by the offset up to which the IRS has the data in a row, since an FSK burst has several
+frames (`build_arq_burst_ack(..., offset=...)`). `deconstruct()` reads every burst ACK that comes with its
+type byte this way (`arq_burst_ack_with_offset_template`). All other ARQ
 signalling frames of such a session go in `data_fsk4_50` too, unchanged (padded to its 30 bytes).
 
 Consequences:

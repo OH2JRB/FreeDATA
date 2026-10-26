@@ -68,6 +68,12 @@ class ARQSession:
         # },
     }
     FSK_LEVEL = 0
+    # frames per ARQ burst on FSK. The IRS decodes a frame up to a frame length
+    # late and answers with a 5.44 s ACK, decoded as late: about 16 s per burst
+    # however many frames it has. With 4 frames (88 bytes) a burst takes about
+    # 38 s instead of 22 s for one frame (22 bytes); longer bursts lose more
+    # time when the ACK is lost. At most 15 (burst_info)
+    FSK_FRAMES_PER_BURST = 4
 
     def __init__(self, ctx, dxcall: str):
         """Initializes a new ARQ session.
@@ -193,7 +199,8 @@ class ARQSession:
         based on the current speed level.
 
         Args:
-            frame (bytearray): The frame to be transmitted.
+            frame (bytearray): The frame to be transmitted, or a list of frames
+                to send back to back in one transmission.
             mode (str, optional): The FreeDV mode to use for transmission. Defaults to 'auto'.
         """
         self.log("Transmitting frame")
@@ -462,3 +469,4 @@ class ARQSession:
         self.maximum_bandwidth = 0
         self.abort = False
         self.fsk = False
+        self.pending_frames = {}

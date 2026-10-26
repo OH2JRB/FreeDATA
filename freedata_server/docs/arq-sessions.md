@@ -112,13 +112,15 @@ daemon thread:
 5. `ABORT` flag -> `transmission_aborted`.
 6. `FINAL` flag -> `transmission_ended` if `confirmed_bytes == total_length` and `CHECKSUM` is set,
    otherwise `transmission_failed`.
-7. Otherwise build `frames_per_burst` (always 1) `ARQ_BURST_FRAME`s of `get_data_payload_size()` bytes
-   starting at `confirmed_bytes`, in the speed-level mode, and send them with 3.5 s x 25 and
-   `isARQBurst=True`.
+7. Otherwise build `ARQ_BURST_FRAME`s of `get_data_payload_size()` bytes starting at `confirmed_bytes`, in
+   the speed-level mode: `frames_per_burst` (always 1) of them, or `FSK_FRAMES_PER_BURST` (4) on FSK
+   (section 4.1), fewer at the end of the data. Each carries its place in the burst (`burst_info`). Send
+   them with 3.5 s x 25 and `isARQBurst=True`, several frames in one transmission.
 
-Burst ACKs carry no offset (the field is commented out in the template). After a burst ACK,
-`expected_byte_offset` therefore keeps the value set when the burst was built, i.e. the end of the
-transmitted chunk.
+Burst ACKs in `signalling_ack` carry no offset (the field is commented out in the template). After such a
+burst ACK, `expected_byte_offset` therefore keeps the value set when the burst was built, i.e. the end of
+the transmitted chunk. FSK burst ACKs carry the offset up to which the IRS has the data in a row, and the
+ISS continues from there.
 
 Terminal handlers:
 
@@ -212,7 +214,7 @@ Actions:
 | `send_info_ack` | If nothing has been received yet, allocates `received_data = bytearray(total_length)`. Stores `total_length`, `total_crc` (hex), `type_byte`. `calibrate_speed_settings()`. Sends `ARQ_SESSION_INFO_ACK(id, offset=received_bytes, speed_level, frames_per_burst=1, flag_abort)` in `signalling`, waits 55 s | `INFO_ACK_SENT` (unless `abort`) |
 | `receive_data` (already delivered) | If `delivered_crc == total_crc`, the data was already handed to the data-type handler (the ISS probably missed the final ACK and repeats its last burst): resend `ARQ_BURST_ACK(FINAL, CHECKSUM)` in `signalling_ack`, return `(None, None)` | unchanged |
 | `receive_data` (no buffer) | If `received_data is None` (e.g. after `transmission_failed`), the burst is logged and ignored; the ISS has to re-open the session | unchanged |
-| `receive_data` (not complete) | `process_incoming_data` (see 3.4), histograms, `calibrate_speed_settings(burst_frame)`, `ARQ_BURST_ACK(id, speed_level, flag_abort)` in `signalling_ack`, waits 90 s | `BURST_REPLY_SENT` |
+| `receive_data` (not complete) | `process_incoming_data` (see 3.4), histograms. If the frame is the last of its burst (`burst_info`), `send_burst_ack()`: `calibrate_speed_settings()`, `ARQ_BURST_ACK(id, speed_level, flag_abort)` in `signalling_ack` (in FSK with the offset), waits 90 s. Otherwise a timer sends it one frame length after the last frame should have been decoded (`schedule_burst_ack`, section 4.1) | `BURST_REPLY_SENT` |
 | `receive_data` (complete, CRC ok) | `ARQ_BURST_ACK(FINAL, CHECKSUM)`, `delivered_crc = total_crc`, event `arq_session_finished(success=True, data=received_data)`, returns `(received_data, type_byte)` -> data-type dispatch | `ENDED` |
 | `receive_data` (complete, CRC bad) | `ARQ_BURST_ACK(FINAL, no CHECKSUM)`, then `transmission_failed()` | `FAILED` |
 | `send_stop_ack` | `ARQ_STOP_ACK` in `signalling_ack`, waits 55 s, `setARQ(False)`, event `arq_session_finished(success=False)`; if `STATION.enable_stats`, pushes statistics in a daemon thread (`push_statistics`) | `ABORTED` |
@@ -288,8 +290,12 @@ stateDiagram-v2
 
 ### 3.4 Reassembly (`process_incoming_data`)
 
-* If `frame.offset != received_bytes`, the mismatch is logged and `received_bytes` is set to the frame's
-  offset. The frame is not rejected.
+* A frame beyond `received_bytes` (one before it was lost, in an FSK burst) is kept in `pending_frames`
+  and stored once the gap is filled.
+* A frame whose data the IRS already has (repeated after a lost ACK, or in the FSK burst sent from a gap)
+  is skipped.
+* Otherwise, if `frame.offset != received_bytes`, the mismatch is logged and `received_bytes` is set to the
+  frame's offset. The frame is not rejected.
 * `data_part` = frame data truncated to `total_length - received_bytes`. This strips the zero padding of
   the final burst.
 * `received_data[offset:] = data_part` replaces everything from `offset` to the end, and then
@@ -342,7 +348,7 @@ higher levels, to FSK from datac4 (section 2.3).
 
 Auroral and other strongly fading paths defeat every OFDM mode, signalling included, from a few Hz of
 Doppler spread, while the SNR still looks good ([fading-channels.md](fading-channels.md)). The 50 baud 4FSK
-mode `data_fsk4_50` (level 0, 44 bps, 23 bytes per burst) still gets through, so sessions fall back to it on
+mode `data_fsk4_50` (level 0, 44 bps, 22 bytes of data per frame) still gets through, so sessions fall back to it on
 failures, not on SNR:
 
 | Trigger | Where |
@@ -357,13 +363,21 @@ clears it). From then on:
 * every frame goes in `data_fsk4_50`: bursts by their level, signalling through `get_signalling_mode()`,
   which returns `data_fsk4_50` instead of `signalling` / `signalling_ack`. So the IRS answers in FSK as soon
   as a request arrives in FSK;
-* `ARQ_BURST_ACK` carries its frame type byte (`build_arq_burst_ack(..., with_frame_type=True)`): only in
-  `signalling_ack` can the receiver tell a burst ACK by its mode;
+* a burst has `FSK_FRAMES_PER_BURST` (4) frames, sent in one transmission, so the IRS's decoding delay and
+  the ACK come once per 88 bytes instead of once per 22. Each frame carries its place in the burst
+  (`burst_info`: number << 4 | total). The IRS answers after the last frame, or, if that one is lost, from a
+  timer set at each earlier frame to one frame length more than the frames still to come
+  (`schedule_burst_ack`, `send_burst_ack`). Frames after a lost one are kept (`pending_frames`) until the gap
+  is filled, frames it already has are skipped;
+* `ARQ_BURST_ACK` carries its frame type byte and the offset up to which the IRS has the data in a row
+  (`build_arq_burst_ack(..., offset=received_bytes)`); only in `signalling_ack` can the receiver tell a burst
+  ACK by its mode. The ISS continues from that offset (`send_data` takes `offset` from the ACK), so it
+  repeats the frames from the gap on;
 * the IRS stays at level 0 and the ISS ignores higher levels in ACKs. There is no way back up yet, since the
   SNR cannot tell when the OFDM modes would work again;
 * the ISS waits `TIMEOUT_* + 3 x 5.44 s` for an answer (`get_response_timeout`): the IRS decodes an FSK frame
   up to one frame length after its end, and its FSK answer takes 5.44 s on the air and is decoded as late.
-  After a burst that is 19.8 s.
+  After a burst of several frames one more frame length is added for the IRS's ACK timer: 25.3 s.
 
 The demodulator decodes `data_fsk4_50` at all times (unless `EXP.enable_vhf`); it costs less CPU than
 `datac4`. A session that cannot reach the other station at all now takes longer to fail: two `signalling`
