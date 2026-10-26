@@ -40,7 +40,7 @@ def answer_after(failures):
 class TestP2PFskFallback(unittest.TestCase):
     def run_twr(self, connection, failures, frame=b"x" * 14, mode=FREEDV_MODE.signalling, retries=3):
         event = answer_after(failures)
-        with mock.patch("freedata_server.p2p_connection.threading.Event", return_value=event):
+        with testenv.patch_threading_event("freedata_server.p2p_connection", event):
             connection.transmit_wait_and_retry(frame, 5, retries, mode)
         modes = [c.args[0] for c in connection.ctx.rf_modem.transmit.call_args_list]
         waits = [c.args[0] for c in event.wait.call_args_list]

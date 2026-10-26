@@ -171,7 +171,7 @@ class TestIssHearsAnswer(unittest.TestCase):
             return False
 
         event.wait.side_effect = wait
-        with mock.patch("freedata_server.arq_session_iss.threading.Event", return_value=event):
+        with testenv.patch_threading_event("freedata_server.arq_session_iss", event):
             iss.transmit_wait_and_retry([b"burst"], 1.0, 25, "auto", isARQBurst=True)
         self.assertTrue(iss.fsk)
         self.assertEqual(iss.transmit_frame.call_count, 1)  # not repeated in OFDM

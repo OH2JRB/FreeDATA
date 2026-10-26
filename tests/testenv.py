@@ -32,3 +32,25 @@ def config_path():
         with open(path, "w") as f:
             parser.write(f)
     return path
+
+
+def patch_threading_event(module_name, event):
+    """Patch threading.Event as seen from one module only, so it returns event.
+
+    mock.patch("freedata_server.x.threading.Event") would patch the threading
+    module itself, and every thread still running in the test process (such as
+    the decoding threads of earlier tests, which call threading.Event().wait())
+    would then use up the mock's answers. This replaces the module's own
+    threading name with a copy whose Event returns event.
+    """
+    import importlib
+    import threading
+    import types
+    from unittest import mock
+
+    module = importlib.import_module(module_name)
+    local = types.SimpleNamespace(**{
+        name: getattr(threading, name) for name in dir(threading) if not name.startswith("__")
+    })
+    local.Event = mock.Mock(return_value=event)
+    return mock.patch.object(module, "threading", local)
