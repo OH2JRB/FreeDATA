@@ -6,6 +6,7 @@ from freedata_server.modem_frametypes import FRAME_TYPE
 import time
 from freedata_server.arq_data_type_handler import ARQDataTypeHandler
 from freedata_server.codec2 import FREEDV_MODE_USED_SLOTS, FREEDV_MODE
+from freedata_server.config import fsk_modes_enabled
 from freedata_server.signal_detector import SignalDetector
 
 
@@ -199,12 +200,16 @@ class ARQSession:
         return mode_name in (self.FSK_MODE, self.FSK_MODE.name.upper())
 
     def fall_back_to_fsk(self):
-        """Moves the session to the FSK level for good.
+        """Moves the session to the FSK level for good, unless the FSK modes are
+        disabled (config.fsk_modes_enabled); callers check self.fsk afterwards.
 
         Sessions get here only after failures, since an auroral path shows a good
         SNR and still defeats the OFDM modes. There is no way back up yet: the
         SNR cannot tell when the OFDM modes would work again.
         """
+        if not fsk_modes_enabled(self.ctx):
+            # "Enable FSK modes" is off: the session stays on OFDM
+            return
         if not self.fsk:
             self.log(f"Falling back to {self.FSK_MODE.name} for this session", isWarning=True)
         self.fsk = True

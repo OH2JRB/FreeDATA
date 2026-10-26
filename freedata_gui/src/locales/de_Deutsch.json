@@ -322,6 +322,8 @@
             "txdelay_help": "Sendeverzögerung, in Millisekuinden",
             "maximumbandwidth": "Maximale Bandbreite",
             "maximumbandwidth_help": "Wähle die maximale Bandbreite, die das Modem nutzen soll",
+            "enablefsk": "FSK-Modi aktivieren",
+            "enablefsk_help": "ARQ-Sitzungen und P2P-Verbindungen weichen auf den 50-Baud-4FSK-Modus aus, wenn die OFDM-Modi versagen, wie auf Polarlicht-Pfaden. Beide Stationen müssen ihn aktivieren",
 	        "enabletxautoadjust": "Auto TX Audio Pegel", 
             "enablerxautoadjust": "Auto RX Audio Pegel",
             "enabletxautoadjust_help": "Automatische Einstellung des Sendepegels auf den höchstmöglichen Wert" , 

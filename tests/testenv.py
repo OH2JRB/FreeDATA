@@ -6,6 +6,7 @@ message database. Import this module before creating an AppContext.
 """
 
 import atexit
+import configparser
 import os
 import shutil
 import tempfile
@@ -24,4 +25,10 @@ def config_path():
     path = os.path.join(_TMP_DIR, "config.ini")
     if not os.path.exists(path):
         shutil.copyfile(CONFIG_TEMPLATE, path)
+        # the tests cover the FSK modes too, which are off by default
+        parser = configparser.ConfigParser()
+        parser.read(path)
+        parser["MODEM"]["enable_fsk"] = "True"
+        with open(path, "w") as f:
+            parser.write(f)
     return path

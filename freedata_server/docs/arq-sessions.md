@@ -350,7 +350,17 @@ higher levels, to FSK from datac4 (section 2.3).
 Auroral and other strongly fading paths defeat every OFDM mode, signalling included, from a few Hz of
 Doppler spread, while the SNR still looks good ([fading-channels.md](fading-channels.md)). The 50 baud 4FSK
 mode `data_fsk4_50` (level 0, 44 bps, 21 bytes of data per frame) still gets through, so sessions fall back to
-it on failures, not on SNR:
+it on failures, not on SNR.
+
+The FSK modes are used only when `MODEM.enable_fsk` is on ("Enable FSK modes" in the GUI's modem settings;
+off by default, also in configs from before it existed). Off, the demodulator does not decode
+`data_fsk4_50` (`set_decode_mode` leaves it out whatever asks for it), `fall_back_to_fsk()` of ARQ sessions
+and P2P connections does nothing, and the triggers below keep the session on OFDM: failed datac4 bursts are
+retried at datac4. Both stations need it on, since a station without it cannot hear the other's FSK frames.
+A change through the config API is logged (`[MODEM] FSK modes enabled` / `disabled`), saved to the config
+file and restarts the modem, which logs the state again as it starts (`[MDM] FSK modes ...`).
+
+The triggers:
 
 | Trigger | Where |
 |---|---|
@@ -415,7 +425,7 @@ waits on for the end of that transmission and its decoding, at most three FSK fr
 (`wait_for_answer_on_air`): the IRS's FSK answer to an OFDM burst comes later than an OFDM answer would. See
 [fading-channels.md](fading-channels.md), section 8, "Detecting frames codec2 does not see".
 
-The demodulator decodes `data_fsk4_50` at all times (unless `EXP.enable_vhf`); it costs less CPU than
+With the FSK modes on, the demodulator decodes `data_fsk4_50` at all times (unless `EXP.enable_vhf`); it costs less CPU than
 `datac4`. A session that cannot reach the other station at all now takes longer to fail: two `signalling`
 attempts (2.2 s of airtime + 4.5 s each) and four FSK attempts (2 x 5.44 s of airtime + 4.5 + 4 x 5.44 s
 each), about 162 s instead of about 34 s.

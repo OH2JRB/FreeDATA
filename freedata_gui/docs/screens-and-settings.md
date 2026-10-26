@@ -280,6 +280,7 @@ Visible only when `RADIO.control == "rigctld_bundle"` (`d-none` otherwise):
 | TX auto level | `remote.AUDIO.tx_auto_audio_level` | switch |
 | TX delay | `remote.MODEM.tx_delay` | select 0-1000 ms in 50 ms steps |
 | Maximum bandwidth | `remote.MODEM.maximum_bandwidth` | select 250 / 500 / 1700 / 2438 Hz |
+| Enable FSK modes | `remote.MODEM.enable_fsk` | switch |
 
 #### [settings_web.vue](../src/components/settings_web.vue) - Web / Explorer
 

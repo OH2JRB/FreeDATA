@@ -5,7 +5,10 @@ FSK frames, which codec2 decodes up to one frame length after their end (see
 freedata_server/docs/fading-channels.md, section 8)."""
 
 import base64
+import os
 import queue
+import shutil
+import tempfile
 import threading
 import time
 import types
@@ -32,6 +35,13 @@ DATAC4_LEVEL = 1
 FSK_ROUND_TRIP = 3 * 5.44
 
 
+def fsk_config(enabled=True, **modem):
+    """A ctx stand-in without a modem whose config has "Enable FSK modes" set."""
+    return types.SimpleNamespace(
+        config_manager=types.SimpleNamespace(config={"MODEM": {"enable_fsk": enabled, **modem}})
+    )
+
+
 def make_iss(speed_level=DATAC4_LEVEL):
     """An ISS with only what transmit_wait_and_retry needs, without a modem."""
     iss = ARQSessionISS.__new__(ARQSessionISS)
@@ -40,7 +50,7 @@ def make_iss(speed_level=DATAC4_LEVEL):
     iss.probing = False
     iss.state = ISS_State.INFO_SENT
     iss.confirmed_bytes = 0
-    iss.ctx = None  # no modem
+    iss.ctx = fsk_config()  # no modem
     iss.log = mock.Mock()
     iss.transmit_frame = mock.Mock()
     iss.send_data = mock.Mock()
@@ -52,6 +62,90 @@ def answer_after(failures):
     event = mock.Mock()
     event.wait.side_effect = [False] * failures + [True]
     return event
+
+
+class TestFskSwitch(unittest.TestCase):
+    """MODEM.enable_fsk ("Enable FSK modes"): off, sessions stay on OFDM."""
+
+    def run_twr(self, iss, failures, mode, retries, is_burst=False):
+        event = answer_after(failures)
+        with mock.patch("freedata_server.arq_session_iss.threading.Event", return_value=event):
+            iss.transmit_wait_and_retry(b"frame", 1.0, retries, mode, isARQBurst=is_burst)
+        return [c.args[1] for c in iss.transmit_frame.call_args_list]
+
+    def test_off_by_default(self):
+        from freedata_server.config import fsk_modes_enabled
+
+        self.assertFalse(fsk_modes_enabled(None))
+        self.assertFalse(fsk_modes_enabled(fsk_config(enabled=False)))
+        ctx = types.SimpleNamespace()
+        template = os.path.join(os.path.dirname(testenv.CONFIG_TEMPLATE), "config.ini.example")
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "config.ini")
+            shutil.copyfile(template, path)
+            ctx.config_manager = CONFIG(ctx, path)
+            self.assertFalse(fsk_modes_enabled(ctx))
+            # the setting survives a restart: written to the file, read back
+            ctx.config_manager.write({"MODEM": {"enable_fsk": True}})
+            again = types.SimpleNamespace()
+            again.config_manager = CONFIG(again, path)
+            self.assertTrue(fsk_modes_enabled(again))
+
+    def test_signalling_stays_on_ofdm(self):
+        iss = make_iss()
+        iss.ctx = fsk_config(enabled=False)
+        sent = self.run_twr(iss, 2, FREEDV_MODE.signalling, ARQSessionISS.RETRIES_CONNECT)
+        self.assertEqual(sent, [FREEDV_MODE.signalling] * 3)
+        self.assertFalse(iss.fsk)
+
+    def test_failed_datac4_bursts_stay_on_datac4(self):
+        iss = make_iss()
+        iss.ctx = fsk_config(enabled=False)
+        iss.state = ISS_State.BURST_SENT
+        self.run_twr(iss, 2, FREEDV_MODE.datac4, ARQSessionISS.RETRIES_DATA, is_burst=True)
+        self.assertFalse(iss.fsk)
+        self.assertEqual(iss.speed_level, DATAC4_LEVEL)
+
+    def test_fsk_frame_does_not_switch(self):
+        for session in (make_iss(), ARQSessionIRS.__new__(ARQSessionIRS)):
+            session.ctx = fsk_config(enabled=False)
+            session.fsk = False
+            session.speed_level = DATAC4_LEVEL
+            session.log = mock.Mock()
+            session.fall_back_to_fsk()
+            self.assertFalse(session.fsk)
+            self.assertEqual(session.speed_level, DATAC4_LEVEL)
+
+    def test_irs_steps_down_to_datac4_only(self):
+        irs = ARQSessionIRS.__new__(ARQSessionIRS)
+        irs.ctx = fsk_config(enabled=False)
+        irs.fsk = False
+        irs.speed_level = DATAC4_LEVEL
+        irs.step_down_hold = 0
+        irs.snr = 10
+        irs.maximum_bandwidth = 2438
+        irs.previous_speed_level = DATAC4_LEVEL
+        irs.log = mock.Mock()
+        irs.take_decode_failures = mock.Mock(return_value=ARQSessionIRS.DECODE_FAILURES_TO_STEP_DOWN)
+        with mock.patch.object(ARQSessionIRS, "get_appropriate_speed_level", return_value=DATAC4_LEVEL):
+            try:
+                irs.calibrate_speed_settings()
+            except AttributeError:
+                pass  # no modem to set the decode modes on
+        self.assertFalse(irs.fsk)
+        self.assertGreaterEqual(irs.speed_level, DATAC4_LEVEL)
+
+    def test_demodulator_leaves_fsk_out(self):
+        from freedata_server.demodulator import Demodulator
+
+        demodulator = Demodulator.__new__(Demodulator)
+        demodulator.MODE_DICT = {m.value: {"decode": False} for m in FREEDV_MODE}
+        for enabled in (True, False):
+            demodulator.ctx = fsk_config(enabled=enabled)
+            demodulator.ctx.config_manager.config["EXP"] = {}
+            demodulator.set_decode_mode({FSK.value: True})
+            self.assertEqual(demodulator.MODE_DICT[FSK.value]["decode"], enabled)
+            self.assertTrue(demodulator.MODE_DICT[FREEDV_MODE.datac4.value]["decode"])
 
 
 class TestDecodeDelay(unittest.TestCase):
@@ -219,6 +313,7 @@ class TestFallback(unittest.TestCase):
         irs = ARQSessionIRS.__new__(ARQSessionIRS)
         irs.fsk = False
         irs.speed_level = 4
+        irs.ctx = fsk_config()
         irs.log = mock.Mock()
         irs.fall_back_to_fsk()
         self.assertEqual(irs.calibrate_speed_settings(), ARQSessionIRS.FSK_LEVEL)
@@ -376,7 +471,7 @@ class TestIrsDetection(unittest.TestCase):
         demodulator.take_decode_failures.side_effect = lambda modes: failures.pop(0) if failures else 0
         irs.ctx = types.SimpleNamespace(
             rf_modem=types.SimpleNamespace(demodulator=demodulator),
-            config_manager=types.SimpleNamespace(config={"MODEM": {"maximum_bandwidth": 0}}),
+            config_manager=types.SimpleNamespace(config={"MODEM": {"maximum_bandwidth": 0, "enable_fsk": True}}),
             state_manager=types.SimpleNamespace(channel_busy_slot=[False] * 5),
         )
         return irs

@@ -1,5 +1,6 @@
 import asyncio
 
+import structlog
 from fastapi import APIRouter, Depends
 from freedata_server.api.common import api_abort
 from freedata_server import api_validations as validations
@@ -8,6 +9,7 @@ from freedata_server.message_p2p import common_key_changed, encryption_log, EXPL
 from freedata_server.message_system_db_station import DatabaseManagerStations
 
 router = APIRouter()
+modem_log = structlog.get_logger("Modem")
 
 
 @router.get(
@@ -182,6 +184,11 @@ async def post_config(
         decrypted, requeued = await asyncio.to_thread(common_key_changed, ctx)
         if decrypted or requeued:
             encryption_log.info("[ENCRYPTION] Common key used", decrypted=decrypted, requeued=requeued)
+
+    fsk_was_on = bool(old_cfg.get("MODEM", {}).get("enable_fsk"))
+    fsk_is_on = bool(updated.get("MODEM", {}).get("enable_fsk"))
+    if fsk_is_on != fsk_was_on:
+        modem_log.info("[MODEM] FSK modes " + ("enabled" if fsk_is_on else "disabled"))
 
     # Trigger modem restart, unless only the GUI section changed
     # (GUI-only keys such as distance_unit are not used by the modem)

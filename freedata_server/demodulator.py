@@ -9,6 +9,7 @@ import numpy as np
 from freedata_server.audio_buffer import CircularBuffer
 from freedata_server.fsk_early import FskEarlyDecoder
 from freedata_server.signal_detector import SignalDetector
+from freedata_server.config import fsk_modes_enabled
 
 TESTMODE = False
 
@@ -85,7 +86,8 @@ class Demodulator:
             self.MODE_DICT[codec2.FREEDV_MODE.signalling_ack.value]["decode"] = True
             self.MODE_DICT[codec2.FREEDV_MODE.datac4.value]["decode"] = True
             # ARQ sessions fall back to it, signalling included (arq_session.FSK_MODE)
-            self.MODE_DICT[codec2.FREEDV_MODE.data_fsk4_50.value]["decode"] = True
+            self.MODE_DICT[codec2.FREEDV_MODE.data_fsk4_50.value]["decode"] = fsk_modes_enabled(self.ctx)
+        self.log.info("[MDM] FSK modes " + ("enabled" if fsk_modes_enabled(self.ctx) else "disabled"))
 
     def init_codec2(self):
         # Open codec2 instances
@@ -571,6 +573,10 @@ class Demodulator:
             for mode, decode in modes_to_decode.items():
                 if mode in self.MODE_DICT:
                     self.MODE_DICT[mode]["decode"] = decode
+
+        # "Enable FSK modes" off: no FSK, whatever asked for it
+        if not fsk_modes_enabled(self.ctx):
+            self.MODE_DICT[codec2.FREEDV_MODE.data_fsk4_50.value]["decode"] = False
 
     def shutdown(self):
         print("shutting down demodulators...")

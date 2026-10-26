@@ -154,6 +154,7 @@ def _config(tmp, name, callsign):
     parser.read(path)
     parser["STATION"]["mycall"] = callsign
     parser["STATION"]["myssid"] = "1"
+    parser["MODEM"]["enable_fsk"] = "True"
     with open(path, "w") as f:
         parser.write(f)
     return path
