@@ -53,6 +53,9 @@ class ARQSessionISS(arq_session.ARQSession):
     # signalling frames go in FSK after this many unanswered attempts in OFDM:
     # on an auroral path DATAC13 and DATAC14 do not get through
     RETRIES_BEFORE_FSK = 2
+    # on FSK every this many bursts a datac4 burst instead, to find out whether
+    # OFDM gets through again (send_probe)
+    FSK_PROBE_INTERVAL = 5
 
     # DJ2LS: 3 seconds seems to be too small for radios with a too slow PTT toggle time
     # DJ2LS: 3.5 seconds is working well WITHOUT a channel busy detection delay
@@ -113,6 +116,8 @@ class ARQSessionISS(arq_session.ARQSession):
         self.last_burst = {"offsets": [], "size": 0}
         self.irs_holds = set()
         self.fsk_frames_per_burst = self.FSK_FRAMES_PER_BURST
+        self.fsk_bursts = 0
+        self.probing = False
 
         # instance of p2p connection
         self.running_p2p_connection = None
@@ -244,6 +249,16 @@ class ARQSessionISS(arq_session.ARQSession):
             retries = retries - 1
             failures += 1
 
+            if self.probing and self.state not in [ISS_State.ABORTED, ISS_State.ABORTING]:
+                # OFDM does not get through yet: on with FSK
+                self.probing = False
+                self.log("No answer to the datac4 probe, staying on FSK")
+                self.send_data(
+                    {"flag": {"ABORT": False, "FINAL": False}, "speed_level": self.speed_level},
+                    fallback=True,
+                )
+                return
+
             if mode is FREEDV_MODE.signalling and not self.fsk and failures == self.RETRIES_BEFORE_FSK:
                 self.fall_back_to_fsk()
 
@@ -338,6 +353,12 @@ class ARQSessionISS(arq_session.ARQSession):
         # Extract the speed_level directly from the frame
         if "speed_level" in frame:
             new_speed_level = frame["speed_level"]
+            # the IRS has heard the datac4 probe, and its OFDM answer got here
+            if self.probing and not self.is_fsk_frame(frame):
+                self.probing = False
+                self.irs_holds = set()
+                self.leave_fsk(max(new_speed_level, self.FSK_LEVEL + 1))
+                return
             # the IRS answers FSK frames at the FSK level; once there, the session stays
             if new_speed_level == self.FSK_LEVEL or self.fsk:
                 self.fall_back_to_fsk()
@@ -453,6 +474,11 @@ class ARQSessionISS(arq_session.ARQSession):
                 self.transmission_failed()
             return None, None
 
+        if self.fsk and not fallback:
+            self.fsk_bursts += 1
+            if self.fsk_bursts % self.FSK_PROBE_INTERVAL == 0:
+                return self.send_probe()
+
         payload_size = self.get_data_payload_size()
         # on FSK several frames per burst: the IRS's decoding delay and the ACK
         # then come once per burst instead of once per frame. Frames the IRS
@@ -486,6 +512,29 @@ class ARQSessionISS(arq_session.ARQSession):
             )
             burst.append(data_frame)
         self.launch_twr(burst, self.TIMEOUT_TRANSFER, self.RETRIES_DATA, mode="auto", isARQBurst=True)
+        self.set_state(ISS_State.BURST_SENT)
+        return None, None
+
+    def send_probe(self):
+        """Sends one datac4 burst on an FSK session, to find out whether OFDM gets
+        through again (ARQSession.leave_fsk). Without an answer the session goes on
+        with FSK (transmit_wait_and_retry).
+
+        Returns:
+            Tuple[None, None]
+        """
+        level = self.FSK_LEVEL + 1
+        mode = self.get_mode_by_speed_level(level)
+        payload_size = self.frame_factory.get_available_data_payload_for_mode(FRAME_TYPE.ARQ_BURST_FRAME, mode)
+        offset = self.confirmed_bytes
+        payload = self.data[offset : offset + payload_size]
+        self.expected_byte_offset = offset + len(payload)
+        self.burst_id = (self.burst_id + 1) % 256
+        self.last_burst = {"offsets": [offset], "size": payload_size}
+        self.probing = True
+        self.log("Probing with a datac4 burst whether OFDM gets through again")
+        probe = self.frame_factory.build_arq_burst_frame(mode, self.id, offset, payload, level, burst_id=self.burst_id)
+        self.launch_twr([probe], self.TIMEOUT_TRANSFER, 1, mode=mode, isARQBurst=True)
         self.set_state(ISS_State.BURST_SENT)
         return None, None
 

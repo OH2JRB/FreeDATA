@@ -15,7 +15,7 @@ import numpy as np
 
 import testenv  # noqa: F401  isolates config + message DB, must precede freedata_server imports
 from freedata_server import codec2
-from freedata_server.arq_session_irs import ARQSessionIRS
+from freedata_server.arq_session_irs import ARQSessionIRS, IRS_State
 from freedata_server.arq_session_iss import ARQSessionISS, ISS_State
 from freedata_server.command_arq_raw import ARQRawCommand
 from freedata_server.config import CONFIG
@@ -36,6 +36,7 @@ def make_iss(speed_level=DATAC4_LEVEL):
     iss = ARQSessionISS.__new__(ARQSessionISS)
     iss.speed_level = speed_level
     iss.fsk = False
+    iss.probing = False
     iss.state = ISS_State.INFO_SENT
     iss.confirmed_bytes = 0
     iss.log = mock.Mock()
@@ -271,6 +272,46 @@ class TestSelectiveRepeats(unittest.TestCase):
         self.assertEqual(kwargs["frames_received"], 0b101)  # 44 = gap + 1 frame, 88 = gap + 3 frames
 
 
+class TestProbe(unittest.TestCase):
+    def test_unanswered_probe_goes_on_with_fsk(self):
+        iss = make_iss(ARQSessionISS.FSK_LEVEL)
+        iss.fsk = True
+        iss.probing = True
+        event = answer_after(1)
+        with mock.patch("freedata_server.arq_session_iss.threading.Event", return_value=event):
+            iss.transmit_wait_and_retry([b"probe"], 1.0, 1, FREEDV_MODE.datac4, isARQBurst=True)
+        self.assertFalse(iss.probing)
+        self.assertTrue(iss.fsk)
+        self.assertTrue(iss.send_data.call_args.kwargs["fallback"])
+
+    def test_ofdm_answer_leaves_fsk(self):
+        iss = make_iss(ARQSessionISS.FSK_LEVEL)
+        iss.fsk = True
+        iss.probing = True
+        iss.irs_holds = {42}
+        iss.update_speed_level({"speed_level": 3, "mode_name": "SIGNALLING_ACK"})
+        self.assertFalse(iss.fsk)
+        self.assertFalse(iss.probing)
+        self.assertEqual(iss.speed_level, 3)
+        self.assertEqual(iss.irs_holds, set())
+
+    def test_irs_leaves_fsk_on_an_ofdm_burst(self):
+        irs = ARQSessionIRS.__new__(ARQSessionIRS)
+        irs.fsk = True
+        irs.speed_level = ARQSessionIRS.FSK_LEVEL
+        irs.log = mock.Mock()
+        irs.event_frame_received = threading.Event()
+        irs.state = IRS_State.BURST_REPLY_SENT
+        irs.STATE_TRANSITION = {}
+        irs.on_frame_received({
+            "frame_type": "ARQ_BURST_FRAME",
+            "frame_type_int": FRAME_TYPE.ARQ_BURST_FRAME.value,
+            "mode_name": "DATAC4",
+        })
+        self.assertFalse(irs.fsk)
+        self.assertEqual(irs.speed_level, DATAC4_LEVEL)
+
+
 class SessionOnFadingPath:
     """Two stations in test mode; the channel drops the frames lost() picks."""
 
@@ -419,6 +460,41 @@ class TestLostFskFrames(SessionOnFadingPath, unittest.TestCase):
         self.assertEqual(acked, [(21, 0b11), (126, 0), (150, 0)])
         # each ACK answers the burst before it
         self.assertEqual([f[8] for f in acks], [1, 2, 3])
+
+
+class TestAuroraEnds(SessionOnFadingPath, unittest.TestCase):
+    """OFDM gets through again after the first datac4 probe: the second one
+    brings the session back to OFDM."""
+
+    def setUp(self):
+        super().setUp()
+        self.recovered = False
+        patcher = mock.patch.object(ARQSessionISS, "FSK_PROBE_INTERVAL", 2)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def lost(self, mode, frame_type):
+        if mode is FSK or self.recovered:
+            return False
+        if frame_type == FRAME_TYPE.ARQ_BURST_FRAME.value:
+            self.recovered = True  # the first probe is lost, OFDM works from then on
+        return True
+
+    def test_session_returns_to_ofdm(self):
+        payload = np.random.default_rng(4).bytes(1000)
+        self.assertTrue(self.transfer(payload))
+        self.assertEqual(self.received(), payload)
+
+        bursts = self.frames(FRAME_TYPE.ARQ_BURST_FRAME)
+        probes = [i for i, mode in enumerate(bursts) if mode is FREEDV_MODE.datac4]
+        self.assertGreaterEqual(len(probes), 2, bursts)
+        # FSK until the second probe, which gets through, OFDM after it
+        self.assertTrue(all(mode is FSK for mode in bursts[: probes[0]]), bursts)
+        self.assertIn(FSK, bursts[probes[0] + 1 : probes[1]])
+        self.assertTrue(all(mode is not FSK for mode in bursts[probes[1] :]), bursts)
+        # the IRS answered the probe in DATAC14
+        acks = self.frames(FRAME_TYPE.ARQ_BURST_ACK, "IRS")
+        self.assertIs(acks[-1], FREEDV_MODE.signalling_ack)
 
 
 if __name__ == "__main__":

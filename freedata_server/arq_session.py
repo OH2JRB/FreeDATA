@@ -194,6 +194,22 @@ class ARQSession:
         self.fsk = True
         self.speed_level = self.FSK_LEVEL
 
+    def leave_fsk(self, speed_level):
+        """Moves the session from FSK back to an OFDM speed level.
+
+        The ISS probes now and then with a datac4 burst (ARQSessionISS.send_probe).
+        The IRS leaves FSK when such a burst arrives and answers it in DATAC14; the
+        ISS leaves when that answer arrives. If the answer is lost, the ISS stays
+        on FSK, and its next FSK burst brings the IRS back as well.
+
+        Args:
+            speed_level: The OFDM speed level to continue at.
+        """
+        if self.fsk:
+            self.log(f"Leaving {self.FSK_MODE.name}: OFDM gets through again", isWarning=True)
+        self.fsk = False
+        self.speed_level = speed_level
+
     def transmit_frame(self, frame: bytearray, mode="auto"):
         """Transmits a given frame using the modem.
 
@@ -274,6 +290,9 @@ class ARQSession:
         # the other side has fallen back to FSK: follow, so answers reach it
         if self.is_fsk_frame(frame):
             self.fall_back_to_fsk()
+        elif self.fsk and frame["frame_type_int"] == FRAME_TYPE.ARQ_BURST_FRAME.value:
+            # an OFDM burst on an FSK session: the ISS's probe got through
+            self.leave_fsk(self.FSK_LEVEL + 1)
         frame_type = frame["frame_type_int"]
         if self.state in self.STATE_TRANSITION and frame_type in self.STATE_TRANSITION[self.state]:
             action_name = self.STATE_TRANSITION[self.state][frame_type]
