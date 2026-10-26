@@ -47,6 +47,10 @@ class ARQSessionIRS(arq_session.ARQSession):
 
     TIMEOUT_CONNECT = 55  # 14.2
     TIMEOUT_DATA = 90
+    # On FSK the ISS's attempts take far longer (two 5.44 s copies of a signalling
+    # frame and up to 32 s of waiting, about 43 s; a burst and its wait up to
+    # 70 s), so the IRS waits this many times as long before it gives up
+    FSK_TIMEOUT_FACTOR = 4
 
     # frames found but not decoded (Demodulator.take_decode_failures) in the
     # current mode since the last answer, after which the IRS steps down: to
@@ -89,6 +93,8 @@ class ARQSessionIRS(arq_session.ARQSession):
         },
         IRS_State.FAILED: {
             FRAME_TYPE.ARQ_BURST_FRAME.value: "receive_data",
+            # the ISS still trying after this side gave up (a slow FSK path): start over
+            FRAME_TYPE.ARQ_SESSION_INFO.value: "send_info_ack",
             # FRAME_TYPE.ARQ_SESSION_OPEN.value: 'send_open_ack',
         },
         IRS_State.ABORTED: {
@@ -164,6 +170,9 @@ class ARQSessionIRS(arq_session.ARQSession):
         self.burst_ack_lock = threading.RLock()
         self.burst_id = 0
         self.burst_frame_size = 0
+        # a frame came again, so the last answer was lost: the next one goes out
+        # twice on FSK (answer_frames)
+        self.answer_lost = False
 
     def all_data_received(self):
         """Checks if all data has been received.
@@ -205,7 +214,7 @@ class ARQSessionIRS(arq_session.ARQSession):
         self.transmit_frame(frame, mode)
         self.log(f"Waiting {timeout} seconds...")
         since = time.monotonic()
-        deadline = since + timeout
+        deadline = since + (timeout * self.FSK_TIMEOUT_FACTOR if self.fsk else timeout)
         while not self.event_frame_received.wait(self.DETECTION_INTERVAL):
             if time.monotonic() >= deadline:
                 if self.state not in [IRS_State.ABORTED, IRS_State.FAILED]:
@@ -303,7 +312,9 @@ class ARQSessionIRS(arq_session.ARQSession):
             self.id, self.dxcall, self.version, self.snr, flag_abort=self.abort
         )
 
-        self.launch_transmit_and_wait(ack_frame, self.TIMEOUT_CONNECT, mode=self.get_signalling_mode())
+        self.launch_transmit_and_wait(
+            self.signalling_frames(ack_frame), self.TIMEOUT_CONNECT, mode=self.get_signalling_mode()
+        )
         if not self.abort:
             self.set_state(IRS_State.OPEN_ACK_SENT)
         return None, None
@@ -343,7 +354,9 @@ class ARQSessionIRS(arq_session.ARQSession):
             self.frames_per_burst,
             flag_abort=self.abort,
         )
-        self.launch_transmit_and_wait(info_ack, self.TIMEOUT_CONNECT, mode=self.get_signalling_mode())
+        self.launch_transmit_and_wait(
+            self.signalling_frames(info_ack), self.TIMEOUT_CONNECT, mode=self.get_signalling_mode()
+        )
         if not self.abort:
             self.set_state(IRS_State.INFO_ACK_SENT)
         return None, None
@@ -367,6 +380,10 @@ class ARQSessionIRS(arq_session.ARQSession):
             # filled, since the data is stored in a row (the ISS continues
             # from the offset in the ACK)
             self.log(f"Keeping data at offset {frame['offset']} until {self.received_bytes} has arrived")
+            if frame["offset"] in self.pending_frames:
+                # held already: the ISS sends it again (the last frame of a burst
+                # after a lost ACK), so it did not get the last answer
+                self.answer_lost = True
             self.pending_frames[frame["offset"]] = frame["data"]
             return True
 
@@ -375,6 +392,8 @@ class ARQSessionIRS(arq_session.ARQSession):
             # a frame received before, repeated in the next FSK burst (sent from
             # the offset of the gap) or after a lost ACK: same data, nothing to do
             self.log(f"Already received data up to {end}")
+            # the ISS sends it again: it did not get the last answer
+            self.answer_lost = True
             return True
 
         if frame["offset"] != self.received_bytes:
@@ -454,6 +473,7 @@ class ARQSessionIRS(arq_session.ARQSession):
             with self.burst_ack_lock:
                 # it answers this burst (FSK burst ACKs carry its id), at its end
                 self.burst_id = burst_frame["burst_id"]
+                self.answer_lost = True
                 self.answer_at_burst_end(burst_frame, self.send_final_ack)
             return None, None
 
@@ -560,8 +580,15 @@ class ARQSessionIRS(arq_session.ARQSession):
     def send_final_ack(self, checksum=True):
         """Sends the final burst ACK: all data received, with or without a matching CRC."""
         ack = self.build_burst_ack(flag_final=True, flag_checksum=checksum)
-        self.transmit_frame(ack, mode=self.get_signalling_mode(FREEDV_MODE.signalling_ack))
+        self.transmit_frame(self.answer_frames(ack), mode=self.get_signalling_mode(FREEDV_MODE.signalling_ack))
         self.log("Final ACK sent")
+
+    def answer_frames(self, ack):
+        """A burst ACK as it goes out: on FSK twice in one transmission when the last
+        answer was lost (a frame came again), else once."""
+        frames = [ack] * self.FSK_SIGNALLING_COPIES if self.fsk and self.answer_lost else ack
+        self.answer_lost = False
+        return frames
 
     def schedule_burst_ack(self, delay, send=None):
         """Answers after delay seconds, unless the burst's last frame comes first.
@@ -624,7 +651,7 @@ class ARQSessionIRS(arq_session.ARQSession):
             )
 
             self.launch_transmit_and_wait(
-                ack, self.TIMEOUT_DATA, mode=self.get_signalling_mode(FREEDV_MODE.signalling_ack)
+                self.answer_frames(ack), self.TIMEOUT_DATA, mode=self.get_signalling_mode(FREEDV_MODE.signalling_ack)
             )
 
     def calibrate_speed_settings(self, burst_frame=None):
@@ -746,7 +773,9 @@ class ARQSessionIRS(arq_session.ARQSession):
         """
         stop_ack = self.frame_factory.build_arq_stop_ack(self.id)
         self.launch_transmit_and_wait(
-            stop_ack, self.TIMEOUT_CONNECT, mode=self.get_signalling_mode(FREEDV_MODE.signalling_ack)
+            self.signalling_frames(stop_ack),
+            self.TIMEOUT_CONNECT,
+            mode=self.get_signalling_mode(FREEDV_MODE.signalling_ack),
         )
         self.set_state(IRS_State.ABORTED)
         self.ctx.state_manager.setARQ(False)

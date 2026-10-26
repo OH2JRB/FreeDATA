@@ -78,6 +78,15 @@ class ARQSession:
     # the ISS adapts it to the losses, between these
     FSK_FRAMES_PER_BURST_MIN = 2
     FSK_FRAMES_PER_BURST_MAX = 8
+    # On FSK the session signalling (open, info, stop and their answers) goes
+    # out this many times in one transmission: on hl_disturbed about half of the
+    # single frames get through, and both a question and its answer only a
+    # quarter of the time; with two copies each about half. The receiver drops
+    # the second copy if it decoded the first (Demodulator.fsk_is_new)
+    FSK_SIGNALLING_COPIES = 2
+    # before transmitting, wait at most this long while the other station is
+    # still on the air (wait_for_clear_channel)
+    CLEAR_CHANNEL_SECONDS = 12
 
     def __init__(self, ctx, dxcall: str):
         """Initializes a new ARQ session.
@@ -217,6 +226,25 @@ class ARQSession:
         self.fsk = False
         self.speed_level = speed_level
 
+    def signalling_frames(self, frame):
+        """A signalling frame as it goes out: on FSK FSK_SIGNALLING_COPIES times."""
+        return [frame] * self.FSK_SIGNALLING_COPIES if self.fsk else frame
+
+    def wait_for_clear_channel(self):
+        """Waits while the other station is still transmitting (SignalDetector), at
+        most CLEAR_CHANNEL_SECONDS.
+
+        The early FSK decoder passes a frame on at its end, but more may follow
+        in the same transmission (a burst, a second copy of a signalling frame),
+        and the other station cannot hear an answer while it sends them.
+        """
+        detector = self.get_signal_detector()
+        if detector is None:
+            return
+        deadline = time.monotonic() + self.CLEAR_CHANNEL_SECONDS
+        while detector.receiving() and time.monotonic() < deadline:
+            time.sleep(0.1)
+
     def transmit_frame(self, frame: bytearray, mode="auto"):
         """Transmits a given frame using the modem.
 
@@ -233,6 +261,7 @@ class ARQSession:
         if mode in ["auto"]:
             mode = self.get_mode_by_speed_level(self.speed_level)
 
+        self.wait_for_clear_channel()
         self.ctx.rf_modem.transmit(mode, 1, 1, frame)
 
     def set_state(self, state):

@@ -209,8 +209,10 @@ class ScheduleManager:
         for session_id in self.ctx.state_manager.arq_irs_sessions:
             session = self.ctx.state_manager.arq_irs_sessions[session_id]
 
-            # set an IRS session to RESUME for being ready getting the data again
-            if session.is_IRS and session.last_state_change_timestamp + 90 < time.time():
+            # set an IRS session to RESUME for being ready getting the data again; on
+            # FSK the ISS's attempts take minutes (ARQSessionIRS.FSK_TIMEOUT_FACTOR)
+            hold = 90 * (session.FSK_TIMEOUT_FACTOR if getattr(session, "fsk", False) else 1)
+            if session.is_IRS and session.last_state_change_timestamp + hold < time.time():
                 try:
                     # if session is received successfully, indiciated by ENDED state, delete it
                     # this needs to be checked before setting RESUME, otherwise ENDED is overwritten
