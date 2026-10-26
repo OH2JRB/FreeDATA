@@ -148,7 +148,7 @@ Helpers: `freedv_get_mode_value_by_name(name)`, `freedv_get_mode_name_by_value(v
 
 `data_vhf_1`: FSK with `M=4`, `Rs=200`, `tone_spacing=400`, `interleave_frames=1`, `H_256_512_4`, `first_tone` centred on 1500 Hz via `get_centered_first_tone`.
 
-`data_fsk4_50`: the same with `Rs=50` and `tone_spacing=150` (tones 1275 to 1725 Hz, about 550 Hz wide, slot 3): 32-byte frames (30 bytes of payload) of 5.44 s, 44 bps.
+`data_fsk4_50`: the same with `Rs=50` and `tone_spacing=150` (tones 1275 to 1725 Hz, about 550 Hz wide, slot 3): 32-byte frames (30 bytes of payload) of 5.44 s, 44 bps. Its payload is whitened: `codec2.whiten(mode, payload)` XORs it with PRBS9 (x^9 + x^5 + 1, all ones at the start) for the modes in `WHITENED_MODES`. FSK_LDPC has no scrambler, so a zero-padded frame would otherwise come out nearly all one tone, which the receiver cannot follow on a fading path ([fading-channels.md](fading-channels.md), section 8). The modulator whitens the whole 30-byte payload, padding included, before the CRC; the demodulator undoes it on every frame it passes on (`unwhiten`).
 
 Both are listed in `fsk_configurations`, which `open_instance()` and the demodulator's FSK handling go by.
 
@@ -247,7 +247,7 @@ codec2's FSK_LDPC receiver (`data_vhf_1`), once it has decoded a frame, checks f
 
 `restart_fsk(mode, replay)` therefore opens the codec2 instance again (frames per burst 1). With `replay`, after every decoded FSK frame, the last `FSK_REPLAY_FRAMES` (1.5) frame lengths of audio (`fsk_history`) are decoded again by the new instance, so a burst that has already begun is still found, even when codec2 decoded the frame before it a little more than a frame length after its end. Without replay, after transmitting, the receiver and the early decoder simply start afresh. The restart runs only in the mode's own decoding thread; the replaced instance is kept in `retired_instance` and closed (`freedv_close`) at the next restart, so a pointer another thread has just read stays valid meanwhile.
 
-The replay decodes some frames twice. `fsk_is_new(mode, payload)` drops a frame decoded again within `FSK_DUPLICATE_FRAMES` (2) frame lengths of audio (`fsk_seen`, by sample time); ARQ repeats a frame only after its timeout, 20 s or more on `data_fsk4_50`.
+The replay decodes some frames twice. `fsk_is_new(mode, payload)` drops a frame decoded again within `FSK_DUPLICATE_FRAMES` (2) frame lengths of audio (`fsk_seen`, by sample time); ARQ repeats a frame only after its timeout, 20 s or more on `data_fsk4_50`. `fsk_seen_recently` prunes older entries first, also for the early decoder, so such a repeat counts as new.
 
 ### Signal detector
 

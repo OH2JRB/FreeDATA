@@ -26,6 +26,7 @@ import sys
 import tempfile
 import threading
 import time
+import zlib
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -163,6 +164,9 @@ class Station:
     name: str
     ctx: object
     sent: list = field(default_factory=list)  # (time, mode name, seconds on the air, frame types)
+    # one transmission at a time, as the modem's audio output queue plays them
+    tx_lock: object = field(default_factory=threading.Lock)
+    overlaps: int = 0  # transmissions that had to wait for another one
 
 
 def _start_station(name, callsign, bus):
@@ -182,6 +186,15 @@ def _start_station(name, callsign, bus):
 
     def transmit(mode, repeats, repeat_delay, frames):
         # as RF.transmit, with the audio going to the bus instead of the sound card
+        if not station.tx_lock.acquire(blocking=False):
+            station.overlaps += 1
+            station.tx_lock.acquire()
+        try:
+            _transmit(mode, repeats, repeat_delay, frames)
+        finally:
+            station.tx_lock.release()
+
+    def _transmit(mode, repeats, repeat_delay, frames):
         demodulator.reset_data_sync()
         ctx.state_manager.waitForTransmission()
         ctx.state_manager.setTransmitting(True)
@@ -223,7 +236,9 @@ def run_session(channel_name, snr_db, size, seed=1, max_seconds=1800):
     threading.Thread(target=bus.run, daemon=True).start()
     time.sleep(3)  # noise for the signal detectors' floor
 
-    payload = np.random.default_rng(seed).bytes(size)
+    # differs per channel and SNR too: the session id comes from it, and tells
+    # the sessions of parallel runs apart in the logs
+    payload = np.random.default_rng([seed, zlib.crc32(channel_name.encode()), int(snr_db * 10) % 1000]).bytes(size)
     params = {"dxcall": "BB1BBB-1", "data": base64.b64encode(payload), "type": "raw"}
     t0 = time.monotonic()
     ARQRawCommand(iss.ctx, params).run()
@@ -274,6 +289,7 @@ def run_session(channel_name, snr_db, size, seed=1, max_seconds=1800):
         "data_bps": round(size * 8 / (seconds - setup), 1) if ok and seconds > setup else 0.0,
         "modes": modes,
         "max_lag": round(bus.max_lag, 2),
+        "overlaps": iss.overlaps + irs.overlaps,
     }
 
 
@@ -297,15 +313,17 @@ def main():
     args = parser.parse_args()
 
     tasks = [(c, s, args.bytes, seed, args.max_seconds) for c in args.channels for s in args.snr for seed in args.seeds]
-    print("| channel | SNR | bytes | result | time | payload bps | setup | data phase bps | transmissions | lag |")
-    print("|---|---|---|---|---|---|---|---|---|---|")
+    print(
+        "| channel | SNR | bytes | result | time | payload bps | setup | data phase bps | transmissions | lag | overlaps |"
+    )
+    print("|---|---|---|---|---|---|---|---|---|---|---|")
     with concurrent.futures.ProcessPoolExecutor(max_workers=args.jobs, max_tasks_per_child=1) as pool:
         for r in pool.map(_run, tasks):
             modes = ", ".join(f"{k} {v}" for k, v in sorted(r["modes"].items()))
             result = "ok" if r["success"] else "failed"
             print(
                 f"| `{r['channel']}` | {r['snr']:g} dB | {r['bytes']} | {result} | {r['seconds']:.0f} s | {r['bps']}"
-                f" | {r['setup_seconds']:.0f} s | {r['data_bps']} | {modes} | {r['max_lag']} s |",
+                f" | {r['setup_seconds']:.0f} s | {r['data_bps']} | {modes} | {r['max_lag']} s | {r['overlaps']} |",
                 flush=True,
             )
 

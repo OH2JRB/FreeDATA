@@ -246,7 +246,9 @@ burst ACKs in `data_fsk4_50`, whose frames are not known by their mode, so there
 byte, followed by the offset up to which the IRS has the data in a row, the burst's id and which frames
 after the offset it holds, since an FSK burst has several frames (`build_arq_burst_ack(..., offset=...)`). `deconstruct()` reads every burst ACK that comes with its
 type byte this way (`arq_burst_ack_with_offset_template`). All other ARQ
-signalling frames of such a session go in `data_fsk4_50` too, unchanged (padded to its 30 bytes).
+signalling frames of such a session go in `data_fsk4_50` too, unchanged (padded to its 30 bytes). On the
+air every `data_fsk4_50` payload is whitened with PRBS9 (`codec2.whiten`, see
+[modem-audio-radio.md](modem-audio-radio.md)); the frame layouts here are those before whitening.
 
 Consequences:
 

@@ -167,8 +167,10 @@ class ARQSessionISS(arq_session.ARQSession):
         checksum_int = int.from_bytes(self.data_crc, byteorder="little")
         random_int = checksum_int % 256
 
-        # Check if the generated 8-bit integer can be used
-        if random_int not in self.ctx.state_manager.arq_iss_sessions:
+        # Check if the generated 8-bit integer can be used. Not 0: callers take a
+        # falsy id for "no id" and would not start the session at all (1 in 256
+        # messages, those whose CRC-32 ends in a zero byte)
+        if random_int and random_int not in self.ctx.state_manager.arq_iss_sessions:
             return random_int
 
         # If the generated ID is already used, generate a new random ID

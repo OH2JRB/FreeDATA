@@ -65,7 +65,8 @@ the IRS answers in FSK as well, so that answer's airtime and decoding delay are 
    `ABORTED`, that session is removed and its id reused. This is the resume path. The IRS still holds its
    session under that id and reports its received byte offset in `ARQ_SESSION_INFO_ACK`.
 2. Otherwise: `int.from_bytes(crc32, "little") % 256` if unused, else random 1-255. Returns `False` when 255
-   sessions exist. Note that step 2 can yield `0`.
+   sessions exist. It never gives `0`: callers take a falsy id for "no id", and `ARQRawCommand` would not
+   start the session (1 in 256 messages, those whose CRC-32 ends in a zero byte, before this was fixed).
 
 The constructor also calls `rf_modem.demodulator.set_decode_mode(modes_to_decode=None, is_arq_irs=False)`.
 
@@ -371,14 +372,16 @@ it on failures, not on SNR:
   `FSK_FRAMES_PER_BURST_MIN`, 2; `adapt_fsk_burst`). Each frame carries its place in the burst (`burst_info`:
   number << 4 | total) and the burst's id (`burst_id`). The IRS answers after the last frame, or, if that one
   is lost, from a timer set at each earlier frame to one frame length more than the frames still to come
-  (`schedule_burst_ack`, `send_burst_ack`). Frames after a lost one are kept (`pending_frames`) until the gap
-  is filled, frames it already has are skipped;
+  (`schedule_burst_ack`, `send_burst_ack`). The final ACK, and the final ACK repeated when the ISS repeats a
+  burst the IRS already has, also come at the end of the burst (`answer_at_burst_end`, `send_final_ack`): the
+  ISS cannot hear while it still sends the burst. Frames after a lost one are kept (`pending_frames`) until the
+  gap is filled, frames it already has are skipped;
 * `ARQ_BURST_ACK` carries its frame type byte, the offset up to which the IRS has the data in a row, the id of
   the burst it answers and a map of the frames it holds after that offset (bit i: the frame i + 1 frames
   after it); only in `signalling_ack` can the receiver tell a burst ACK by its mode. The ISS continues from
   that offset and leaves out the frames the IRS holds (`irs_holds`). It ignores a burst ACK for an earlier
   burst (`is_stale_frame`), such as a timer ACK followed by a late one for the same burst, which would
-  otherwise start a second burst;
+  otherwise start a second burst; a final ACK is never ignored;
 * the IRS stays at level 0 and the ISS ignores higher levels in ACKs, except for the probe: every
   `FSK_PROBE_INTERVAL` (5) bursts the ISS sends a single datac4 frame instead (`send_probe`). If the IRS hears
   it, it leaves FSK (`leave_fsk`) and answers in DATAC14 at the level its SNR gives; when that answer arrives,

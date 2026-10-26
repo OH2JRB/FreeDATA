@@ -451,10 +451,10 @@ class ARQSessionIRS(arq_session.ARQSession):
         # its last burst. Repeat the final ACK, but don't deliver the data a second time.
         if self.delivered_crc is not None and self.delivered_crc == self.total_crc:
             self.log("Data already received and delivered, repeating final ACK", isWarning=True)
-            # it answers this burst (FSK burst ACKs carry its id)
-            self.burst_id = burst_frame["burst_id"]
-            ack = self.build_burst_ack(flag_final=True, flag_checksum=True)
-            self.transmit_frame(ack, mode=self.get_signalling_mode(FREEDV_MODE.signalling_ack))
+            with self.burst_ack_lock:
+                # it answers this burst (FSK burst ACKs carry its id), at its end
+                self.burst_id = burst_frame["burst_id"]
+                self.answer_at_burst_end(burst_frame, self.send_final_ack)
             return None, None
 
         # No receive buffer, e.g. after a failed transmission. The ISS has to re-open the session.
@@ -471,23 +471,16 @@ class ARQSessionIRS(arq_session.ARQSession):
             self.update_histograms(self.received_bytes, self.total_length)
 
             if not self.all_data_received():
-                number, total = self.frame_factory.decode_burst_info(burst_frame["burst_info"])
-                if number < total:
-                    # more frames of this burst to come: answer after the last one, or
-                    # when it should have been decoded if it is lost
-                    frame_duration = codec2.get_frame_duration(self.get_mode_by_speed_level(self.speed_level).value)
-                    self.schedule_burst_ack((total - number + 1) * frame_duration)
-                else:
-                    self.send_burst_ack()
+                self.answer_at_burst_end(burst_frame, self.send_burst_ack)
                 return None, None
 
-            self.cancel_burst_ack()
+            # the final ACK, also at the end of the burst: the frame that completes
+            # the data may be one of the first (one that fills a gap)
+            crc_matches = self.final_crc_matches()
+            self.answer_at_burst_end(burst_frame, lambda: self.send_final_ack(checksum=crc_matches))
 
-        if self.final_crc_matches():
+        if crc_matches:
             self.log("All data received successfully!")
-            ack = self.build_burst_ack(flag_final=True, flag_checksum=True)
-            self.transmit_frame(ack, mode=self.get_signalling_mode(FREEDV_MODE.signalling_ack))
-            self.log("ACK sent")
             self.session_ended = time.time()
             self.set_state(IRS_State.ENDED)
             self.delivered_crc = self.total_crc
@@ -505,8 +498,6 @@ class ARQSessionIRS(arq_session.ARQSession):
 
             return self.received_data, self.type_byte
         else:
-            ack = self.build_burst_ack(flag_final=True, flag_checksum=False)
-            self.transmit_frame(ack, mode=self.get_signalling_mode(FREEDV_MODE.signalling_ack))
             self.log("CRC fail at the end of transmission!", isWarning=True)
             self.log(
                 f"Failed Data [Is real:{len(self.received_data)}/Is calculated:{self.received_bytes}/Should:{self.total_length}]:{self.received_data}",
@@ -549,8 +540,31 @@ class ARQSessionIRS(arq_session.ARQSession):
             **flags,
         )
 
-    def schedule_burst_ack(self, delay):
-        """Sends the burst ACK after delay seconds, unless send_burst_ack() comes first.
+    def answer_at_burst_end(self, burst_frame, send):
+        """Answers a burst after its last frame: at once if this frame is the last,
+        else from a timer (schedule_burst_ack), which a later frame of the burst
+        replaces. The other station cannot hear while it still transmits.
+
+        Args:
+            burst_frame: The ARQ_BURST_FRAME just received.
+            send: The answer, send_burst_ack or send_final_ack.
+        """
+        number, total = self.frame_factory.decode_burst_info(burst_frame["burst_info"])
+        if number < total:
+            frame_duration = codec2.get_frame_duration(self.get_mode_by_speed_level(self.speed_level).value)
+            self.schedule_burst_ack((total - number + 1) * frame_duration, send)
+        else:
+            self.cancel_burst_ack()
+            send()
+
+    def send_final_ack(self, checksum=True):
+        """Sends the final burst ACK: all data received, with or without a matching CRC."""
+        ack = self.build_burst_ack(flag_final=True, flag_checksum=checksum)
+        self.transmit_frame(ack, mode=self.get_signalling_mode(FREEDV_MODE.signalling_ack))
+        self.log("Final ACK sent")
+
+    def schedule_burst_ack(self, delay, send=None):
+        """Answers after delay seconds, unless the burst's last frame comes first.
 
         An FSK burst has several frames. The IRS answers after the last one; the
         timer answers instead if that one is lost. A frame is decoded up to a
@@ -558,10 +572,11 @@ class ARQSessionIRS(arq_session.ARQSession):
         frames still to come.
 
         Args:
-            delay (float): Seconds until the ACK.
+            delay (float): Seconds until the answer.
+            send: The answer; send_burst_ack by default.
         """
         self.cancel_burst_ack()
-        self.burst_ack_timer = threading.Timer(delay, self.send_burst_ack)
+        self.burst_ack_timer = threading.Timer(delay, send or self.send_burst_ack)
         self.burst_ack_timer.daemon = True
         self.burst_ack_timer.start()
 
@@ -579,12 +594,19 @@ class ARQSessionIRS(arq_session.ARQSession):
         """
         with self.burst_ack_lock:
             self.cancel_burst_ack()
-            # the session may have ended or failed meanwhile
-            if self.received_data is None or self.state in [
-                IRS_State.ENDED,
-                IRS_State.FAILED,
-                IRS_State.ABORTED,
-            ]:
+            # the session may have ended or failed meanwhile; with all data in, the
+            # final ACK answers (receive_data), not this one: a timer that fired
+            # while the last frame came would send a second, non-final ACK
+            if (
+                self.received_data is None
+                or self.all_data_received()
+                or self.state
+                in [
+                    IRS_State.ENDED,
+                    IRS_State.FAILED,
+                    IRS_State.ABORTED,
+                ]
+            ):
                 return
             self.calibrate_speed_settings()
             ack = self.build_burst_ack(flag_abort=self.abort)

@@ -70,6 +70,18 @@ class TestDecodeDelay(unittest.TestCase):
         self.assertAlmostEqual(codec2.get_decode_delay(FREEDV_MODE.data_vhf_1.value), 1.36)
 
 
+class TestSessionId(unittest.TestCase):
+    def test_never_zero(self):
+        # a CRC-32 whose low byte is 0 gave id 0, and ARQRawCommand never started the session
+        iss = ARQSessionISS.__new__(ARQSessionISS)
+        iss.ctx = types.SimpleNamespace(state_manager=types.SimpleNamespace(arq_iss_sessions={}))
+        iss.log = mock.Mock()
+        iss.data_crc = bytes([0, 1, 2, 3])
+        self.assertNotEqual(iss.generate_id(), 0)
+        iss.data_crc = bytes([7, 1, 2, 3])
+        self.assertEqual(iss.generate_id(), 7)
+
+
 class TestSpeedLevels(unittest.TestCase):
     def test_fsk_is_the_lowest_level(self):
         levels = ARQSessionISS.SPEED_LEVEL_DICT
@@ -264,6 +276,20 @@ class TestSelectiveRepeats(unittest.TestCase):
         final = dict(self.ack(500, burst_id=4), flag={"FINAL": True, "CHECKSUM": True, "ABORT": False})
         self.assertFalse(iss.is_stale_frame(final))
 
+    def test_no_burst_ack_once_all_data_is_in(self):
+        # an ACK timer that fired while the last frame came must not send a
+        # second, non-final ACK next to the final one
+        irs = ARQSessionIRS.__new__(ARQSessionIRS)
+        irs.state = IRS_State.BURST_REPLY_SENT
+        irs.received_data = bytearray(500)
+        irs.received_bytes = irs.total_length = 500
+        irs.burst_ack_lock = threading.RLock()
+        irs.burst_ack_timer = None
+        irs.launch_transmit_and_wait = mock.Mock()
+        irs.calibrate_speed_settings = mock.Mock()
+        irs.send_burst_ack()
+        irs.launch_transmit_and_wait.assert_not_called()
+
     def test_repeated_final_ack_answers_the_burst(self):
         irs = ARQSessionIRS.__new__(ARQSessionIRS)
         irs.fsk = True
@@ -274,10 +300,21 @@ class TestSelectiveRepeats(unittest.TestCase):
         irs.burst_frame_size = 21
         irs.pending_frames = {}
         irs.delivered_crc = irs.total_crc = "abcd"
+        irs.burst_ack_lock = threading.RLock()
+        irs.burst_ack_timer = None
         irs.log = mock.Mock()
         irs.transmit_frame = mock.Mock()
-        irs.frame_factory = mock.Mock()
-        irs.receive_data({"burst_id": 6, "offset": 0, "data": b""})
+        irs.frame_factory = DataFrameFactory.__new__(DataFrameFactory)
+        irs.frame_factory.build_arq_burst_ack = mock.Mock(return_value=b"ack")
+        burst = DataFrameFactory.encode_burst_info
+        # the first of two frames: not while the ISS still sends the second
+        irs.receive_data({"burst_id": 6, "burst_info": burst(1, 2), "offset": 0, "data": b""})
+        irs.transmit_frame.assert_not_called()
+        self.assertIsNotNone(irs.burst_ack_timer)
+        # the last one: now, and the timer is off
+        irs.receive_data({"burst_id": 6, "burst_info": burst(2, 2), "offset": 21, "data": b""})
+        irs.transmit_frame.assert_called_once()
+        self.assertIsNone(irs.burst_ack_timer)
         kwargs = irs.frame_factory.build_arq_burst_ack.call_args.kwargs
         self.assertEqual(kwargs["burst_id"], 6)
         self.assertTrue(kwargs["flag_final"])
