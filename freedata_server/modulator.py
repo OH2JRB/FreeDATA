@@ -138,35 +138,7 @@ class Modulator:
         Returns:
             bytes: The updated transmit buffer.
         """
-        # Get number of bytes per frame for mode
-        bytes_per_frame = int(codec2.api.freedv_get_bits_per_modem_frame(freedv) / 8)
-        payload_bytes_per_frame = bytes_per_frame - 2
-        # print(payload_bytes_per_frame)
-        # Init buffer for data
-        n_tx_modem_samples = codec2.api.freedv_get_n_tx_modem_samples(freedv)
-        mod_out = ctypes.create_string_buffer(n_tx_modem_samples * 2)
-
-        # Create buffer for data
-        # Use this if CRC16 checksum is required (DATAc1-3)
-        buffer = bytearray(payload_bytes_per_frame)
-        # Set buffersize to length of data which will be sent
-        buffer[: len(frame)] = frame  # type: ignore
-
-        # Create crc for data frame -
-        #   Use the crc function shipped with codec2
-        #   to avoid CRC algorithm incompatibilities
-        # Generate CRC16
-        crc = ctypes.c_ushort(codec2.api.freedv_gen_crc16(bytes(buffer), payload_bytes_per_frame))
-        # Convert crc to 2-byte (16-bit) hex string
-        crc = crc.value.to_bytes(2, byteorder="big")
-        # Append CRC to data buffer
-        buffer += crc
-        assert bytes_per_frame == len(buffer)
-        data = (ctypes.c_ubyte * bytes_per_frame).from_buffer_copy(buffer)
-        # modulate DATA and save it into mod_out pointer
-        codec2.api.freedv_rawdatatx(freedv, mod_out, data)
-        txbuffer += bytes(mod_out)
-        return txbuffer
+        return txbuffer + codec2.modulate_frame(freedv, frame)
 
     def create_burst(self, mode, repeats: int, repeat_delay: int, frames: bytearray) -> bytes:
         """Creates a burst of modulated frames.

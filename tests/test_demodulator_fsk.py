@@ -96,16 +96,18 @@ class DemodulatorThread(unittest.TestCase):
 class TestFskRestart(DemodulatorThread):
     def test_close_bursts_decode(self):
         # without the restart about half of such bursts are lost (simulator:
-        # 6 of 10). With it 7 of these 8 decode: codec2 decodes a frame up to a bit more than a frame length
-        # after its end, so replaying one frame length can start just after the
-        # next burst has begun (here burst 3), see fading-channels.md section 7
+        # 6 of 10). With it and a replay of one frame length 7 of these 8 decoded:
+        # codec2 decodes a frame up to a bit more than a frame length after its
+        # end, so the replay could start just after the next burst had begun
+        # (here burst 3), see fading-channels.md section 7. Replaying 1.5 frame
+        # lengths, with duplicates dropped, and the early decoder find all 8
         payloads = self.make_payloads(8)
         self.feed(fsk_audio(payloads, gap_ms=500))
         self.drain()
         received = self.decoded(payloads)
         self.assertEqual(len(received), len(set(received)))  # no frame twice
         self.assertTrue(set(received) <= set(payloads))
-        self.assertGreaterEqual(len(received), 7)
+        self.assertEqual(len(received), 8)
 
     def test_reset_after_transmitting(self):
         ofdm = codec2.FREEDV_MODE.datac1.value
@@ -133,13 +135,13 @@ class TestFskRestart(DemodulatorThread):
         self.drain()
         self.assertEqual(sorted(self.decoded(payloads)), sorted(payloads))
 
-    def test_history_keeps_one_frame(self):
+    def test_history_keeps_one_and_a_half_frames(self):
         frame_samples = self.data["frame_samples"]
         self.assertGreater(frame_samples, 0)
-        self.demod.remember_fsk_audio(FSK.value, np.arange(frame_samples + 100, dtype=np.int16))
+        self.demod.remember_fsk_audio(FSK.value, np.arange(2 * frame_samples, dtype=np.int16))
         history = self.data["fsk_history"]
-        self.assertEqual(len(history), frame_samples)
-        self.assertEqual(history[-1], frame_samples + 99)
+        self.assertEqual(len(history), int(1.5 * frame_samples))
+        self.assertEqual(history[-1], 2 * frame_samples - 1)
 
     def test_only_fsk_modes_restart(self):
         self.assertTrue(Demodulator.is_fsk_mode(FSK.value))

@@ -454,6 +454,46 @@ def get_bytes_per_frame(mode: int) -> int:
     return int(api.freedv_get_bits_per_modem_frame(freedv) / 8)
 
 
+def modulate_frame(freedv: ctypes.c_void_p, frame: bytes) -> bytes:
+    """Modulates one modem frame: the data padded to the frame's payload size,
+    with the CRC16 of codec2 appended.
+
+    Args:
+        freedv: The codec2 instance.
+        frame: The data, at most bytes per frame - 2.
+
+    Returns:
+        bytes: The modem samples, int16.
+    """
+    # Get number of bytes per frame for mode
+    bytes_per_frame = int(api.freedv_get_bits_per_modem_frame(freedv) / 8)
+    payload_bytes_per_frame = bytes_per_frame - 2
+    # Init buffer for data
+    n_tx_modem_samples = api.freedv_get_n_tx_modem_samples(freedv)
+    mod_out = ctypes.create_string_buffer(n_tx_modem_samples * 2)
+
+    # Create buffer for data
+    # Use this if CRC16 checksum is required (DATAc1-3)
+    buffer = bytearray(payload_bytes_per_frame)
+    # Set buffersize to length of data which will be sent
+    buffer[: len(frame)] = frame  # type: ignore
+
+    # Create crc for data frame -
+    #   Use the crc function shipped with codec2
+    #   to avoid CRC algorithm incompatibilities
+    # Generate CRC16
+    crc = ctypes.c_ushort(api.freedv_gen_crc16(bytes(buffer), payload_bytes_per_frame))
+    # Convert crc to 2-byte (16-bit) hex string
+    crc = crc.value.to_bytes(2, byteorder="big")
+    # Append CRC to data buffer
+    buffer += crc
+    assert bytes_per_frame == len(buffer)
+    data = (ctypes.c_ubyte * bytes_per_frame).from_buffer_copy(buffer)
+    # modulate DATA and save it into mod_out pointer
+    api.freedv_rawdatatx(freedv, mod_out, data)
+    return bytes(mod_out)
+
+
 MAX_UW_BITS = 64  # 192
 
 
