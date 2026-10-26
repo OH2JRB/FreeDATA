@@ -644,7 +644,11 @@ data_ofdm_200_config.config.contents.tcp = 0.006
 data_ofdm_200_config.config.contents.ts = 0.016
 data_ofdm_200_config.config.contents.rs = 1.0 / data_ofdm_200_config.config.contents.ts
 data_ofdm_200_config.config.contents.nc = 3
-data_ofdm_200_config.config.contents.timing_mx_thresh = 0.45
+# codec2's datac13 uses 0.45, but its receiver also has a bandpass filter that
+# codec2 only enables for modes named datac4/13/14. Without it the timing
+# metric is normalised against the noise of the whole audio band and stays
+# low, so the mode only synced from about 15 dB SNR.
+data_ofdm_200_config.config.contents.timing_mx_thresh = 0.10
 data_ofdm_200_config.config.contents.bad_uw_errors = 18
 data_ofdm_200_config.config.contents.codename = "H_256_512_4".encode("utf-8")
 data_ofdm_200_config.config.contents.amp_scale = 2.5 * 300e3
