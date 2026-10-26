@@ -129,6 +129,7 @@ MODES = [
 
 # modes of the ARQ speed levels, see arq_session.SPEED_LEVEL_DICT
 ARQ_MODES = {
+    codec2.FREEDV_MODE.data_fsk4_50,
     codec2.FREEDV_MODE.datac4,
     codec2.FREEDV_MODE.data_ofdm_500,
     codec2.FREEDV_MODE.datac1,

@@ -501,8 +501,8 @@ Where it is:
   could not take that plus an incoming block, so the modem would drop the block
   as overflow while the decoder waited for more audio, and decoding stopped. The
   buffer now holds `freedv_get_n_max_modem_samples()` plus a block.
-- It is **not decoded by default** and not an ARQ speed level yet; to receive it,
-  enable it with `set_decode_mode({FREEDV_MODE.data_fsk4_50.value: True})`.
+- It is ARQ speed level 0, which sessions fall back to after failures (below),
+  and the demodulator decodes it at all times unless `EXP.enable_vhf`.
 - `tests/test_demodulator_fsk.py` (`TestHfFsk`) modulates bursts with the
   modulator and decodes them in the demodulator's decoding thread, on `awgn` at
   0 dB and on `hl_moderate`.
@@ -580,50 +580,61 @@ depending on where it fell in the receiver's processing blocks (`datac4`: 0.06 s
 `data_vhf_1`: 0.3 to 1.3 s). The receiver needs that audio, so the IRS cannot
 answer earlier, and the ISS has to wait for it (see below).
 
-### Integrating it into ARQ: the next step
+### In ARQ
 
-What it would take to use `data_fsk4_50` as the lowest ARQ speed level and for
-signalling on disturbed paths:
+`data_fsk4_50` is ARQ speed level 0, below `datac4`, and sessions move to it,
+signalling included, after failures rather than by SNR
+([arq-sessions.md](arq-sessions.md), section 4.1). `ARQ_PROTOCOL_VERSION` is 2,
+since the speed level numbers in the frames moved up by one.
 
-1. **Speed level.** Add it below `datac4` in `ARQSession.SPEED_LEVEL_DICT`
-   (bandwidth 550, `FREEDV_MODE_USED_SLOTS.data_fsk4_50`, `duration_per_frame`
-   5.44). The speed level travels as a byte in the ARQ frames, so renumbering the
-   levels needs a protocol version bump, or the mode gets a new number above the
-   others with an explicit order list for stepping up and down.
-2. **Timeouts (done for the ISS's own frames).** The fixed timeouts did not
-   fit: `TIMEOUT_TRANSFER` (3.5 s) and `TIMEOUT_CONNECT_ACK` (4.5 s) ran out
-   before the IRS had even decoded the frame (up to 5.1 s after its end, see
-   above). `ARQSessionISS.get_response_timeout()` now adds
-   `codec2.get_decode_delay()` of the mode the frame was sent in: one frame
-   length for FSK modes (5.44 s for `data_fsk4_50`), 0 for OFDM modes, so the
-   OFDM waits stay as they were. That is enough while the IRS answers in
-   DATAC13/DATAC14. If the answers also go in `data_fsk4_50` (point 3), the wait
-   has to add the answer's airtime and its decode delay too, about
-   5.4 + 5.4 + 5.4 s, roughly 16 s plus PTT and audio latency per burst. A codec2
-   change that lets the FSK_LDPC receiver decode as soon as a frame is complete
-   would cut this by two frame lengths. The IRS's own timeouts
-   (`TIMEOUT_CONNECT` 55 s, `TIMEOUT_DATA` 90 s) are long enough as they are.
-3. **Signalling.** A data level alone is of no use on an auroral path, since
-   `signalling` (DATAC13) and `signalling_ack` (DATAC14) fail there as well (from
-   3 to 7 Hz of spread, section 3). Session open, info, ACK, NACK and stop
-   frames (14 bytes, `LENGTH_SIG0_FRAME`) fit in a 30-byte FSK frame. The
-   receiving side has to decode `data_fsk4_50` all the time (one more decoding
-   thread, whose CPU load should be measured), and answer in the mode the request came
-   in. Connecting could alternate DATAC13 and `data_fsk4_50` attempts, or fall
-   back to FSK after the DATAC13 retries.
-4. **Fallback from failures, not SNR alone.** `get_appropriate_speed_level()`
-   picks the level from the SNR (`min_snr`), but an auroral path shows a good SNR
-   and still defeats every OFDM mode. The ISS should drop to `data_fsk4_50`
-   after failed bursts at `datac4` (`transmit_wait_and_retry()` already has a
-   temporary fallback to level 0 after two failed transmissions, which could step
-   down once more), and the IRS could use failed decodes with sync (rx status 10
-   in the demodulator's `state_buffer`) as a sign of a fading channel.
+- **Speed level.** Level 0 in `ARQSession.SPEED_LEVEL_DICT`, counted as 500 Hz
+  (about 550). `get_appropriate_speed_level()` never picks it: the SNR does not
+  show an auroral path.
+- **Fallback from failures.** The ISS moves the session to FSK when a signalling
+  frame (`ARQ_SESSION_OPEN`, `ARQ_SESSION_INFO`) goes unanswered twice in DATAC13,
+  or when two bursts at `datac4` fail; failed bursts at the higher levels step
+  down to `datac4` first. A station that receives an ARQ frame in FSK follows.
+  The session then stays on FSK: there is no way back up yet.
+- **Signalling.** On FSK every ARQ frame of both sides goes in `data_fsk4_50`;
+  the signalling frames (14 bytes) are padded to its 30. The burst ACK carries
+  its frame type there, since only DATAC14 frames are known as burst ACKs by
+  their mode. The demodulator decodes `data_fsk4_50` all the time: it costs
+  0.05 s of CPU per minute of audio, `datac4` 0.31 s.
+- **Timeouts.** After an FSK frame the ISS waits `TIMEOUT_* + 3 x 5.44 s`: the
+  IRS decodes the frame up to one frame length late, and its FSK answer takes
+  5.44 s on the air and is decoded as late (`get_response_timeout()`). The IRS's
+  own timeouts (`TIMEOUT_CONNECT` 55 s, `TIMEOUT_DATA` 90 s) are long enough.
+- **Tests.** `tests/test_arq_fsk.py` runs whole sessions between two test-mode
+  stations whose channel drops every OFDM frame (the session moves to FSK after
+  two OPEN attempts and completes in it) or only the OFDM data bursts (the
+  bursts step down from `data_ofdm_2438` to `datac4` to FSK, and the burst ACKs
+  follow), plus unit tests of each rule.
+
+What one burst costs on FSK: 5.44 s for the burst, up to 5.44 s until the IRS
+has decoded it, 5.44 s for the ACK and up to 5.44 s until the ISS has decoded
+that, plus PTT and audio latency: about 16 to 22 s for 23 bytes of data, 8 to
+11 bps, against 44 bps for the mode itself. That still beats nothing on an
+auroral path, but leaves room for improvement.
+
+### Still open
+
+1. **More frames per burst on FSK.** Back-to-back FSK frames decode well (section
+   6), and the decoding delay and the ACK would then be paid once per burst
+   instead of once per frame. `frames_per_burst` is 1 in all sessions so far.
+2. **Decoding delay.** A codec2 change that lets the FSK_LDPC receiver decode a
+   frame as soon as it is complete would save two frame lengths per burst.
+3. **Way back up.** A session on FSK stays there. Probing an OFDM level now and
+   then (a datac4 burst every so many FSK bursts) would find out when the
+   channel has recovered.
+4. **IRS-side detection.** The IRS could use failed decodes with sync (rx status
+   10 in the demodulator's `state_buffer`) as an early sign of a fading channel,
+   instead of waiting for the ISS's retries.
 5. **Lost bursts.** The remaining 5% of lost bursts (above) could be recovered by
    replaying 1.5 frame lengths. In ARQ the duplicates this produces are probably
    harmless: the IRS sets `received_bytes` back to the offset of a frame it did
    not expect and writes its data there again (`arq_session_irs.py`), so a
    duplicate rewrites the same bytes. Whether it then sends a second ACK that
    confuses the ISS has to be checked.
-6. **Air tests.** All numbers here are from the simulator (section 5); the mode
-   should be tried on a real high-latitude path before it becomes a default.
-
+6. **P2P connections** still send their own signalling in DATAC13/DATAC14 only.
+7. **Air tests.** All numbers here are from the simulator (section 5); the
+   fallback should be tried on a real high-latitude path.

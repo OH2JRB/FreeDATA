@@ -615,7 +615,15 @@ class DataFrameFactory:
         flag_final=False,
         flag_checksum=False,
         flag_abort=False,
+        with_frame_type=False,
     ):
+        """Builds an ARQ burst ACK.
+
+        In signalling_ack (DATAC14), whose 3-byte frames are all burst ACKs, the
+        frame type is left out and deconstruct() knows the frame by its mode. In
+        any other mode (data_fsk4_50) the frame type has to be there:
+        with_frame_type puts it in front.
+        """
         flag = 0b00000000
         if flag_final:
             flag = helpers.set_flag(flag, "FINAL", True, self.ARQ_FLAGS)
@@ -631,7 +639,10 @@ class DataFrameFactory:
             "speed_level": speed_level.to_bytes(1, "big"),
             "flag": flag.to_bytes(1, "big"),
         }
-        return self.construct(FR_TYPE.ARQ_BURST_ACK, payload)
+        frame = self.construct(FR_TYPE.ARQ_BURST_ACK, payload)
+        if with_frame_type:
+            frame = bytearray([FR_TYPE.ARQ_BURST_ACK.value]) + frame
+        return frame
 
     def build_p2p_connection_connect(self, destination, origin, session_id):
         payload = {

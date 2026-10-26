@@ -228,7 +228,7 @@ class ARQSessionIRS(arq_session.ARQSession):
             self.id, self.dxcall, self.version, self.snr, flag_abort=self.abort
         )
 
-        self.launch_transmit_and_wait(ack_frame, self.TIMEOUT_CONNECT, mode=FREEDV_MODE.signalling)
+        self.launch_transmit_and_wait(ack_frame, self.TIMEOUT_CONNECT, mode=self.get_signalling_mode())
         if not self.abort:
             self.set_state(IRS_State.OPEN_ACK_SENT)
         return None, None
@@ -267,7 +267,7 @@ class ARQSessionIRS(arq_session.ARQSession):
             self.frames_per_burst,
             flag_abort=self.abort,
         )
-        self.launch_transmit_and_wait(info_ack, self.TIMEOUT_CONNECT, mode=FREEDV_MODE.signalling)
+        self.launch_transmit_and_wait(info_ack, self.TIMEOUT_CONNECT, mode=self.get_signalling_mode())
         if not self.abort:
             self.set_state(IRS_State.INFO_ACK_SENT)
         return None, None
@@ -353,8 +353,8 @@ class ARQSessionIRS(arq_session.ARQSession):
         # its last burst. Repeat the final ACK, but don't deliver the data a second time.
         if self.delivered_crc is not None and self.delivered_crc == self.total_crc:
             self.log("Data already received and delivered, repeating final ACK", isWarning=True)
-            ack = self.frame_factory.build_arq_burst_ack(self.id, self.speed_level, flag_final=True, flag_checksum=True)
-            self.transmit_frame(ack, mode=FREEDV_MODE.signalling_ack)
+            ack = self.build_burst_ack(flag_final=True, flag_checksum=True)
+            self.transmit_frame(ack, mode=self.get_signalling_mode(FREEDV_MODE.signalling_ack))
             return None, None
 
         # No receive buffer, e.g. after a failed transmission. The ISS has to re-open the session.
@@ -368,7 +368,7 @@ class ARQSessionIRS(arq_session.ARQSession):
 
         if not self.all_data_received():
             self.calibrate_speed_settings(burst_frame=burst_frame)
-            ack = self.frame_factory.build_arq_burst_ack(self.id, self.speed_level, flag_abort=self.abort)
+            ack = self.build_burst_ack(flag_abort=self.abort)
 
             self.set_state(IRS_State.BURST_REPLY_SENT)
             self.ctx.event_manager.send_arq_session_progress(
@@ -382,13 +382,15 @@ class ARQSessionIRS(arq_session.ARQSession):
                 statistics=self.calculate_session_statistics(self.received_bytes, self.total_length),
             )
 
-            self.launch_transmit_and_wait(ack, self.TIMEOUT_DATA, mode=FREEDV_MODE.signalling_ack)
+            self.launch_transmit_and_wait(
+                ack, self.TIMEOUT_DATA, mode=self.get_signalling_mode(FREEDV_MODE.signalling_ack)
+            )
             return None, None
 
         if self.final_crc_matches():
             self.log("All data received successfully!")
-            ack = self.frame_factory.build_arq_burst_ack(self.id, self.speed_level, flag_final=True, flag_checksum=True)
-            self.transmit_frame(ack, mode=FREEDV_MODE.signalling_ack)
+            ack = self.build_burst_ack(flag_final=True, flag_checksum=True)
+            self.transmit_frame(ack, mode=self.get_signalling_mode(FREEDV_MODE.signalling_ack))
             self.log("ACK sent")
             self.session_ended = time.time()
             self.set_state(IRS_State.ENDED)
@@ -407,16 +409,24 @@ class ARQSessionIRS(arq_session.ARQSession):
 
             return self.received_data, self.type_byte
         else:
-            ack = self.frame_factory.build_arq_burst_ack(
-                self.id, self.speed_level, flag_final=True, flag_checksum=False
-            )
-            self.transmit_frame(ack, mode=FREEDV_MODE.signalling_ack)
+            ack = self.build_burst_ack(flag_final=True, flag_checksum=False)
+            self.transmit_frame(ack, mode=self.get_signalling_mode(FREEDV_MODE.signalling_ack))
             self.log("CRC fail at the end of transmission!", isWarning=True)
             self.log(
                 f"Failed Data [Is real:{len(self.received_data)}/Is calculated:{self.received_bytes}/Should:{self.total_length}]:{self.received_data}",
                 isWarning=True,
             )
             return self.transmission_failed()
+
+    def build_burst_ack(self, **flags):
+        """Builds an ARQ burst ACK at the current speed level.
+
+        In FSK it carries its frame type: only signalling_ack frames go without.
+
+        Args:
+            **flags: flag_final, flag_checksum, flag_abort for build_arq_burst_ack.
+        """
+        return self.frame_factory.build_arq_burst_ack(self.id, self.speed_level, with_frame_type=self.fsk, **flags)
 
     def calibrate_speed_settings(self, burst_frame=None):
         """Calibrates the speed settings for the ARQ session based on SNR and bandwidth.
@@ -432,6 +442,13 @@ class ARQSessionIRS(arq_session.ARQSession):
             int: The calculated speed level.
         """
         _received_speed_level = burst_frame["speed_level"] if burst_frame else 0
+
+        # the ISS has fallen back to FSK after failures; the SNR cannot tell
+        # when the OFDM modes would work again, so stay (the demodulator always
+        # decodes the FSK mode)
+        if self.fsk:
+            self.speed_level = self.FSK_LEVEL
+            return self.speed_level
 
         latest_snr = self.snr if self.snr else -10
         appropriate_speed_level = self.get_appropriate_speed_level(latest_snr, self.maximum_bandwidth)
@@ -515,7 +532,9 @@ class ARQSessionIRS(arq_session.ARQSession):
             Tuple[None, None]: Returns None for both data and type_byte as this method doesn't handle data.
         """
         stop_ack = self.frame_factory.build_arq_stop_ack(self.id)
-        self.launch_transmit_and_wait(stop_ack, self.TIMEOUT_CONNECT, mode=FREEDV_MODE.signalling_ack)
+        self.launch_transmit_and_wait(
+            stop_ack, self.TIMEOUT_CONNECT, mode=self.get_signalling_mode(FREEDV_MODE.signalling_ack)
+        )
         self.set_state(IRS_State.ABORTED)
         self.ctx.state_manager.setARQ(False)
         session_stats = self.calculate_session_statistics(self.received_bytes, self.total_length)

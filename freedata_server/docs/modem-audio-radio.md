@@ -113,18 +113,18 @@ On macOS both `.dylib` files match the glob; whichever `CDLL` accepts first is u
 | `signalling` | 19 | `freedv_open(19)` | Signalling frames; always decoded. Same value as `datac13`. |
 | `signalling_ack` | 20 | `freedv_open(20)` | Signalling ACKs. Same value as `datac14`. |
 | `datac0` | 14 | `freedv_open` | TX instance opened; RX instance opened, not enabled by default |
-| `datac1` | 10 | `freedv_open` | ARQ speed level 2 ([arq_session.py](../arq_session.py)) |
+| `datac1` | 10 | `freedv_open` | ARQ speed level 3 ([arq_session.py](../arq_session.py)) |
 | `datac3` | 12 | `freedv_open` | Opened for TX/RX |
-| `datac4` | 18 | `freedv_open` | Lowest speed level; decoded by default and always re-enabled by `set_decode_mode` |
+| `datac4` | 18 | `freedv_open` | ARQ speed level 1, the lowest chosen by SNR; decoded by default and always re-enabled by `set_decode_mode` |
 | `datac13` | 19 | alias of `signalling` | |
 | `datac14` | 20 | alias of `signalling_ack` | |
 | `data_ofdm_200` | 21200 | `freedv_open_advanced(21, ofdm config)` | Custom OFDM |
 | `data_ofdm_250` | 21250 | advanced, custom OFDM | |
-| `data_ofdm_500` | 21500 | advanced, custom OFDM | ARQ speed level 1 |
+| `data_ofdm_500` | 21500 | advanced, custom OFDM | ARQ speed level 2 |
 | `data_ofdm_1700` | 211700 | advanced, custom OFDM | |
-| `data_ofdm_2438` | 2124381 | advanced, custom OFDM | ARQ speed level 3 |
+| `data_ofdm_2438` | 2124381 | advanced, custom OFDM | ARQ speed level 4 |
 | `data_vhf_1` | 201 | `freedv_open_advanced(9, fsk config)` | 4-FSK; decoded when `EXP.enable_vhf` |
-| `data_fsk4_50` | 202 | `freedv_open_advanced(9, fsk config)` | HF 4-FSK for auroral paths ([fading-channels.md](fading-channels.md), section 8); not decoded by default, not yet an ARQ speed level |
+| `data_fsk4_50` | 202 | `freedv_open_advanced(9, fsk config)` | HF 4-FSK for auroral paths ([fading-channels.md](fading-channels.md), section 8); ARQ speed level 0, which sessions fall back to after failures, signalling included ([arq-sessions.md](arq-sessions.md), section 4.1); decoded by default unless `EXP.enable_vhf` |
 
 Because `datac13`/`datac14` share values with `signalling`/`signalling_ack`, Python's `Enum` makes them aliases: iterating `FREEDV_MODE` (and `len(FREEDV_MODE)`) yields 13 members, and `FREEDV_MODE.datac13 is FREEDV_MODE.signalling`.
 
@@ -263,14 +263,14 @@ Initial state (constructor):
 
 | `EXP.enable_vhf` | Decoded modes |
 |---|---|
-| false | `signalling`, `signalling_ack`, `datac4` |
+| false | `signalling`, `signalling_ack`, `datac4`, `data_fsk4_50` |
 | true | `data_vhf_1`, `signalling`, `signalling_ack` |
 
 `set_decode_mode(modes_to_decode=None, is_arq_irs=False, is_p2p_connection=False)` resets all to false, then:
 
 - `signalling` always on; `data_vhf_1` on if `enable_vhf`
 - `signalling_ack` off only when `is_arq_irs and not is_p2p_connection`
-- `datac4` always on
+- `datac4` always on; `data_fsk4_50` always on unless `enable_vhf` (0.05 s of CPU per minute of audio, `datac4` 0.31 s)
 - applies the `{mode_value: bool}` overrides in `modes_to_decode`
 
 Callers: [arq_session_irs.py](../arq_session_irs.py), [arq_session_iss.py](../arq_session_iss.py), [p2p_connection.py](../p2p_connection.py).

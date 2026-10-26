@@ -50,6 +50,9 @@ class ARQSessionISS(arq_session.ARQSession):
     RETRIES_INFO = 10
     RETRIES_DATA = 25
     RETRIES_STOP = 5
+    # signalling frames go in FSK after this many unanswered attempts in OFDM:
+    # on an auroral path DATAC13 and DATAC14 do not get through
+    RETRIES_BEFORE_FSK = 2
 
     # DJ2LS: 3 seconds seems to be too small for radios with a too slow PTT toggle time
     # DJ2LS: 3.5 seconds is working well WITHOUT a channel busy detection delay
@@ -166,9 +169,12 @@ class ARQSessionISS(arq_session.ARQSession):
         """Returns how long to wait for the IRS's answer to a frame sent in mode.
 
         The TIMEOUT_* values count from the end of the transmission and assume
-        that the IRS decodes the frame right away, as with the OFDM modes. An FSK
-        frame is decoded up to one frame length later (codec2.get_decode_delay),
-        5.44 s for data_fsk4_50, so that is added.
+        that the IRS decodes the frame right away and answers in OFDM, as with
+        the OFDM modes. An FSK frame is decoded up to one frame length later
+        (codec2.get_decode_delay), 5.44 s for data_fsk4_50, so that is added.
+        The IRS answers an FSK_MODE frame in FSK_MODE, so the answer's airtime
+        and its own decoding delay are added as well: 3.5 + 3 * 5.44 s after a
+        burst.
 
         Args:
             timeout (float): The timeout for an OFDM mode, in seconds.
@@ -180,49 +186,67 @@ class ARQSessionISS(arq_session.ARQSession):
         """
         if mode in ["auto"]:
             mode = self.get_mode_by_speed_level(self.speed_level)
-        return timeout + codec2.get_decode_delay(mode.value)
+        wait = timeout + codec2.get_decode_delay(mode.value)
+        if mode is self.FSK_MODE:
+            wait += codec2.get_frame_duration(mode.value) + codec2.get_decode_delay(mode.value)
+        return wait
 
     def transmit_wait_and_retry(self, frame_or_burst, timeout, retries, mode, isARQBurst=False):
         """Transmits a frame or burst, waits for a response, and retries if necessary.
 
         This method transmits the given frame or burst of frames, waits for a
         response event, and retries the transmission if a timeout occurs.
-        It handles retries up to the specified limit and implements a fallback
-        mechanism for ARQ bursts by switching to a lower speed level if
-        necessary.
+        It handles retries up to the specified limit and falls back when the
+        IRS does not answer: signalling frames go in FSK after
+        RETRIES_BEFORE_FSK attempts, and after two failed bursts an ARQ burst
+        goes one step down, from the higher levels to datac4 and from datac4
+        to the FSK level.
 
         Args:
             frame_or_burst: The frame or list of frames to be transmitted.
             timeout (float): The timeout period in seconds.
             retries (int): The maximum number of retries.
-            mode: The FreeDV mode to use for transmission.
+            mode: The FreeDV mode to use for transmission. FREEDV_MODE.signalling
+                stands for the session's signalling mode (get_signalling_mode).
             isARQBurst (bool, optional): True if transmitting an ARQ burst, False otherwise. Defaults to False.
         """
+        failures = 0
         while retries > 0 and self.state not in [ISS_State.ABORTED, ISS_State.ABORTING]:
             self.event_frame_received = threading.Event()
             if isinstance(frame_or_burst, list):
                 burst = frame_or_burst
             else:
                 burst = [frame_or_burst]
+            tx_mode = self.get_signalling_mode() if mode is FREEDV_MODE.signalling else mode
             for f in burst:
-                self.transmit_frame(f, mode)
+                self.transmit_frame(f, tx_mode)
             self.event_frame_received.clear()
-            wait = self.get_response_timeout(timeout, mode)
+            wait = self.get_response_timeout(timeout, tx_mode)
             self.log(f"Waiting {wait} seconds...")
             if self.event_frame_received.wait(wait):
                 return
             self.log("Timeout!")
             retries = retries - 1
+            failures += 1
+
+            if mode is FREEDV_MODE.signalling and not self.fsk and failures == self.RETRIES_BEFORE_FSK:
+                self.fall_back_to_fsk()
 
             # TODO TEMPORARY TEST FOR SENDING IN LOWER SPEED LEVEL IF WE HAVE TWO FAILED TRANSMISSIONS!!!
             if (
                 retries == self.RETRIES_DATA - 2
                 and isARQBurst
-                and self.speed_level > 0
+                and not self.fsk
                 and self.state not in [ISS_State.ABORTED, ISS_State.ABORTING]
             ):
-                self.log("SENDING IN FALLBACK SPEED LEVEL", isWarning=True)
-                self.speed_level = 0
+                lowest_ofdm_level = self.FSK_LEVEL + 1
+                if self.speed_level > lowest_ofdm_level:
+                    self.log("SENDING IN FALLBACK SPEED LEVEL", isWarning=True)
+                    self.speed_level = lowest_ofdm_level
+                else:
+                    # datac4 fails as well, although its SNR range is wide:
+                    # a fading channel, as on auroral paths
+                    self.fall_back_to_fsk()
                 print(f" CONFIRMED BYTES: {self.confirmed_bytes}")
                 self.send_data(
                     {"flag": {"ABORT": False, "FINAL": False}, "speed_level": self.speed_level},
@@ -299,6 +323,10 @@ class ARQSessionISS(arq_session.ARQSession):
         # Extract the speed_level directly from the frame
         if "speed_level" in frame:
             new_speed_level = frame["speed_level"]
+            # the IRS answers FSK frames at the FSK level; once there, the session stays
+            if new_speed_level == self.FSK_LEVEL or self.fsk:
+                self.fall_back_to_fsk()
+                return
             # Ensure the new speed level is within the allowable range
             if 0 <= new_speed_level < len(self.SPEED_LEVEL_DICT):
                 # Log the speed level change if it's different from the current speed level
@@ -571,9 +599,11 @@ class ARQSessionISS(arq_session.ARQSession):
         retries = self.RETRIES_STOP
         while retries > 0 and self.state is ISS_State.ABORTING:
             self.event_frame_received = threading.Event()
-            self.transmit_frame(stop_frame, mode=FREEDV_MODE.signalling)
-            self.log(f"Waiting {self.TIMEOUT_STOP_ACK} seconds for stop ack...")
-            self.event_frame_received.wait(self.TIMEOUT_STOP_ACK)
+            mode = self.get_signalling_mode()
+            self.transmit_frame(stop_frame, mode=mode)
+            wait = self.get_response_timeout(self.TIMEOUT_STOP_ACK, mode)
+            self.log(f"Waiting {wait} seconds for stop ack...")
+            self.event_frame_received.wait(wait)
             retries = retries - 1
 
         if self.state is ISS_State.ABORTING:

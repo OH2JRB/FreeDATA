@@ -15,36 +15,51 @@ class ARQSession:
     managing session state, statistics, and data handling.
     """
 
+    # The HF FSK mode for auroral and other strongly fading paths, where every OFDM
+    # mode fails although the SNR looks good (docs/fading-channels.md). It is
+    # the lowest speed level, and once a session has fallen back to it, its
+    # signalling goes in it too, on both sides.
+    FSK_MODE = FREEDV_MODE.data_fsk4_50
+
     SPEED_LEVEL_DICT = {
         0: {
+            "mode": FREEDV_MODE.data_fsk4_50,
+            # only chosen after failures (fall_back_to_fsk), never by SNR
+            "min_snr": None,
+            "duration_per_frame": 5.44,
+            # about 550 Hz, in FFT slot 3 like data_ofdm_500: counted as 500 Hz
+            "bandwidth": 500,
+            "slots": FREEDV_MODE_USED_SLOTS.data_fsk4_50,
+        },
+        1: {
             "mode": FREEDV_MODE.datac4,
             "min_snr": -10,
             "duration_per_frame": 5.17,
             "bandwidth": 250,
             "slots": FREEDV_MODE_USED_SLOTS.datac4,
         },
-        1: {
+        2: {
             "mode": FREEDV_MODE.data_ofdm_500,
             "min_snr": 0,
             "duration_per_frame": 3.19,
             "bandwidth": 500,
             "slots": FREEDV_MODE_USED_SLOTS.data_ofdm_500,
         },
-        2: {
+        3: {
             "mode": FREEDV_MODE.datac1,
             "min_snr": 3,
             "duration_per_frame": 4.18,
             "bandwidth": 1700,
             "slots": FREEDV_MODE_USED_SLOTS.datac1,
         },
-        3: {
+        4: {
             "mode": FREEDV_MODE.data_ofdm_2438,
             "min_snr": 8.5,
             "duration_per_frame": 5.5,
             "bandwidth": 2438,
             "slots": FREEDV_MODE_USED_SLOTS.data_ofdm_2438,
         },
-        # 4: {
+        # 5: {
         #    'mode': FREEDV_MODE.qam16c2,
         #    'min_snr': 11,
         #    'duration_per_frame': 2.8,
@@ -52,6 +67,7 @@ class ARQSession:
         #    'slots': FREEDV_MODE_USED_SLOTS.qam16c2,
         # },
     }
+    FSK_LEVEL = 0
 
     def __init__(self, ctx, dxcall: str):
         """Initializes a new ARQ session.
@@ -80,8 +96,12 @@ class ARQSession:
         self.dxcall = dxcall
         self.dx_snr = []
 
-        self.speed_level = 0
-        self.previous_speed_level = 0
+        self.speed_level = 1  # datac4, the lowest level chosen by SNR
+        self.previous_speed_level = self.speed_level
+
+        # True once the session has fallen back to the FSK level: from then on
+        # its frames, signalling included, go in FSK_MODE and the speed level stays there
+        self.fsk = False
 
         self.frames_per_burst = 1
 
@@ -131,6 +151,39 @@ class ARQSession:
             modem_frametypes.FREEDV_MODE: The FreeDV mode corresponding to the speed level.
         """
         return self.SPEED_LEVEL_DICT[speed_level]["mode"]
+
+    def get_signalling_mode(self, mode=FREEDV_MODE.signalling):
+        """Returns the mode to send a signalling frame in.
+
+        Args:
+            mode: The mode for the frame as long as the session is not on FSK
+                (signalling or signalling_ack).
+
+        Returns:
+            FREEDV_MODE: FSK_MODE once the session has fallen back to FSK, else mode.
+        """
+        return self.FSK_MODE if self.fsk else mode
+
+    def is_fsk_frame(self, frame) -> bool:
+        """True if the frame was received in FSK_MODE.
+
+        The frame dispatcher adds the name of the mode the frame was decoded
+        in ("mode_name", as the demodulator names it: DATA_FSK4_50).
+        """
+        mode_name = frame.get("mode_name")
+        return mode_name in (self.FSK_MODE, self.FSK_MODE.name.upper())
+
+    def fall_back_to_fsk(self):
+        """Moves the session to the FSK level for good.
+
+        Sessions get here only after failures, since an auroral path shows a good
+        SNR and still defeats the OFDM modes. There is no way back up yet: the
+        SNR cannot tell when the OFDM modes would work again.
+        """
+        if not self.fsk:
+            self.log(f"Falling back to {self.FSK_MODE.name} for this session", isWarning=True)
+        self.fsk = True
+        self.speed_level = self.FSK_LEVEL
 
     def transmit_frame(self, frame: bytearray, mode="auto"):
         """Transmits a given frame using the modem.
@@ -205,6 +258,9 @@ class ARQSession:
         """
         self.event_frame_received.set()
         self.log(f"Received {frame['frame_type']}")
+        # the other side has fallen back to FSK: follow, so answers reach it
+        if self.is_fsk_frame(frame):
+            self.fall_back_to_fsk()
         frame_type = frame["frame_type_int"]
         if self.state in self.STATE_TRANSITION and frame_type in self.STATE_TRANSITION[self.state]:
             action_name = self.STATE_TRANSITION[self.state][frame_type]
@@ -366,8 +422,12 @@ class ARQSession:
         if maximum_bandwidth == 0:
             maximum_bandwidth = max(details["bandwidth"] for details in self.SPEED_LEVEL_DICT.values())
 
+        # The FSK level is left out: an auroral path defeats the OFDM modes at any
+        # SNR, so only failures tell that it is needed (fall_back_to_fsk)
+        snr_levels = [level for level, details in self.SPEED_LEVEL_DICT.items() if details["min_snr"] is not None]
+
         # Iterate through speed levels in reverse order to find the highest appropriate one
-        for level in sorted(self.SPEED_LEVEL_DICT.keys(), reverse=True):
+        for level in sorted(snr_levels, reverse=True):
             details = self.SPEED_LEVEL_DICT[level]
             mode_slots = details["slots"].value
             if (
@@ -378,7 +438,7 @@ class ARQSession:
                 return level
 
         # Return the lowest level if no higher level is found
-        return min(self.SPEED_LEVEL_DICT.keys())
+        return min(snr_levels)
 
     def reset_session(self):
         """Resets the ARQ session to its initial state.
@@ -401,3 +461,4 @@ class ARQSession:
         self.delivered_crc = None
         self.maximum_bandwidth = 0
         self.abort = False
+        self.fsk = False

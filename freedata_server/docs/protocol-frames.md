@@ -140,7 +140,7 @@ Offsets include the type byte at offset 0. The "Size" column is the buffer that 
 | `ARQ_STOP` | 14 | 0:1 type, 1:1 session_id | `build_arq_stop(session_id)` |
 | `ARQ_STOP_ACK` | 14 | 0:1 type, 1:1 session_id | `build_arq_stop_ack(session_id)` |
 | `ARQ_BURST_FRAME` | `bytes_per_frame(mode) - 2` | 0:1 type, 1:1 session_id, 2:1 speed_level, 3:4 offset, 7:n data | `build_arq_burst_frame(freedv_mode, session_id, offset, data, speed_level)` |
-| `ARQ_BURST_ACK` | 3 | 0:1 session_id, 1:1 speed_level, 2:1 flag (**no type byte**) | `build_arq_burst_ack(session_id, speed_level, flag_final, flag_checksum, flag_abort)` |
+| `ARQ_BURST_ACK` | 3 (4 in `data_fsk4_50`) | 0:1 session_id, 1:1 speed_level, 2:1 flag (**no type byte**, except in `data_fsk4_50`: then 0:1 type first) | `build_arq_burst_ack(session_id, speed_level, flag_final, flag_checksum, flag_abort, with_frame_type)` |
 
 The available payload per burst is
 `get_available_data_payload_for_mode(type, mode) = bytes_per_frame - 2 (CRC16) - 1 (type) - sum(fixed template fields)`,
@@ -240,6 +240,11 @@ flowchart LR
 `deconstruct(frame, mode_name)` treats any frame received with `mode_name == "SIGNALLING_ACK"` as an
 `ARQ_BURST_ACK` and prepends byte `21`, **unless** byte 0 equals `35` (`P2P_CONNECTION_PAYLOAD_ACK`). For
 every other frame, byte 0 is read as the frame type.
+
+An ARQ session that has fallen back to FSK ([arq-sessions.md](arq-sessions.md), section 4.1) sends its
+burst ACKs in `data_fsk4_50`, whose frames are not known by their mode, so there the ACK carries the type
+byte (`build_arq_burst_ack(..., with_frame_type=True)`) and is read like any other frame. All other ARQ
+signalling frames of such a session go in `data_fsk4_50` too, unchanged (padded to its 30 bytes).
 
 Consequences:
 

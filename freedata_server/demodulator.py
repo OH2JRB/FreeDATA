@@ -65,6 +65,8 @@ class Demodulator:
             self.MODE_DICT[codec2.FREEDV_MODE.signalling.value]["decode"] = True
             self.MODE_DICT[codec2.FREEDV_MODE.signalling_ack.value]["decode"] = True
             self.MODE_DICT[codec2.FREEDV_MODE.datac4.value]["decode"] = True
+            # ARQ sessions fall back to it, signalling included (arq_session.FSK_MODE)
+            self.MODE_DICT[codec2.FREEDV_MODE.data_fsk4_50.value]["decode"] = True
 
     def init_codec2(self):
         # Open codec2 instances
@@ -440,6 +442,11 @@ class Demodulator:
         # lowest speed level is always true
         # TODO DO we need this for all states? we only need this on IRS and P2P Connection
         self.MODE_DICT[codec2.FREEDV_MODE.datac4.value]["decode"] = True
+
+        # the FSK speed level is always true as well: an ARQ session can fall back to
+        # it at any time, signalling included. It costs less CPU than datac4
+        if not self.ctx.config_manager.config["EXP"].get("enable_vhf"):
+            self.MODE_DICT[codec2.FREEDV_MODE.data_fsk4_50.value]["decode"] = True
 
         # Enable specified modes
         if modes_to_decode:

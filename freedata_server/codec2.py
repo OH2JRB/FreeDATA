@@ -838,6 +838,12 @@ def get_decode_delay(mode: int) -> float:
     """
     if mode not in fsk_configurations:
         return 0.0
+    return get_frame_duration(mode)
+
+
+@functools.cache
+def get_frame_duration(mode: int) -> float:
+    """Airtime of one modem frame in seconds, without preamble and postamble."""
     freedv = open_instance(mode)
     try:
         return api.freedv_get_n_tx_modem_samples(freedv) / api.FREEDV_FS_8000
