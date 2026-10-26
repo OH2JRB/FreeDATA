@@ -147,6 +147,10 @@ class DataFrameFactory:
             "session_id": 1,
             "speed_level": 1,
             "offset": 4,
+            # position in the burst: number << 4 | frames in the burst (encode_burst_info)
+            "burst_info": 1,
+            # which burst, echoed in FSK burst ACKs so stale ones are known
+            "burst_id": 1,
             "data": "dynamic",
         }
 
@@ -159,6 +163,22 @@ class DataFrameFactory:
             # "frames_per_burst": 1,
             # "snr": 1,
             "flag": 1,
+        }
+
+        # arq burst ack in data_fsk4_50: with its frame type, the bytes received in
+        # a row, the burst it answers, and which frames after the gap the IRS holds
+        # (bit i: the frame i + 1 frames after offset), since an FSK burst has
+        # several frames and some can be lost. Not in template_list: deconstruct()
+        # picks it for burst ACKs that come with their frame type
+        # (build_arq_burst_ack(..., offset=...))
+        self.arq_burst_ack_with_offset_template = {
+            "frame_length": self.LENGTH_ACK_FRAME + 7,
+            "session_id": 1,
+            "speed_level": 1,
+            "flag": 1,
+            "offset": 4,
+            "burst_id": 1,
+            "frames_received": 2,
         }
 
     def _load_p2p_connection_templates(self):
@@ -322,6 +342,8 @@ class DataFrameFactory:
             # Extract frametype and get the corresponding template
             frametype = int.from_bytes(frame[:1], "big")
             frame_template = self.template_list.get(frametype)
+            if frametype == FR_TYPE.ARQ_BURST_ACK.value:
+                frame_template = self.arq_burst_ack_with_offset_template
 
         extracted_data = {"frame_type": FR_TYPE(frametype).name, "frame_type_int": frametype}
         for key, item_length in frame_template.items():
@@ -364,6 +386,8 @@ class DataFrameFactory:
                 "maximum_bandwidth",
                 "protocol_version",
                 "burst_info",
+                "burst_id",
+                "frames_received",
                 "timestamp",
                 "payload_size",
             ]:
@@ -599,11 +623,16 @@ class DataFrameFactory:
         offset: int,
         data: bytes,
         speed_level: int,
+        burst_number: int = 1,
+        burst_total: int = 1,
+        burst_id: int = 0,
     ):
         payload = {
             "session_id": session_id.to_bytes(1, "big"),
             "speed_level": speed_level.to_bytes(1, "big"),
             "offset": offset.to_bytes(4, "big"),
+            "burst_info": self.encode_burst_info(burst_number, burst_total).to_bytes(1, "big"),
+            "burst_id": burst_id.to_bytes(1, "big"),
             "data": data,
         }
         return self.construct(FR_TYPE.ARQ_BURST_FRAME, payload, self.get_bytes_per_frame(freedv_mode))
@@ -615,7 +644,20 @@ class DataFrameFactory:
         flag_final=False,
         flag_checksum=False,
         flag_abort=False,
+        offset=None,
+        burst_id=0,
+        frames_received=0,
     ):
+        """Builds an ARQ burst ACK.
+
+        In signalling_ack (DATAC14), whose 3-byte frames are all burst ACKs, the
+        frame type is left out and deconstruct() knows the frame by its mode.
+        With offset, for data_fsk4_50, the frame type comes first, and the
+        offset (bytes received in a row), burst_id (of the burst answered) and
+        frames_received (bit i: the IRS holds the frame i + 1 frames after
+        offset) follow: an FSK burst has several frames, and the ISS sends the
+        missing ones.
+        """
         flag = 0b00000000
         if flag_final:
             flag = helpers.set_flag(flag, "FINAL", True, self.ARQ_FLAGS)
@@ -631,7 +673,26 @@ class DataFrameFactory:
             "speed_level": speed_level.to_bytes(1, "big"),
             "flag": flag.to_bytes(1, "big"),
         }
-        return self.construct(FR_TYPE.ARQ_BURST_ACK, payload)
+        frame = self.construct(FR_TYPE.ARQ_BURST_ACK, payload)
+        if offset is not None:
+            frame = (
+                bytearray([FR_TYPE.ARQ_BURST_ACK.value])
+                + frame
+                + offset.to_bytes(4, "big")
+                + burst_id.to_bytes(1, "big")
+                + frames_received.to_bytes(2, "big")
+            )
+        return frame
+
+    @staticmethod
+    def encode_burst_info(burst_number: int, burst_total: int) -> int:
+        """Position of a frame in its burst, in one byte: number << 4 | total (1 to 15 each)."""
+        return (burst_number << 4) | burst_total
+
+    @staticmethod
+    def decode_burst_info(burst_info: int):
+        """Returns (number, total) from encode_burst_info()."""
+        return (burst_info >> 4) & 0x0F, burst_info & 0x0F
 
     def build_p2p_connection_connect(self, destination, origin, session_id):
         payload = {

@@ -52,6 +52,7 @@ class Modulator:
         self.data_ofdm_1700_tx = codec2.open_instance(codec2.FREEDV_MODE.data_ofdm_1700.value)
         self.data_ofdm_2438_tx = codec2.open_instance(codec2.FREEDV_MODE.data_ofdm_2438.value)
         self.data_vhf_1 = codec2.open_instance(codec2.FREEDV_MODE.data_vhf_1.value)
+        self.data_fsk4_50_tx = codec2.open_instance(codec2.FREEDV_MODE.data_fsk4_50.value)
 
         # self.freedv_qam16c2_tx = codec2.open_instance(codec2.FREEDV_MODE.qam16c2.value)
         # self.data_qam_2438_tx = codec2.open_instance(codec2.FREEDV_MODE.data_qam_2438.value)
@@ -137,35 +138,7 @@ class Modulator:
         Returns:
             bytes: The updated transmit buffer.
         """
-        # Get number of bytes per frame for mode
-        bytes_per_frame = int(codec2.api.freedv_get_bits_per_modem_frame(freedv) / 8)
-        payload_bytes_per_frame = bytes_per_frame - 2
-        # print(payload_bytes_per_frame)
-        # Init buffer for data
-        n_tx_modem_samples = codec2.api.freedv_get_n_tx_modem_samples(freedv)
-        mod_out = ctypes.create_string_buffer(n_tx_modem_samples * 2)
-
-        # Create buffer for data
-        # Use this if CRC16 checksum is required (DATAc1-3)
-        buffer = bytearray(payload_bytes_per_frame)
-        # Set buffersize to length of data which will be sent
-        buffer[: len(frame)] = frame  # type: ignore
-
-        # Create crc for data frame -
-        #   Use the crc function shipped with codec2
-        #   to avoid CRC algorithm incompatibilities
-        # Generate CRC16
-        crc = ctypes.c_ushort(codec2.api.freedv_gen_crc16(bytes(buffer), payload_bytes_per_frame))
-        # Convert crc to 2-byte (16-bit) hex string
-        crc = crc.value.to_bytes(2, byteorder="big")
-        # Append CRC to data buffer
-        buffer += crc
-        assert bytes_per_frame == len(buffer)
-        data = (ctypes.c_ubyte * bytes_per_frame).from_buffer_copy(buffer)
-        # modulate DATA and save it into mod_out pointer
-        codec2.api.freedv_rawdatatx(freedv, mod_out, data)
-        txbuffer += bytes(mod_out)
-        return txbuffer
+        return txbuffer + codec2.modulate_frame(freedv, frame)
 
     def create_burst(self, mode, repeats: int, repeat_delay: int, frames: bytearray) -> bytes:
         """Creates a burst of modulated frames.
@@ -203,6 +176,7 @@ class Modulator:
             # codec2.FREEDV_MODE.qam16c2: self.freedv_qam16c2_tx,
             # codec2.FREEDV_MODE.data_qam_2438: self.freedv_data_qam_2438_tx,
             codec2.FREEDV_MODE.data_vhf_1: self.data_vhf_1,
+            codec2.FREEDV_MODE.data_fsk4_50: self.data_fsk4_50_tx,
         }
         if mode in mode_transition:
             freedv = mode_transition[mode]
@@ -221,15 +195,26 @@ class Modulator:
         if self.tx_delay > 0:
             txbuffer = self.transmit_add_silence(txbuffer, self.tx_delay)
 
+        # data_fsk4_50 goes without codec2's FSK preamble: it would add 2 s per
+        # frame and gains nothing once the receiver restarts after each frame
+        # (docs/fading-channels.md, section 7)
+        add_ambles = (
+            not self.ctx.config_manager.config["EXP"].get("enable_vhf") and mode != codec2.FREEDV_MODE.data_fsk4_50
+        )
+
         if not isinstance(frames, list):
             frames = [frames]
         for _ in range(repeats):
             # Create modulation for all frames in the list
             for frame in frames:
-                if not self.ctx.config_manager.config["EXP"].get("enable_vhf"):
+                if add_ambles:
                     txbuffer = self.transmit_add_preamble(txbuffer, freedv)
+                if mode.value in codec2.WHITENED_MODES:
+                    # the whole payload, padding included (codec2.whiten)
+                    size = int(codec2.api.freedv_get_bits_per_modem_frame(freedv) / 8) - 2
+                    frame = codec2.whiten(mode.value, bytes(frame).ljust(size, b"\x00"))
                 txbuffer = self.transmit_create_frame(txbuffer, freedv, frame)
-                if not self.ctx.config_manager.config["EXP"].get("enable_vhf"):
+                if add_ambles:
                     txbuffer = self.transmit_add_postamble(txbuffer, freedv)
 
             # Add delay to end of frames

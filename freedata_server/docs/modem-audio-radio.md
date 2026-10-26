@@ -113,19 +113,20 @@ On macOS both `.dylib` files match the glob; whichever `CDLL` accepts first is u
 | `signalling` | 19 | `freedv_open(19)` | Signalling frames; always decoded. Same value as `datac13`. |
 | `signalling_ack` | 20 | `freedv_open(20)` | Signalling ACKs. Same value as `datac14`. |
 | `datac0` | 14 | `freedv_open` | TX instance opened; RX instance opened, not enabled by default |
-| `datac1` | 10 | `freedv_open` | ARQ speed level 2 ([arq_session.py](../arq_session.py)) |
+| `datac1` | 10 | `freedv_open` | ARQ speed level 3 ([arq_session.py](../arq_session.py)) |
 | `datac3` | 12 | `freedv_open` | Opened for TX/RX |
-| `datac4` | 18 | `freedv_open` | Lowest speed level; decoded by default and always re-enabled by `set_decode_mode` |
+| `datac4` | 18 | `freedv_open` | ARQ speed level 1, the lowest chosen by SNR; decoded by default and always re-enabled by `set_decode_mode` |
 | `datac13` | 19 | alias of `signalling` | |
 | `datac14` | 20 | alias of `signalling_ack` | |
 | `data_ofdm_200` | 21200 | `freedv_open_advanced(21, ofdm config)` | Custom OFDM |
 | `data_ofdm_250` | 21250 | advanced, custom OFDM | |
-| `data_ofdm_500` | 21500 | advanced, custom OFDM | ARQ speed level 1 |
+| `data_ofdm_500` | 21500 | advanced, custom OFDM | ARQ speed level 2 |
 | `data_ofdm_1700` | 211700 | advanced, custom OFDM | |
-| `data_ofdm_2438` | 2124381 | advanced, custom OFDM | ARQ speed level 3 |
+| `data_ofdm_2438` | 2124381 | advanced, custom OFDM | ARQ speed level 4 |
 | `data_vhf_1` | 201 | `freedv_open_advanced(9, fsk config)` | 4-FSK; decoded when `EXP.enable_vhf` |
+| `data_fsk4_50` | 202 | `freedv_open_advanced(9, fsk config)` | HF 4-FSK for auroral paths ([fading-channels.md](fading-channels.md), section 8); ARQ speed level 0, which sessions fall back to after failures, signalling included ([arq-sessions.md](arq-sessions.md), section 4.1); decoded by default unless `EXP.enable_vhf` |
 
-Because `datac13`/`datac14` share values with `signalling`/`signalling_ack`, Python's `Enum` makes them aliases: iterating `FREEDV_MODE` (and `len(FREEDV_MODE)`) yields 12 members, and `FREEDV_MODE.datac13 is FREEDV_MODE.signalling`.
+Because `datac13`/`datac14` share values with `signalling`/`signalling_ack`, Python's `Enum` makes them aliases: iterating `FREEDV_MODE` (and `len(FREEDV_MODE)`) yields 13 members, and `FREEDV_MODE.datac13 is FREEDV_MODE.signalling`.
 
 Helpers: `freedv_get_mode_value_by_name(name)`, `freedv_get_mode_name_by_value(value)`, `open_instance(mode)`, `get_bytes_per_frame(mode)` (opens a new instance on every call; the code has a `TODO add close session`).
 
@@ -146,6 +147,10 @@ Helpers: `freedv_get_mode_value_by_name(name)`, `freedv_get_mode_name_by_value(v
 | `data_ofdm_2438` | 39 | 52 | 0.004 | 24 | `H_16200_9720` | on | 2700 Hz / 100 |
 
 `data_vhf_1`: FSK with `M=4`, `Rs=200`, `tone_spacing=400`, `interleave_frames=1`, `H_256_512_4`, `first_tone` centred on 1500 Hz via `get_centered_first_tone`.
+
+`data_fsk4_50`: the same with `Rs=50` and `tone_spacing=150` (tones 1275 to 1725 Hz, about 550 Hz wide, slot 3): 32-byte frames (30 bytes of payload) of 5.44 s, 44 bps. Its payload is whitened: `codec2.whiten(mode, payload)` XORs it with PRBS9 (x^9 + x^5 + 1, all ones at the start) for the modes in `WHITENED_MODES`. FSK_LDPC has no scrambler, so a zero-padded frame would otherwise come out nearly all one tone, which the receiver cannot follow on a fading path ([fading-channels.md](fading-channels.md), section 8). The modulator whitens the whole 30-byte payload, padding included, before the CRC; the demodulator undoes it on every frame it passes on (`unwhiten`).
+
+Both are listed in `fsk_configurations`, which `open_instance()` and the demodulator's FSK handling go by.
 
 BPF prototypes come from `codec2_filter_coeff.generate_filter_coefficients(Fs, bandwidth, taps)` ([codec2_filter_coeff.py](../codec2_filter_coeff.py)): a sinc low-pass `B*sinc(n*B)` returned as a ctypes float array with all real parts followed by all imaginary parts (`np.hstack`), length `2*taps`. `testFilter` is a 3-tap placeholder used by the default config.
 
@@ -184,16 +189,16 @@ Linear, mutex-protected int16 buffer by David Rowe. `push()` asserts it does not
 
 ## 3. Modulator ([modulator.py](../modulator.py))
 
-`init_codec2()` opens one TX instance per mode (`datac0/1/3/4/13/14`, `data_ofdm_200/250/500/1700/2438`, `data_vhf_1`).
+`init_codec2()` opens one TX instance per mode (`datac0/1/3/4/13/14`, `data_ofdm_200/250/500/1700/2438`, `data_vhf_1`, `data_fsk4_50`).
 
 `create_burst(mode, repeats, repeat_delay, frames)`:
 
 1. Looks up the instance; `signalling_ack` -> DATAC14 instance, `signalling` -> DATAC13 instance. An unknown mode only prints `"wrong mode"` and then fails on the unbound `freedv`.
 2. Prepends `MODEM.tx_delay` ms of silence (for PTT switching time).
 3. For each repeat, for each frame (a single `bytearray` is wrapped in a list):
-   - preamble (`freedv_rawdatapreambletx`) - skipped if `EXP.enable_vhf`
+   - preamble (`freedv_rawdatapreambletx`) - skipped if `EXP.enable_vhf`, and always for `data_fsk4_50` (codec2's FSK preamble would add 2 s per frame)
    - frame (`transmit_create_frame`): pads to `bytes_per_frame - 2`, appends big-endian CRC16 from `freedv_gen_crc16`, modulates with `freedv_rawdatatx`
-   - postamble - skipped if `EXP.enable_vhf`
+   - postamble - skipped likewise
 4. After each repeat appends `repeat_delay` ms of silence.
 
 Returns raw bytes of 8 kHz int16 samples.
@@ -204,9 +209,9 @@ Returns raw bytes of 8 kHz int16 samples.
 
 ### Per-mode state
 
-`Demodulator.MODE_DICT` is a class attribute keyed by mode value (12 entries, see aliasing above), which `__init__` deep-copies into the instance, so every demodulator has its own table. Each entry: `decode`, `bytes_per_frame`, `bytes_out`, `audio_buffer`, `nin`, `instance`, `state_buffer`, `name`, `decoding_thread`, and for the FSK receiver restart (below) `frame_samples`, `fsk_history`, `fsk_replay`, `fsk_reset`, `retired_instance`.
+`Demodulator.MODE_DICT` is a class attribute keyed by mode value (13 entries, see aliasing above), which `__init__` deep-copies into the instance, so every demodulator has its own table. Each entry: `decode`, `bytes_per_frame`, `bytes_out`, `audio_buffer`, `nin`, `instance`, `state_buffer`, `name`, `decoding_thread`, `decode_failures` (frames found but not decoded, rx status 10, counted when the status turns to 10 and read and reset by `take_decode_failures(modes)` for the ARQ IRS), and for the FSK receiver restart and early decoding (below) `frame_samples`, `fsk_history`, `fsk_replay`, `fsk_reset`, `retired_instance`, `fsk_early`, `fsk_seen`, `fsk_pending`.
 
-`init_codec2_mode(mode)` opens an instance, sets frames-per-burst to 1, reads `freedv_nin`, and allocates an RX buffer of `2 * AUDIO_FRAMES_PER_BUFFER_RX` = 9600 samples (1.2 s at 8 kHz):
+`init_codec2_mode(mode)` opens an instance, sets frames-per-burst to 1, reads `freedv_nin`, and allocates an RX buffer of `2 * AUDIO_FRAMES_PER_BUFFER_RX` = 9600 samples (1.2 s at 8 kHz), or `freedv_get_n_max_modem_samples() + AUDIO_FRAMES_PER_BUFFER_RX` when that is more. The buffer must hold the most the mode asks for at once (`nin`) plus an incoming block: `data_fsk4_50` asks for up to 8160 samples and gets 12960; with 9600 an incoming block would be dropped as overflow while the decoder still waits for samples, and decoding would stop.
 
 | `EXP.enable_ring_buffer` | Buffer class |
 |---|---|
@@ -221,16 +226,16 @@ Loop (every 10 ms, while the stream is active and `shutdown_flag` unset, or in T
 
 1. FSK modes only: if `fsk_reset` is set and the modem is not transmitting, `restart_fsk(mode, replay=False)`.
 2. When `nin` samples are available (FSK modes take them from `fsk_replay` first, completing its last block with new audio):
-   - If not transmitting: `nbytes = freedv_rawdatarx(...)`, read `rx_status`. Any non-zero status sets `is_codec2_traffic_counter = 5` (shared across threads); the counter decrements per iteration and drives `state_manager.set_channel_busy_condition_codec2(True/False)`. Status 10 is appended to `state_buffer`.
+   - If not transmitting: `nbytes = freedv_rawdatarx(...)`, read `rx_status`. Any non-zero status sets `is_codec2_traffic_counter = 5` (shared across threads); the counter decrements per iteration and drives `state_manager.set_channel_busy_condition_codec2(True/False)`. Status 10 is appended to `state_buffer`, and counted in `decode_failures` when the status turns to 10.
    - If transmitting: `nbytes = 0` and `reset_data_sync()` (sets sync 0 on every OFDM instance and `fsk_reset` on every FSK mode).
-   - FSK modes keep the last frame length of samples in `fsk_history`; `pop` the samples taken from the audio buffer and refresh `nin = freedv_nin()`.
+   - FSK modes keep the last 1.5 frame lengths of samples in `fsk_history`, and feed the new samples to the early decoder (`decode_fsk_early`, below), which passes on the frames it has decoded once their audio has ended; `pop` the samples taken from the audio buffer and refresh `nin = freedv_nin()`.
 3. If `nbytes == bytes_per_frame`: compute SNR and scatter, then put onto `ctx.rf_modem.data_queue_received`:
 
    ```python
    {"payload": bytes(bytes_out), "freedv": freedv, "bytes_per_frame": ..., "snr": ..., "frequency_offset": ..., "mode_name": ...}
    ```
 
-   The payload is a copy, because `bytes_out` is overwritten by the next decode. For FSK modes, `restart_fsk(mode, replay=True)` follows.
+   The payload is a copy, because `bytes_out` is overwritten by the next decode. For FSK modes, a frame already decoded within the last two frame lengths of audio (by the early decoder or the replay, `fsk_is_new`) is not put on the queue again, and `restart_fsk(mode, replay=True)` follows.
 
    `frame_dispatcher.DISPATCHER.worker_receive` ([frame_dispatcher.py](../frame_dispatcher.py)) consumes this queue.
 
@@ -240,9 +245,23 @@ On an unexpected exception the loop logs and calls `audio.sd._terminate()`; Port
 
 codec2's FSK_LDPC receiver (`data_vhf_1`), once it has decoded a frame, checks for the next one only at the same position and searches again one frame length later, so a burst that starts within about a frame of the previous one is lost. `freedv_set_sync()` and `freedv_set_frames_per_burst()` only act on OFDM modes, so they cannot reset it. See [fading-channels.md](fading-channels.md), section 7.
 
-`restart_fsk(mode, replay)` therefore opens the codec2 instance again (frames per burst 1). With `replay`, after every decoded FSK frame, the last frame length of audio (`fsk_history`) is decoded again by the new instance, so a burst that has already begun is still found. Without replay, after transmitting, the receiver simply starts afresh. The restart runs only in the mode's own decoding thread; the replaced instance is kept in `retired_instance` and closed (`freedv_close`) at the next restart, so a pointer another thread has just read stays valid meanwhile.
+`restart_fsk(mode, replay)` therefore opens the codec2 instance again (frames per burst 1). With `replay`, after every decoded FSK frame, the last `FSK_REPLAY_FRAMES` (1.5) frame lengths of audio (`fsk_history`) are decoded again by the new instance, so a burst that has already begun is still found, even when codec2 decoded the frame before it a little more than a frame length after its end. Without replay, after transmitting, the receiver and the early decoder simply start afresh. The restart runs only in the mode's own decoding thread; the replaced instance is kept in `retired_instance` and closed (`freedv_close`) at the next restart, so a pointer another thread has just read stays valid meanwhile.
 
-The replay covers one frame length. codec2 decodes a frame up to a little more than a frame length after its end, so a burst that follows very closely can still be missed now and then (one of eight in `tests/test_demodulator_fsk.py`). A longer replay finds those too, but decodes some frames twice, which would need filtering.
+The replay decodes some frames twice. `fsk_is_new(mode, payload)` drops a frame decoded again within `FSK_DUPLICATE_FRAMES` (2) frame lengths of audio (`fsk_seen`, by sample time); ARQ repeats a frame only after its timeout, 20 s or more on `data_fsk4_50`. `fsk_seen_recently` prunes older entries first, also for the early decoder, so such a repeat counts as new.
+
+### Signal detector
+
+`Demodulator.signal_detector` ([signal_detector.py](../signal_detector.py)) finds transmissions on the channel by their power, for the ARQ sessions: on a strongly fading path the OFDM modes do not sync on a frame, so codec2 reports nothing. `RF.run_rx_audio_dsp` ([modem.py](../modem.py)) pushes every 8 kHz block to it, before the auto level (which would hide the steps in power), marked while transmitting. It keeps 0.1 s block powers for a minute; the noise floor is the lowest 0.5 s average, signal is 3 dB above it. `segments(since)` lists the signals as (start, end) in `time.monotonic()`, `receiving()` tells whether one is on now. See [fading-channels.md](fading-channels.md), section 8.
+
+### Early FSK decoding
+
+The FSK_LDPC receiver decodes a frame only after another frame length of audio, up to 5.4 s after the end of a `data_fsk4_50` frame. `FskEarlyDecoder` ([fsk_early.py](../fsk_early.py)), one per FSK mode (`fsk_early`), gets most frames within a second of their end:
+
+1. `push(samples, stats, known)` keeps the last 1.25 frame lengths of audio and its sample time (`time`). About once a second it opens a fresh codec2 instance on that audio followed by a frame length of zeros. The LDPC decoder takes the zeros as erasures, so a frame decodes from its end on, sometimes before.
+2. For each frame decoded and not yet `known`, `locate_end()` modulates it again (`codec2.modulate_frame`), computes the energy at each tone over one symbol for every sample of the received audio and of the frame, and correlates the received tone energies (normalised per sample) with the frame's tone sequence. The best offset gives the frame's end; the score is the mean share of the tone energy on the frame's tones. Frames below `MIN_SCORE` (0.6) are dropped and left to the regular receiver.
+3. `decode_fsk_early` puts the frame into `fsk_pending` with a release time of its end plus `FSK_RELEASE_MARGIN` (0.2 s), and onto `data_queue_received` once the mode's audio has reached it, so the station never answers a frame that is still on the air. While transmitting, the early decoder only counts the time and forgets its audio.
+
+In the channel simulator the end is located within 1 ms on `awgn`, 2 ms on `hl_moderate` and 6 ms on `hl_disturbed`, and 10, 8 and 5 to 6 of 10 frames are decoded early. It costs about 1% of one CPU core per FSK mode. See [fading-channels.md](fading-channels.md), section 8.
 
 ### Signal reports
 
@@ -258,14 +277,14 @@ Initial state (constructor):
 
 | `EXP.enable_vhf` | Decoded modes |
 |---|---|
-| false | `signalling`, `signalling_ack`, `datac4` |
+| false | `signalling`, `signalling_ack`, `datac4`, `data_fsk4_50` |
 | true | `data_vhf_1`, `signalling`, `signalling_ack` |
 
 `set_decode_mode(modes_to_decode=None, is_arq_irs=False, is_p2p_connection=False)` resets all to false, then:
 
 - `signalling` always on; `data_vhf_1` on if `enable_vhf`
 - `signalling_ack` off only when `is_arq_irs and not is_p2p_connection`
-- `datac4` always on
+- `datac4` always on; `data_fsk4_50` always on unless `enable_vhf` (0.05 s of CPU per minute of audio, `datac4` 0.31 s)
 - applies the `{mode_value: bool}` overrides in `modes_to_decode`
 
 Callers: [arq_session_irs.py](../arq_session_irs.py), [arq_session_iss.py](../arq_session_iss.py), [p2p_connection.py](../p2p_connection.py).

@@ -3,6 +3,7 @@ Python interface to the C-language codec2 library.
 """
 
 import ctypes
+import functools
 import glob
 import os
 import sys
@@ -35,6 +36,7 @@ class FREEDV_MODE(Enum):
     data_ofdm_1700 = 211700
     data_ofdm_2438 = 2124381
     data_vhf_1 = 201
+    data_fsk4_50 = 202
 
     # data_qam_2438 = 2124382
     # qam16c2 = 22
@@ -57,6 +59,7 @@ class FREEDV_MODE_USED_SLOTS(Enum):
     data_ofdm_250 = [False, False, True, False, False]
     data_ofdm_500 = [False, False, True, False, False]
     data_ofdm_1700 = [False, True, True, True, False]
+    data_fsk4_50 = [False, False, True, False, False]
     data_ofdm_2438 = [True, True, True, True, True]
     data_qam_2438 = [True, True, True, True, True]
     qam16c2 = [True, True, True, True, True]
@@ -421,7 +424,7 @@ def open_instance(mode: int) -> ctypes.c_void_p:
             ctypes.c_void_p,
         )
 
-    elif mode in [FREEDV_MODE.data_vhf_1.value]:
+    elif mode in fsk_configurations:
         fsk_custom = 9
         custom_params = fsk_configurations[mode]
         return ctypes.cast(
@@ -449,6 +452,79 @@ def get_bytes_per_frame(mode: int) -> int:
     # TODO add close session
     # get number of bytes per frame for mode
     return int(api.freedv_get_bits_per_modem_frame(freedv) / 8)
+
+
+def _prbs9(n: int) -> bytes:
+    """n bytes of the PRBS9 sequence (x^9 + x^5 + 1, seed all ones), MSB first."""
+    state = 0x1FF
+    out = bytearray(n)
+    for i in range(n):
+        byte = 0
+        for _ in range(8):
+            bit = ((state >> 8) ^ (state >> 4)) & 1
+            state = ((state << 1) | bit) & 0x1FF
+            byte = (byte << 1) | bit
+        out[i] = byte
+    return bytes(out)
+
+
+# FSK_LDPC frames carry no scrambler. A frame with long runs of zero bytes, as
+# the zero-padded ARQ signalling frames are, comes out nearly all one tone: the
+# LDPC code is linear, so zero data gives zero parity. Without tone changes the
+# receiver loses timing and frequency on a fading path (hl_disturbed: 2 of 24
+# such frames decoded, 10 of 24 random ones). The payload of these modes is
+# therefore XORed with PRBS9 before modulation and after decoding
+# (docs/fading-channels.md, section 8). data_vhf_1 stays as it was, for the
+# stations already using it.
+WHITENED_MODES = {FREEDV_MODE.data_fsk4_50.value}
+_WHITENING = _prbs9(256)
+
+
+def whiten(mode: int, payload: bytes) -> bytes:
+    """XORs a frame payload (without CRC) with PRBS9 in WHITENED_MODES; again to undo it."""
+    if mode not in WHITENED_MODES:
+        return bytes(payload)
+    return bytes(b ^ w for b, w in zip(payload, _WHITENING))
+
+
+def modulate_frame(freedv: ctypes.c_void_p, frame: bytes) -> bytes:
+    """Modulates one modem frame: the data padded to the frame's payload size,
+    with the CRC16 of codec2 appended.
+
+    Args:
+        freedv: The codec2 instance.
+        frame: The data, at most bytes per frame - 2.
+
+    Returns:
+        bytes: The modem samples, int16.
+    """
+    # Get number of bytes per frame for mode
+    bytes_per_frame = int(api.freedv_get_bits_per_modem_frame(freedv) / 8)
+    payload_bytes_per_frame = bytes_per_frame - 2
+    # Init buffer for data
+    n_tx_modem_samples = api.freedv_get_n_tx_modem_samples(freedv)
+    mod_out = ctypes.create_string_buffer(n_tx_modem_samples * 2)
+
+    # Create buffer for data
+    # Use this if CRC16 checksum is required (DATAc1-3)
+    buffer = bytearray(payload_bytes_per_frame)
+    # Set buffersize to length of data which will be sent
+    buffer[: len(frame)] = frame  # type: ignore
+
+    # Create crc for data frame -
+    #   Use the crc function shipped with codec2
+    #   to avoid CRC algorithm incompatibilities
+    # Generate CRC16
+    crc = ctypes.c_ushort(api.freedv_gen_crc16(bytes(buffer), payload_bytes_per_frame))
+    # Convert crc to 2-byte (16-bit) hex string
+    crc = crc.value.to_bytes(2, byteorder="big")
+    # Append CRC to data buffer
+    buffer += crc
+    assert bytes_per_frame == len(buffer)
+    data = (ctypes.c_ubyte * bytes_per_frame).from_buffer_copy(buffer)
+    # modulate DATA and save it into mod_out pointer
+    api.freedv_rawdatatx(freedv, mod_out, data)
+    return bytes(mod_out)
 
 
 MAX_UW_BITS = 64  # 192
@@ -634,6 +710,19 @@ data_vhf_1_config.tone_spacing = 400
 data_vhf_1_config.codename = "H_256_512_4".encode("utf-8")
 data_vhf_1_config.first_tone = get_centered_first_tone(data_vhf_1_config)
 
+# HF 4FSK, 50 baud, for auroral and other strongly fading paths, where the OFDM
+# modes fail from about 5 Hz of Doppler spread: 20 ms symbols outlast path delays
+# of a few ms, and 150 Hz tone spacing stays well above the spread. About 550 Hz
+# wide, 30 bytes of payload per 5.4 s frame (44 bps). `fsk4_50w` in
+# docs/fading-channels.md, sections 6 to 8.
+data_fsk4_50_config = create_default_fsk_config()
+data_fsk4_50_config.interleave_frames = 1
+data_fsk4_50_config.M = 4
+data_fsk4_50_config.Rs = 50
+data_fsk4_50_config.tone_spacing = 150
+data_fsk4_50_config.codename = "H_256_512_4".encode("utf-8")
+data_fsk4_50_config.first_tone = get_centered_first_tone(data_fsk4_50_config)
+
 # ---------------- OFDM 500 Hz Bandwidth ---------------#
 
 # DATAC13 # OFDM 200
@@ -813,4 +902,31 @@ ofdm_configurations = {
     FREEDV_MODE.data_ofdm_2438.value: data_ofdm_2438_config,
     # FREEDV_MODE.data_qam_2438.value: data_qam_2438_config,
 }
-fsk_configurations = {FREEDV_MODE.data_vhf_1.value: data_vhf_1_config}
+fsk_configurations = {
+    FREEDV_MODE.data_vhf_1.value: data_vhf_1_config,
+    FREEDV_MODE.data_fsk4_50.value: data_fsk4_50_config,
+}
+
+
+@functools.cache
+def get_decode_delay(mode: int) -> float:
+    """Longest time in seconds after the end of a frame until a receiver has decoded it.
+
+    The OFDM modes decode a frame as soon as it has ended. The FSK_LDPC receiver
+    decodes a frame only once it has collected the frame length that follows it,
+    so a frame is decoded up to one frame length after its end: up to 5.1 s for
+    data_fsk4_50 (docs/fading-channels.md, section 8). Counted as 0 for OFDM modes.
+    """
+    if mode not in fsk_configurations:
+        return 0.0
+    return get_frame_duration(mode)
+
+
+@functools.cache
+def get_frame_duration(mode: int) -> float:
+    """Airtime of one modem frame in seconds, without preamble and postamble."""
+    freedv = open_instance(mode)
+    try:
+        return api.freedv_get_n_tx_modem_samples(freedv) / api.FREEDV_FS_8000
+    finally:
+        api.freedv_close(freedv)

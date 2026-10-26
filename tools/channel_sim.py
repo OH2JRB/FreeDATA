@@ -124,10 +124,12 @@ MODES = [
     codec2.FREEDV_MODE.data_ofdm_1700,
     codec2.FREEDV_MODE.data_ofdm_2438,
     codec2.FREEDV_MODE.data_vhf_1,
+    codec2.FREEDV_MODE.data_fsk4_50,  # the fsk4_50w candidate below
 ]
 
 # modes of the ARQ speed levels, see arq_session.SPEED_LEVEL_DICT
 ARQ_MODES = {
+    codec2.FREEDV_MODE.data_fsk4_50,
     codec2.FREEDV_MODE.datac4,
     codec2.FREEDV_MODE.data_ofdm_500,
     codec2.FREEDV_MODE.datac1,
@@ -194,9 +196,9 @@ def _modulator(vhf):
 
 def _burst(modulator, mode, freedv, payload, gap_ms, fsk_preamble=False):
     """One frame plus gap_ms of silence, as int16 samples."""
-    if isinstance(mode, FskCandidate):
-        # FSK_LDPC is sent without preamble and postamble, like data_vhf_1,
-        # unless fsk_preamble asks for codec2's FSK preamble
+    if isinstance(mode, FskCandidate) or (fsk_preamble and mode == codec2.FREEDV_MODE.data_fsk4_50):
+        # FSK_LDPC is sent without preamble and postamble, like data_vhf_1 and
+        # data_fsk4_50, unless fsk_preamble asks for codec2's FSK preamble
         burst = modulator.transmit_add_preamble(bytes(), freedv) if fsk_preamble else bytes()
         burst = modulator.transmit_create_frame(burst, freedv, bytearray(payload))
         burst = modulator.transmit_add_silence(burst, gap_ms)
@@ -225,7 +227,7 @@ class Result:
 
 
 def is_fsk(mode):
-    return isinstance(mode, FskCandidate) or mode == codec2.FREEDV_MODE.data_vhf_1
+    return isinstance(mode, FskCandidate) or mode.value in codec2.fsk_configurations
 
 
 def run_mode(

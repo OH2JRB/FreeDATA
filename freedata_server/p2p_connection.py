@@ -1,6 +1,7 @@
 import threading
 from enum import Enum
 from freedata_server.modem_frametypes import FRAME_TYPE
+from freedata_server import codec2
 from freedata_server.codec2 import FREEDV_MODE
 from freedata_server import data_frame_factory
 import structlog
@@ -30,6 +31,18 @@ class States(Enum):
 
 
 class P2PConnection:
+    # Like ARQ sessions (arq-sessions.md, section 4.1) a connection falls back to
+    # the HF FSK mode when its frames go unanswered on a path that defeats the
+    # OFDM modes: after this many attempts of a frame, for the rest of the
+    # connection, with at least RETRIES_FSK attempts in FSK. It follows the
+    # other side when a frame arrives in FSK.
+    FSK_MODE = FREEDV_MODE.data_fsk4_50
+    RETRIES_BEFORE_FSK = 2
+    RETRIES_FSK = 3
+    # data up to this size goes in one FSK payload frame (30 bytes less 4 of
+    # header), larger data in an ARQ session
+    FSK_PAYLOAD_SIZE = 26
+
     STATE_TRANSITION = {
         States.NEW: {
             FRAME_TYPE.P2P_CONNECTION_CONNECT.value: "connected_irs",
@@ -110,6 +123,7 @@ class P2PConnection:
 
         self.state = States.NEW
         self.session_id = self.generate_id()
+        self.fsk = False
 
         self.event_frame_received = threading.Event()
 
@@ -211,6 +225,9 @@ class P2PConnection:
         self.last_data_timestamp = time.time()
         self.event_frame_received.set()
         self.log(f"Received {frame['frame_type']}")
+        # the other side has fallen back to FSK: follow, so answers reach it
+        if frame.get("mode_name") in (self.FSK_MODE, self.FSK_MODE.name.upper()):
+            self.fall_back_to_fsk()
         frame_type = frame["frame_type_int"]
         if self.state in self.STATE_TRANSITION:
             if frame_type in self.STATE_TRANSITION[self.state]:
@@ -220,13 +237,39 @@ class P2PConnection:
 
         self.log(f"Ignoring unknown transition from state {self.state.name} with frame {frame['frame_type']}")
 
+    def fall_back_to_fsk(self):
+        """Sends all further frames of this connection in FSK_MODE."""
+        if not self.fsk:
+            self.log(f"Falling back to {self.FSK_MODE.name} for this connection", isWarning=True)
+        self.fsk = True
+
+    def get_tx_mode(self, mode):
+        """The mode to send a frame in: FSK_MODE once the connection is on FSK."""
+        return self.FSK_MODE if self.fsk else mode
+
+    def get_response_timeout(self, timeout, mode) -> float:
+        """How long to wait for the answer to a frame sent in mode.
+
+        The other side decodes an FSK frame up to a frame length late, and
+        answers it in FSK: 5.44 s on the air, decoded as late (as
+        ARQSessionISS.get_response_timeout).
+        """
+        if mode is not self.FSK_MODE:
+            return timeout
+        return timeout + 2 * codec2.get_decode_delay(mode.value) + codec2.get_frame_duration(mode.value)
+
+    def fits_fsk(self, frames) -> bool:
+        """True if the frames fit in FSK frames (signalling frames, small payloads)."""
+        return all(len(f) <= self.FSK_PAYLOAD_SIZE + 4 for f in frames)
+
     def transmit_frame(self, frame: bytearray, mode="auto"):
         if mode in ["auto"]:
             mode = self.get_mode_by_speed_level(self.speed_level)
 
-        self.ctx.rf_modem.transmit(mode, 1, 1, frame)
+        self.ctx.rf_modem.transmit(self.get_tx_mode(mode), 1, 1, frame)
 
     def transmit_wait_and_retry(self, frame_or_burst, timeout, retries, mode):
+        failures = 0
         while retries > 0:
             self.event_frame_received = threading.Event()
             self.transmission_in_progress = True
@@ -237,12 +280,18 @@ class P2PConnection:
             for f in burst:
                 self.transmit_frame(f, mode)
             self.event_frame_received.clear()
-            self.log(f"Waiting {timeout} seconds...")
-            if self.event_frame_received.wait(timeout):
+            wait = self.get_response_timeout(timeout, self.get_tx_mode(mode))
+            self.log(f"Waiting {wait} seconds...")
+            if self.event_frame_received.wait(wait):
                 self.transmission_in_progress = False
                 return
             self.log("Timeout!")
             retries = retries - 1
+            failures += 1
+            # on a path that defeats the OFDM modes, only FSK gets through
+            if not self.fsk and failures == self.RETRIES_BEFORE_FSK and self.fits_fsk(burst):
+                self.fall_back_to_fsk()
+                retries = max(retries, self.RETRIES_FSK)
 
         # retries exhausted
         self.transmission_in_progress = False
@@ -361,7 +410,15 @@ class P2PConnection:
 
         self.log(f"Processing data....{len(data)} Bytes - {raw_data}")
 
-        if len(data) <= 11:
+        if self.fsk and len(data) <= self.FSK_PAYLOAD_SIZE:
+            mode = self.FSK_MODE
+        elif self.fsk:
+            # too large for one FSK frame: an ARQ session, which starts on FSK
+            self.log("Using ARQ for sending data...")
+            self.set_state(States.ARQ_SESSION)
+            self.transmit_arq(raw_data)
+            return
+        elif len(data) <= 11:
             mode = FREEDV_MODE.signalling
         elif 11 < len(data) <= 32:
             mode = FREEDV_MODE.datac4
@@ -580,6 +637,9 @@ class P2PConnection:
         prepared_data, type_byte = self.arq_data_type_handler.prepare(data, ARQ_SESSION_TYPES.p2p_connection)
         iss = ARQSessionISS(self.ctx, arq_destination, prepared_data, type_byte)
         iss.id = self.session_id
+        if self.fsk:
+            # the connection already needs FSK: the session starts on it
+            iss.fall_back_to_fsk()
         # register p2p connection to arq session
         iss.running_p2p_connection = self
         self.running_arq_session = iss

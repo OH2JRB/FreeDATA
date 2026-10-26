@@ -29,7 +29,8 @@ DEFAULT_CONFIG_FILE = "config.ini"
 DEFAULT_APP_DIR = _default_app_dir()
 MODEM_VERSION = "0.30.0"
 API_VERSION = 4
-ARQ_PROTOCOL_VERSION = 1
+# 2: data_fsk4_50 became speed level 0, the OFDM levels moved up by one
+ARQ_PROTOCOL_VERSION = 2
 LICENSE = "GPL3.0"
 DOCUMENTATION_URL = "https://wiki.freedata.app"
 STATS_API_URL = "https://api.freedata.app/stats.php"

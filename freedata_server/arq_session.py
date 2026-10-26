@@ -6,6 +6,7 @@ from freedata_server.modem_frametypes import FRAME_TYPE
 import time
 from freedata_server.arq_data_type_handler import ARQDataTypeHandler
 from freedata_server.codec2 import FREEDV_MODE_USED_SLOTS, FREEDV_MODE
+from freedata_server.signal_detector import SignalDetector
 
 
 class ARQSession:
@@ -15,36 +16,51 @@ class ARQSession:
     managing session state, statistics, and data handling.
     """
 
+    # The HF FSK mode for auroral and other strongly fading paths, where every OFDM
+    # mode fails although the SNR looks good (docs/fading-channels.md). It is
+    # the lowest speed level, and once a session has fallen back to it, its
+    # signalling goes in it too, on both sides.
+    FSK_MODE = FREEDV_MODE.data_fsk4_50
+
     SPEED_LEVEL_DICT = {
         0: {
+            "mode": FREEDV_MODE.data_fsk4_50,
+            # only chosen after failures (fall_back_to_fsk), never by SNR
+            "min_snr": None,
+            "duration_per_frame": 5.44,
+            # about 550 Hz, in FFT slot 3 like data_ofdm_500: counted as 500 Hz
+            "bandwidth": 500,
+            "slots": FREEDV_MODE_USED_SLOTS.data_fsk4_50,
+        },
+        1: {
             "mode": FREEDV_MODE.datac4,
             "min_snr": -10,
             "duration_per_frame": 5.17,
             "bandwidth": 250,
             "slots": FREEDV_MODE_USED_SLOTS.datac4,
         },
-        1: {
+        2: {
             "mode": FREEDV_MODE.data_ofdm_500,
             "min_snr": 0,
             "duration_per_frame": 3.19,
             "bandwidth": 500,
             "slots": FREEDV_MODE_USED_SLOTS.data_ofdm_500,
         },
-        2: {
+        3: {
             "mode": FREEDV_MODE.datac1,
             "min_snr": 3,
             "duration_per_frame": 4.18,
             "bandwidth": 1700,
             "slots": FREEDV_MODE_USED_SLOTS.datac1,
         },
-        3: {
+        4: {
             "mode": FREEDV_MODE.data_ofdm_2438,
             "min_snr": 8.5,
             "duration_per_frame": 5.5,
             "bandwidth": 2438,
             "slots": FREEDV_MODE_USED_SLOTS.data_ofdm_2438,
         },
-        # 4: {
+        # 5: {
         #    'mode': FREEDV_MODE.qam16c2,
         #    'min_snr': 11,
         #    'duration_per_frame': 2.8,
@@ -52,6 +68,16 @@ class ARQSession:
         #    'slots': FREEDV_MODE_USED_SLOTS.qam16c2,
         # },
     }
+    FSK_LEVEL = 0
+    # frames per ARQ burst on FSK. The IRS decodes a frame up to a frame length
+    # late and answers with a 5.44 s ACK, decoded as late: about 16 s per burst
+    # however many frames it has. With 4 frames (88 bytes) a burst takes about
+    # 38 s instead of 22 s for one frame (22 bytes); longer bursts lose more
+    # time when the ACK is lost. At most 15 (burst_info)
+    FSK_FRAMES_PER_BURST = 4
+    # the ISS adapts it to the losses, between these
+    FSK_FRAMES_PER_BURST_MIN = 2
+    FSK_FRAMES_PER_BURST_MAX = 8
 
     def __init__(self, ctx, dxcall: str):
         """Initializes a new ARQ session.
@@ -80,8 +106,12 @@ class ARQSession:
         self.dxcall = dxcall
         self.dx_snr = []
 
-        self.speed_level = 0
-        self.previous_speed_level = 0
+        self.speed_level = 1  # datac4, the lowest level chosen by SNR
+        self.previous_speed_level = self.speed_level
+
+        # True once the session has fallen back to the FSK level: from then on
+        # its frames, signalling included, go in FSK_MODE and the speed level stays there
+        self.fsk = False
 
         self.frames_per_burst = 1
 
@@ -132,6 +162,61 @@ class ARQSession:
         """
         return self.SPEED_LEVEL_DICT[speed_level]["mode"]
 
+    def get_signalling_mode(self, mode=FREEDV_MODE.signalling):
+        """Returns the mode to send a signalling frame in.
+
+        Args:
+            mode: The mode for the frame as long as the session is not on FSK
+                (signalling or signalling_ack).
+
+        Returns:
+            FREEDV_MODE: FSK_MODE once the session has fallen back to FSK, else mode.
+        """
+        return self.FSK_MODE if self.fsk else mode
+
+    def get_signal_detector(self):
+        """The demodulator's SignalDetector, or None (no modem, as in some tests)."""
+        demodulator = getattr(getattr(self.ctx, "rf_modem", None), "demodulator", None)
+        detector = getattr(demodulator, "signal_detector", None)
+        return detector if isinstance(detector, SignalDetector) else None
+
+    def is_fsk_frame(self, frame) -> bool:
+        """True if the frame was received in FSK_MODE.
+
+        The frame dispatcher adds the name of the mode the frame was decoded
+        in ("mode_name", as the demodulator names it: DATA_FSK4_50).
+        """
+        mode_name = frame.get("mode_name")
+        return mode_name in (self.FSK_MODE, self.FSK_MODE.name.upper())
+
+    def fall_back_to_fsk(self):
+        """Moves the session to the FSK level for good.
+
+        Sessions get here only after failures, since an auroral path shows a good
+        SNR and still defeats the OFDM modes. There is no way back up yet: the
+        SNR cannot tell when the OFDM modes would work again.
+        """
+        if not self.fsk:
+            self.log(f"Falling back to {self.FSK_MODE.name} for this session", isWarning=True)
+        self.fsk = True
+        self.speed_level = self.FSK_LEVEL
+
+    def leave_fsk(self, speed_level):
+        """Moves the session from FSK back to an OFDM speed level.
+
+        The ISS probes now and then with a datac4 burst (ARQSessionISS.send_probe).
+        The IRS leaves FSK when such a burst arrives and answers it in DATAC14; the
+        ISS leaves when that answer arrives. If the answer is lost, the ISS stays
+        on FSK, and its next FSK burst brings the IRS back as well.
+
+        Args:
+            speed_level: The OFDM speed level to continue at.
+        """
+        if self.fsk:
+            self.log(f"Leaving {self.FSK_MODE.name}: OFDM gets through again", isWarning=True)
+        self.fsk = False
+        self.speed_level = speed_level
+
     def transmit_frame(self, frame: bytearray, mode="auto"):
         """Transmits a given frame using the modem.
 
@@ -140,7 +225,8 @@ class ARQSession:
         based on the current speed level.
 
         Args:
-            frame (bytearray): The frame to be transmitted.
+            frame (bytearray): The frame to be transmitted, or a list of frames
+                to send back to back in one transmission.
             mode (str, optional): The FreeDV mode to use for transmission. Defaults to 'auto'.
         """
         self.log("Transmitting frame")
@@ -203,8 +289,17 @@ class ARQSession:
         Args:
             frame: The received frame.
         """
+        if self.is_stale_frame(frame):
+            self.log(f"Ignoring {frame['frame_type']} for an earlier burst")
+            return
         self.event_frame_received.set()
         self.log(f"Received {frame['frame_type']}")
+        # the other side has fallen back to FSK: follow, so answers reach it
+        if self.is_fsk_frame(frame):
+            self.fall_back_to_fsk()
+        elif self.fsk and frame["frame_type_int"] == FRAME_TYPE.ARQ_BURST_FRAME.value:
+            # an OFDM burst on an FSK session: the ISS's probe got through
+            self.leave_fsk(self.FSK_LEVEL + 1)
         frame_type = frame["frame_type_int"]
         if self.state in self.STATE_TRANSITION and frame_type in self.STATE_TRANSITION[self.state]:
             action_name = self.STATE_TRANSITION[self.state][frame_type]
@@ -221,6 +316,10 @@ class ARQSession:
             return
 
         self.log(f"Ignoring unknown transition from state {self.state.name} with frame {frame['frame_type']}")
+
+    def is_stale_frame(self, frame) -> bool:
+        """True for a frame that answers an earlier burst, which must not count as an answer."""
+        return False
 
     def is_session_outdated(self):
         """Checks if the session is outdated.
@@ -366,8 +465,12 @@ class ARQSession:
         if maximum_bandwidth == 0:
             maximum_bandwidth = max(details["bandwidth"] for details in self.SPEED_LEVEL_DICT.values())
 
+        # The FSK level is left out: an auroral path defeats the OFDM modes at any
+        # SNR, so only failures tell that it is needed (fall_back_to_fsk)
+        snr_levels = [level for level, details in self.SPEED_LEVEL_DICT.items() if details["min_snr"] is not None]
+
         # Iterate through speed levels in reverse order to find the highest appropriate one
-        for level in sorted(self.SPEED_LEVEL_DICT.keys(), reverse=True):
+        for level in sorted(snr_levels, reverse=True):
             details = self.SPEED_LEVEL_DICT[level]
             mode_slots = details["slots"].value
             if (
@@ -378,7 +481,7 @@ class ARQSession:
                 return level
 
         # Return the lowest level if no higher level is found
-        return min(self.SPEED_LEVEL_DICT.keys())
+        return min(snr_levels)
 
     def reset_session(self):
         """Resets the ARQ session to its initial state.
@@ -401,3 +504,5 @@ class ARQSession:
         self.delivered_crc = None
         self.maximum_bandwidth = 0
         self.abort = False
+        self.fsk = False
+        self.pending_frames = {}
