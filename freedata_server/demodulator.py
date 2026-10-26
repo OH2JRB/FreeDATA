@@ -86,13 +86,19 @@ class Demodulator:
         # set initial frames per burst
         codec2.api.freedv_set_frames_per_burst(c2instance, 1)
 
-        # init audio buffer
+        # init audio buffer; it must hold the most samples the mode asks for at
+        # once (nin) plus an incoming block, or blocks are dropped as overflow
+        # while the decoder waits for more: data_fsk4_50 asks for up to 8160
+        buffer_size = max(
+            2 * self.AUDIO_FRAMES_PER_BUFFER_RX,
+            codec2.api.freedv_get_n_max_modem_samples(c2instance) + self.AUDIO_FRAMES_PER_BUFFER_RX,
+        )
         if self.ctx.config_manager.config["EXP"].get("enable_ring_buffer"):
             self.log.debug("[MDM] [buffer]", enable_ring_buffer=True)
-            audio_buffer = CircularBuffer(2 * self.AUDIO_FRAMES_PER_BUFFER_RX)
+            audio_buffer = CircularBuffer(buffer_size)
         else:
             self.log.debug("[MDM] [buffer]", enable_ring_buffer=False)
-            audio_buffer = codec2.audio_buffer(2 * self.AUDIO_FRAMES_PER_BUFFER_RX)
+            audio_buffer = codec2.audio_buffer(buffer_size)
 
         # get initial nin
         nin = codec2.api.freedv_nin(c2instance)

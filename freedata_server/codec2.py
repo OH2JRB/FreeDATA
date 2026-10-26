@@ -35,6 +35,7 @@ class FREEDV_MODE(Enum):
     data_ofdm_1700 = 211700
     data_ofdm_2438 = 2124381
     data_vhf_1 = 201
+    data_fsk4_50 = 202
 
     # data_qam_2438 = 2124382
     # qam16c2 = 22
@@ -57,6 +58,7 @@ class FREEDV_MODE_USED_SLOTS(Enum):
     data_ofdm_250 = [False, False, True, False, False]
     data_ofdm_500 = [False, False, True, False, False]
     data_ofdm_1700 = [False, True, True, True, False]
+    data_fsk4_50 = [False, False, True, False, False]
     data_ofdm_2438 = [True, True, True, True, True]
     data_qam_2438 = [True, True, True, True, True]
     qam16c2 = [True, True, True, True, True]
@@ -421,7 +423,7 @@ def open_instance(mode: int) -> ctypes.c_void_p:
             ctypes.c_void_p,
         )
 
-    elif mode in [FREEDV_MODE.data_vhf_1.value]:
+    elif mode in fsk_configurations:
         fsk_custom = 9
         custom_params = fsk_configurations[mode]
         return ctypes.cast(
@@ -634,6 +636,19 @@ data_vhf_1_config.tone_spacing = 400
 data_vhf_1_config.codename = "H_256_512_4".encode("utf-8")
 data_vhf_1_config.first_tone = get_centered_first_tone(data_vhf_1_config)
 
+# HF 4FSK, 50 baud, for auroral and other strongly fading paths, where the OFDM
+# modes fail from about 5 Hz of Doppler spread: 20 ms symbols outlast path delays
+# of a few ms, and 150 Hz tone spacing stays well above the spread. About 550 Hz
+# wide, 30 bytes of payload per 5.4 s frame (44 bps). `fsk4_50w` in
+# docs/fading-channels.md, sections 6 to 8.
+data_fsk4_50_config = create_default_fsk_config()
+data_fsk4_50_config.interleave_frames = 1
+data_fsk4_50_config.M = 4
+data_fsk4_50_config.Rs = 50
+data_fsk4_50_config.tone_spacing = 150
+data_fsk4_50_config.codename = "H_256_512_4".encode("utf-8")
+data_fsk4_50_config.first_tone = get_centered_first_tone(data_fsk4_50_config)
+
 # ---------------- OFDM 500 Hz Bandwidth ---------------#
 
 # DATAC13 # OFDM 200
@@ -805,4 +820,7 @@ ofdm_configurations = {
     FREEDV_MODE.data_ofdm_2438.value: data_ofdm_2438_config,
     # FREEDV_MODE.data_qam_2438.value: data_qam_2438_config,
 }
-fsk_configurations = {FREEDV_MODE.data_vhf_1.value: data_vhf_1_config}
+fsk_configurations = {
+    FREEDV_MODE.data_vhf_1.value: data_vhf_1_config,
+    FREEDV_MODE.data_fsk4_50.value: data_fsk4_50_config,
+}

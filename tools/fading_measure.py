@@ -6,6 +6,7 @@ and SNR. Example:
 
     python tools/fading_measure.py --frames 20 --channels awgn hl_moderate
     python tools/fading_measure.py --fsk --stream --modes datac4 data_vhf_1 fsk4_100
+    python tools/fading_measure.py --restart --modes datac4 data_fsk4_50 --channels hl_disturbed
 """
 
 import argparse
@@ -55,7 +56,7 @@ def main():
     rows = []
     for mode in modes:
         rows.append((mode, False))
-        if args.stream and (isinstance(mode, cs.FskCandidate) or mode == cs.codec2.FREEDV_MODE.data_vhf_1):
+        if args.stream and cs.is_fsk(mode):
             rows.append((mode, True))
     started = time.time()
     print(

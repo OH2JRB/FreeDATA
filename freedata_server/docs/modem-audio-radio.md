@@ -124,8 +124,9 @@ On macOS both `.dylib` files match the glob; whichever `CDLL` accepts first is u
 | `data_ofdm_1700` | 211700 | advanced, custom OFDM | |
 | `data_ofdm_2438` | 2124381 | advanced, custom OFDM | ARQ speed level 3 |
 | `data_vhf_1` | 201 | `freedv_open_advanced(9, fsk config)` | 4-FSK; decoded when `EXP.enable_vhf` |
+| `data_fsk4_50` | 202 | `freedv_open_advanced(9, fsk config)` | HF 4-FSK for auroral paths ([fading-channels.md](fading-channels.md), section 8); not decoded by default, not yet an ARQ speed level |
 
-Because `datac13`/`datac14` share values with `signalling`/`signalling_ack`, Python's `Enum` makes them aliases: iterating `FREEDV_MODE` (and `len(FREEDV_MODE)`) yields 12 members, and `FREEDV_MODE.datac13 is FREEDV_MODE.signalling`.
+Because `datac13`/`datac14` share values with `signalling`/`signalling_ack`, Python's `Enum` makes them aliases: iterating `FREEDV_MODE` (and `len(FREEDV_MODE)`) yields 13 members, and `FREEDV_MODE.datac13 is FREEDV_MODE.signalling`.
 
 Helpers: `freedv_get_mode_value_by_name(name)`, `freedv_get_mode_name_by_value(value)`, `open_instance(mode)`, `get_bytes_per_frame(mode)` (opens a new instance on every call; the code has a `TODO add close session`).
 
@@ -146,6 +147,10 @@ Helpers: `freedv_get_mode_value_by_name(name)`, `freedv_get_mode_name_by_value(v
 | `data_ofdm_2438` | 39 | 52 | 0.004 | 24 | `H_16200_9720` | on | 2700 Hz / 100 |
 
 `data_vhf_1`: FSK with `M=4`, `Rs=200`, `tone_spacing=400`, `interleave_frames=1`, `H_256_512_4`, `first_tone` centred on 1500 Hz via `get_centered_first_tone`.
+
+`data_fsk4_50`: the same with `Rs=50` and `tone_spacing=150` (tones 1275 to 1725 Hz, about 550 Hz wide, slot 3): 32-byte frames (30 bytes of payload) of 5.44 s, 44 bps.
+
+Both are listed in `fsk_configurations`, which `open_instance()` and the demodulator's FSK handling go by.
 
 BPF prototypes come from `codec2_filter_coeff.generate_filter_coefficients(Fs, bandwidth, taps)` ([codec2_filter_coeff.py](../codec2_filter_coeff.py)): a sinc low-pass `B*sinc(n*B)` returned as a ctypes float array with all real parts followed by all imaginary parts (`np.hstack`), length `2*taps`. `testFilter` is a 3-tap placeholder used by the default config.
 
@@ -184,16 +189,16 @@ Linear, mutex-protected int16 buffer by David Rowe. `push()` asserts it does not
 
 ## 3. Modulator ([modulator.py](../modulator.py))
 
-`init_codec2()` opens one TX instance per mode (`datac0/1/3/4/13/14`, `data_ofdm_200/250/500/1700/2438`, `data_vhf_1`).
+`init_codec2()` opens one TX instance per mode (`datac0/1/3/4/13/14`, `data_ofdm_200/250/500/1700/2438`, `data_vhf_1`, `data_fsk4_50`).
 
 `create_burst(mode, repeats, repeat_delay, frames)`:
 
 1. Looks up the instance; `signalling_ack` -> DATAC14 instance, `signalling` -> DATAC13 instance. An unknown mode only prints `"wrong mode"` and then fails on the unbound `freedv`.
 2. Prepends `MODEM.tx_delay` ms of silence (for PTT switching time).
 3. For each repeat, for each frame (a single `bytearray` is wrapped in a list):
-   - preamble (`freedv_rawdatapreambletx`) - skipped if `EXP.enable_vhf`
+   - preamble (`freedv_rawdatapreambletx`) - skipped if `EXP.enable_vhf`, and always for `data_fsk4_50` (codec2's FSK preamble would add 2 s per frame)
    - frame (`transmit_create_frame`): pads to `bytes_per_frame - 2`, appends big-endian CRC16 from `freedv_gen_crc16`, modulates with `freedv_rawdatatx`
-   - postamble - skipped if `EXP.enable_vhf`
+   - postamble - skipped likewise
 4. After each repeat appends `repeat_delay` ms of silence.
 
 Returns raw bytes of 8 kHz int16 samples.
@@ -204,9 +209,9 @@ Returns raw bytes of 8 kHz int16 samples.
 
 ### Per-mode state
 
-`Demodulator.MODE_DICT` is a class attribute keyed by mode value (12 entries, see aliasing above), which `__init__` deep-copies into the instance, so every demodulator has its own table. Each entry: `decode`, `bytes_per_frame`, `bytes_out`, `audio_buffer`, `nin`, `instance`, `state_buffer`, `name`, `decoding_thread`, and for the FSK receiver restart (below) `frame_samples`, `fsk_history`, `fsk_replay`, `fsk_reset`, `retired_instance`.
+`Demodulator.MODE_DICT` is a class attribute keyed by mode value (13 entries, see aliasing above), which `__init__` deep-copies into the instance, so every demodulator has its own table. Each entry: `decode`, `bytes_per_frame`, `bytes_out`, `audio_buffer`, `nin`, `instance`, `state_buffer`, `name`, `decoding_thread`, and for the FSK receiver restart (below) `frame_samples`, `fsk_history`, `fsk_replay`, `fsk_reset`, `retired_instance`.
 
-`init_codec2_mode(mode)` opens an instance, sets frames-per-burst to 1, reads `freedv_nin`, and allocates an RX buffer of `2 * AUDIO_FRAMES_PER_BUFFER_RX` = 9600 samples (1.2 s at 8 kHz):
+`init_codec2_mode(mode)` opens an instance, sets frames-per-burst to 1, reads `freedv_nin`, and allocates an RX buffer of `2 * AUDIO_FRAMES_PER_BUFFER_RX` = 9600 samples (1.2 s at 8 kHz), or `freedv_get_n_max_modem_samples() + AUDIO_FRAMES_PER_BUFFER_RX` when that is more. The buffer must hold the most the mode asks for at once (`nin`) plus an incoming block: `data_fsk4_50` asks for up to 8160 samples and gets 12960; with 9600 an incoming block would be dropped as overflow while the decoder still waits for samples, and decoding would stop.
 
 | `EXP.enable_ring_buffer` | Buffer class |
 |---|---|

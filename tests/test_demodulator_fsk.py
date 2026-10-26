@@ -1,6 +1,7 @@
 """The demodulator restarts codec2's FSK receiver after every decoded frame and
 after transmitting, so FSK bursts that follow each other closely are not lost
-(see freedata_server/docs/fading-channels.md, section 7)."""
+(see freedata_server/docs/fading-channels.md, section 7). The HF FSK mode
+data_fsk4_50 is modulated and decoded the same way (section 8)."""
 
 import os
 import queue
@@ -21,19 +22,24 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 import channel_sim as cs  # noqa: E402
 
 FSK = codec2.FREEDV_MODE.data_vhf_1
+HF_FSK = codec2.FREEDV_MODE.data_fsk4_50
 
 
-def fsk_audio(payloads, gap_ms=500, snr_db=20, seed=1):
-    """data_vhf_1 bursts of one frame each, with noise, as int16 samples."""
-    modulator = cs._modulator(vhf=True)
+def fsk_audio(payloads, gap_ms=500, snr_db=20, seed=1, mode=FSK, channel="awgn"):
+    """FSK bursts of one frame each, through the channel, as int16 samples."""
+    modulator = cs._modulator(vhf=mode == FSK)
     audio = [np.zeros(cs.FS // 2, dtype=np.int16)]
     for payload in payloads:
-        audio.append(np.frombuffer(modulator.create_burst(FSK, 1, gap_ms, bytearray(payload)), dtype=np.int16))
+        audio.append(np.frombuffer(modulator.create_burst(mode, 1, gap_ms, bytearray(payload)), dtype=np.int16))
     rng = np.random.default_rng(seed)
-    return cs.to_int16(cs.apply_channel(np.concatenate(audio), cs.CHANNELS["awgn"], snr_db, rng))
+    return cs.to_int16(cs.apply_channel(np.concatenate(audio), cs.CHANNELS[channel], snr_db, rng))
 
 
-class TestFskRestart(unittest.TestCase):
+class DemodulatorThread(unittest.TestCase):
+    """Runs the decoding thread of MODE, fed through its audio buffer."""
+
+    MODE = FSK
+
     def setUp(self):
         self.transmitting = False
         state_manager = mock.Mock()
@@ -46,8 +52,8 @@ class TestFskRestart(unittest.TestCase):
             event_manager=mock.Mock(),
         )
         self.demod = Demodulator(self.ctx)
-        self.data = self.demod.MODE_DICT[FSK.value]
-        self.thread = threading.Thread(target=self.demod.demodulate_audio, args=[FSK.value], daemon=True)
+        self.data = self.demod.MODE_DICT[self.MODE.value]
+        self.thread = threading.Thread(target=self.demod.demodulate_audio, args=[self.MODE.value], daemon=True)
         self.thread.start()
 
     def tearDown(self):
@@ -86,6 +92,8 @@ class TestFskRestart(unittest.TestCase):
         size = self.data["bytes_per_frame"] - 2
         return [rng.integers(0, 256, size, dtype=np.uint8).tobytes() for _ in range(n)]
 
+
+class TestFskRestart(DemodulatorThread):
     def test_close_bursts_decode(self):
         # without the restart about half of such bursts are lost (simulator:
         # 6 of 10). With it 7 of these 8 decode: codec2 decodes a frame up to a bit more than a frame length
@@ -136,6 +144,40 @@ class TestFskRestart(unittest.TestCase):
     def test_only_fsk_modes_restart(self):
         self.assertTrue(Demodulator.is_fsk_mode(FSK.value))
         self.assertFalse(Demodulator.is_fsk_mode(codec2.FREEDV_MODE.datac4.value))
+
+
+class TestHfFsk(DemodulatorThread):
+    MODE = HF_FSK
+
+    def test_mode(self):
+        self.assertTrue(Demodulator.is_fsk_mode(HF_FSK.value))
+        self.assertEqual(self.data["bytes_per_frame"], 32)  # 30 bytes of payload, CRC
+        self.assertAlmostEqual(self.data["frame_samples"] / cs.FS, 5.44)
+        config = codec2.fsk_configurations[HF_FSK.value]
+        # tones 1275 to 1725 Hz, centred like the other modes
+        self.assertEqual(config.first_tone + (config.M - 1) * config.tone_spacing / 2, 1500)
+
+    def test_sent_without_preamble(self):
+        modulator = cs._modulator(vhf=False)
+        burst = modulator.create_burst(HF_FSK, 1, 0, bytearray(self.make_payloads(1)[0]))
+        self.assertEqual(len(burst) // 2, self.data["frame_samples"])
+
+    def assert_bursts_decode(self, payloads, minimum, **channel):
+        self.feed(fsk_audio(payloads, mode=HF_FSK, **channel))
+        self.drain()
+        received = self.decoded(payloads)
+        self.assertEqual(len(received), len(set(received)))  # no frame twice
+        self.assertTrue(set(received) <= set(payloads))
+        self.assertGreaterEqual(len(received), minimum)
+
+    def test_bursts_decode(self):
+        # 9 to 10 of 10 in the simulator; as with data_vhf_1, a burst is
+        # sometimes lost when codec2 decodes the one before it late
+        self.assert_bursts_decode(self.make_payloads(4), 3, snr_db=0)
+
+    def test_auroral_path(self):
+        # 10 Hz of Doppler spread, where every OFDM mode fails (fading-channels.md)
+        self.assert_bursts_decode(self.make_payloads(4, seed=4), 3, snr_db=10, channel="hl_moderate")
 
 
 if __name__ == "__main__":

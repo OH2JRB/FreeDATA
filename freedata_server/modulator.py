@@ -52,6 +52,7 @@ class Modulator:
         self.data_ofdm_1700_tx = codec2.open_instance(codec2.FREEDV_MODE.data_ofdm_1700.value)
         self.data_ofdm_2438_tx = codec2.open_instance(codec2.FREEDV_MODE.data_ofdm_2438.value)
         self.data_vhf_1 = codec2.open_instance(codec2.FREEDV_MODE.data_vhf_1.value)
+        self.data_fsk4_50_tx = codec2.open_instance(codec2.FREEDV_MODE.data_fsk4_50.value)
 
         # self.freedv_qam16c2_tx = codec2.open_instance(codec2.FREEDV_MODE.qam16c2.value)
         # self.data_qam_2438_tx = codec2.open_instance(codec2.FREEDV_MODE.data_qam_2438.value)
@@ -203,6 +204,7 @@ class Modulator:
             # codec2.FREEDV_MODE.qam16c2: self.freedv_qam16c2_tx,
             # codec2.FREEDV_MODE.data_qam_2438: self.freedv_data_qam_2438_tx,
             codec2.FREEDV_MODE.data_vhf_1: self.data_vhf_1,
+            codec2.FREEDV_MODE.data_fsk4_50: self.data_fsk4_50_tx,
         }
         if mode in mode_transition:
             freedv = mode_transition[mode]
@@ -221,15 +223,22 @@ class Modulator:
         if self.tx_delay > 0:
             txbuffer = self.transmit_add_silence(txbuffer, self.tx_delay)
 
+        # data_fsk4_50 goes without codec2's FSK preamble: it would add 2 s per
+        # frame and gains nothing once the receiver restarts after each frame
+        # (docs/fading-channels.md, section 7)
+        add_ambles = (
+            not self.ctx.config_manager.config["EXP"].get("enable_vhf") and mode != codec2.FREEDV_MODE.data_fsk4_50
+        )
+
         if not isinstance(frames, list):
             frames = [frames]
         for _ in range(repeats):
             # Create modulation for all frames in the list
             for frame in frames:
-                if not self.ctx.config_manager.config["EXP"].get("enable_vhf"):
+                if add_ambles:
                     txbuffer = self.transmit_add_preamble(txbuffer, freedv)
                 txbuffer = self.transmit_create_frame(txbuffer, freedv, frame)
-                if not self.ctx.config_manager.config["EXP"].get("enable_vhf"):
+                if add_ambles:
                     txbuffer = self.transmit_add_postamble(txbuffer, freedv)
 
             # Add delay to end of frames
