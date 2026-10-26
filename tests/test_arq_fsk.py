@@ -272,6 +272,44 @@ class TestSelectiveRepeats(unittest.TestCase):
         self.assertEqual(kwargs["frames_received"], 0b101)  # 44 = gap + 1 frame, 88 = gap + 3 frames
 
 
+class TestIrsDetection(unittest.TestCase):
+    """The IRS steps down when OFDM frames arrive but fail to decode."""
+
+    def make_irs(self, speed_level, failures):
+        irs = ARQSessionIRS.__new__(ARQSessionIRS)
+        irs.fsk = False
+        irs.speed_level = irs.previous_speed_level = speed_level
+        irs.snr = 15  # the SNR alone would choose the highest level
+        irs.maximum_bandwidth = 0
+        irs.step_down_hold = 0
+        irs.log = mock.Mock()
+        demodulator = mock.Mock()
+        demodulator.take_decode_failures.side_effect = lambda modes: failures.pop(0) if failures else 0
+        irs.ctx = types.SimpleNamespace(
+            rf_modem=types.SimpleNamespace(demodulator=demodulator),
+            config_manager=types.SimpleNamespace(config={"MODEM": {"maximum_bandwidth": 0}}),
+            state_manager=types.SimpleNamespace(channel_busy_slot=[False] * 5),
+        )
+        return irs
+
+    def test_failures_at_a_high_level_step_down_to_datac4(self):
+        irs = self.make_irs(4, [2])
+        self.assertEqual(irs.calibrate_speed_settings(), DATAC4_LEVEL)
+        # and it stays there for a while, although the SNR is high
+        for _ in range(ARQSessionIRS.STEP_DOWN_HOLD - 1):
+            self.assertEqual(irs.calibrate_speed_settings(), DATAC4_LEVEL)
+        self.assertEqual(irs.calibrate_speed_settings(), 4)
+
+    def test_failures_at_datac4_fall_back_to_fsk(self):
+        irs = self.make_irs(DATAC4_LEVEL, [2])
+        self.assertEqual(irs.calibrate_speed_settings(), ARQSessionIRS.FSK_LEVEL)
+        self.assertTrue(irs.fsk)
+
+    def test_one_failure_is_not_enough(self):
+        irs = self.make_irs(4, [1])
+        self.assertEqual(irs.calibrate_speed_settings(), 4)
+
+
 class TestProbe(unittest.TestCase):
     def test_unanswered_probe_goes_on_with_fsk(self):
         iss = make_iss(ARQSessionISS.FSK_LEVEL)

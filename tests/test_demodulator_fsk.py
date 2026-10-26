@@ -194,5 +194,24 @@ class TestHfFsk(DemodulatorThread):
         self.assertEqual(self.decoded(payloads), payloads)
 
 
+class TestDecodeFailures(DemodulatorThread):
+    """On an auroral path datac4 syncs on frames and then fails to decode them:
+    the demodulator counts that for the ARQ session (take_decode_failures)."""
+
+    MODE = codec2.FREEDV_MODE.datac4
+
+    def test_failed_frames_counted(self):
+        rng = np.random.default_rng(1)
+        modulator = cs._modulator(vhf=False)
+        size = self.data["bytes_per_frame"] - 2
+        frames = [modulator.create_burst(self.MODE, 1, 500, bytearray(rng.bytes(size))) for _ in range(4)]
+        audio = np.concatenate([np.zeros(4000, dtype=np.int16)] + [np.frombuffer(f, dtype=np.int16) for f in frames])
+        self.feed(cs.to_int16(cs.apply_channel(audio, cs.CHANNELS["hl_moderate"], 15, rng)))
+        self.drain()
+        self.assertEqual(self.decoded([b""]), [])
+        self.assertGreaterEqual(self.demod.take_decode_failures([self.MODE.value]), 1)
+        self.assertEqual(self.demod.take_decode_failures([self.MODE.value]), 0)  # counted again from 0
+
+
 if __name__ == "__main__":
     unittest.main()

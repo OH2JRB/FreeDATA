@@ -48,6 +48,13 @@ class ARQSessionIRS(arq_session.ARQSession):
     TIMEOUT_CONNECT = 55  # 14.2
     TIMEOUT_DATA = 90
 
+    # frames found but not decoded (Demodulator.take_decode_failures) in the
+    # current mode since the last answer, after which the IRS steps down: to
+    # datac4, or from datac4 to FSK. It then keeps the level at datac4 or below
+    # for STEP_DOWN_HOLD answers, whatever the SNR says
+    DECODE_FAILURES_TO_STEP_DOWN = 2
+    STEP_DOWN_HOLD = 3
+
     STATE_TRANSITION = {
         IRS_State.NEW: {
             FRAME_TYPE.ARQ_SESSION_OPEN.value: "send_open_ack",
@@ -122,6 +129,10 @@ class ARQSessionIRS(arq_session.ARQSession):
             self.log("Error getting p2p connection session")
 
         self.statistics = stats.stats(self.ctx)
+
+        self.step_down_hold = 0
+        # failures counted before this session do not count
+        self.take_decode_failures()
 
         self.type_byte = None
         self.total_length = 0
@@ -446,6 +457,15 @@ class ARQSessionIRS(arq_session.ARQSession):
             )
             return self.transmission_failed()
 
+    def take_decode_failures(self) -> int:
+        """Frames of the current and previous speed level's modes that were found
+        but not decoded since the last call (Demodulator.take_decode_failures)."""
+        demodulator = getattr(self.ctx.rf_modem, "demodulator", None)
+        if demodulator is None:
+            return 0
+        modes = {self.get_mode_by_speed_level(level).value for level in (self.speed_level, self.previous_speed_level)}
+        return demodulator.take_decode_failures(modes)
+
     def build_burst_ack(self, **flags):
         """Builds an ARQ burst ACK at the current speed level.
 
@@ -552,6 +572,20 @@ class ARQSessionIRS(arq_session.ARQSession):
 
         latest_snr = self.snr if self.snr else -10
         appropriate_speed_level = self.get_appropriate_speed_level(latest_snr, self.maximum_bandwidth)
+
+        # frames that arrived but could not be decoded: a fading channel, which the
+        # SNR does not show. Step down, and to FSK from datac4
+        datac4_level = self.FSK_LEVEL + 1
+        if self.take_decode_failures() >= self.DECODE_FAILURES_TO_STEP_DOWN:
+            if self.speed_level <= datac4_level:
+                self.log("OFDM frames fail to decode at datac4, falling back to FSK", isWarning=True)
+                self.fall_back_to_fsk()
+                return self.speed_level
+            self.log("OFDM frames fail to decode, stepping down to datac4", isWarning=True)
+            self.step_down_hold = self.STEP_DOWN_HOLD
+        if self.step_down_hold > 0:
+            self.step_down_hold -= 1
+            appropriate_speed_level = min(appropriate_speed_level, datac4_level)
         modes_to_decode = {}
 
         # Log the latest SNR, current, appropriate speed levels, and the previous speed level

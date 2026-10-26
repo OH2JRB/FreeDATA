@@ -44,6 +44,8 @@ class Demodulator:
             "fsk_early": None,  # FskEarlyDecoder
             "fsk_seen": None,  # payload -> sample time, for dropping duplicates
             "fsk_pending": None,  # early decoded frames waiting for their end
+            # frames found but not decoded (rx status 10), see take_decode_failures()
+            "decode_failures": 0,
         }
 
     def __init__(self, ctx):
@@ -242,6 +244,22 @@ class Demodulator:
                 "mode_name": data["name"],
             })
 
+    def take_decode_failures(self, modes) -> int:
+        """Returns how many frames of these modes were found but could not be decoded
+        (rx status 10) since the last call, and starts counting again.
+
+        On a fading path, an auroral one for instance, the OFDM modes often sync on
+        a frame and then fail to decode it. ARQSessionIRS uses this to step down.
+
+        Args:
+            modes: Mode values.
+        """
+        failures = 0
+        for mode in modes:
+            failures += self.MODE_DICT[mode]["decode_failures"]
+            self.MODE_DICT[mode]["decode_failures"] = 0
+        return failures
+
     def get_fsk_stats(self, freedv):
         """(SNR, frequency offset) of a codec2 instance, for the early decoder."""
         return self.calculate_snr(freedv), self.get_frequency_offset(freedv)
@@ -292,6 +310,7 @@ class Demodulator:
         is_fsk = self.is_fsk_mode(mode)
 
         last_rx_status = 0
+        previous_rx_status = 0
 
         try:
             while self.stream and self.stream.active and not self.shutdown_flag.is_set() or self.ctx.TESTMODE:
@@ -343,6 +362,9 @@ class Demodulator:
                             self.ctx.state_manager.set_channel_busy_condition_codec2(False)
                         if rx_status == 10:
                             state_buffer.append(rx_status)
+                            if previous_rx_status != 10:
+                                self.MODE_DICT[mode]["decode_failures"] += 1
+                        previous_rx_status = rx_status
                     else:
                         nbytes = 0
                         self.reset_data_sync()
