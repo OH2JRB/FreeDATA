@@ -56,6 +56,9 @@ class ARQSessionISS(arq_session.ARQSession):
     # on FSK every this many bursts a datac4 burst instead, to find out whether
     # OFDM gets through again (send_probe)
     FSK_PROBE_INTERVAL = 5
+    # an answer heard (SignalDetector) at least this long, but not decoded:
+    # OFDM fails on this path, so the session goes to FSK at once
+    HEARD_ANSWER_SECONDS = 0.5
 
     # DJ2LS: 3 seconds seems to be too small for radios with a too slow PTT toggle time
     # DJ2LS: 3.5 seconds is working well WITHOUT a channel busy detection delay
@@ -241,11 +244,13 @@ class ARQSessionISS(arq_session.ARQSession):
             else:
                 self.transmit_frame(burst[0], tx_mode)
             self.event_frame_received.clear()
+            since = time.monotonic()
             wait = self.get_response_timeout(timeout, tx_mode, frames=len(burst))
             self.log(f"Waiting {wait} seconds...")
-            if self.event_frame_received.wait(wait):
+            if self.event_frame_received.wait(wait) or self.wait_for_answer_on_air(since):
                 return
-            self.log("Timeout!")
+            heard = self.answer_heard(since)
+            self.log("Timeout!" + (" An answer came but could not be decoded." if heard else ""))
             retries = retries - 1
             failures += 1
 
@@ -259,8 +264,17 @@ class ARQSessionISS(arq_session.ARQSession):
                 )
                 return
 
-            if mode is FREEDV_MODE.signalling and not self.fsk and failures == self.RETRIES_BEFORE_FSK:
+            if mode is FREEDV_MODE.signalling and not self.fsk and (heard or failures == self.RETRIES_BEFORE_FSK):
                 self.fall_back_to_fsk()
+
+            if heard and isARQBurst and not self.fsk and self.state not in [ISS_State.ABORTED, ISS_State.ABORTING]:
+                # the IRS answers, but in OFDM nothing gets here: on with FSK at once
+                self.fall_back_to_fsk()
+                self.send_data(
+                    {"flag": {"ABORT": False, "FINAL": False}, "speed_level": self.speed_level},
+                    fallback=True,
+                )
+                return
 
             # TODO TEMPORARY TEST FOR SENDING IN LOWER SPEED LEVEL IF WE HAVE TWO FAILED TRANSMISSIONS!!!
             if (
@@ -495,7 +509,7 @@ class ARQSessionISS(arq_session.ARQSession):
         if not offsets:
             offsets = [self.confirmed_bytes]
         self.burst_id = (self.burst_id + 1) % 256
-        self.last_burst = {"offsets": offsets, "size": payload_size}
+        self.last_burst = {"offsets": offsets, "size": payload_size, "fsk": self.fsk}
         burst = []
         for number, offset in enumerate(offsets, start=1):
             payload = self.data[offset : offset + payload_size]
@@ -515,6 +529,44 @@ class ARQSessionISS(arq_session.ARQSession):
         self.set_state(ISS_State.BURST_SENT)
         return None, None
 
+    def wait_for_answer_on_air(self, since) -> bool:
+        """Waits on while the other station is still transmitting, and for its
+        frame to be decoded: the IRS may answer late, or in FSK although this
+        frame went in OFDM (ARQSessionIRS.answer_undecodable_burst). A frame as
+        long as an FSK frame may take the regular receiver a frame length after
+        its end. At most three FSK frame lengths.
+
+        Args:
+            since: time.monotonic() at the end of the own transmission.
+
+        Returns:
+            bool: True if a frame arrived meanwhile.
+        """
+        detector = self.get_signal_detector()
+        if detector is None:
+            return False
+        fsk_frame = codec2.get_frame_duration(self.FSK_MODE.value)
+        deadline = time.monotonic() + 3 * fsk_frame
+        while time.monotonic() < deadline:
+            found = detector.segments(since)
+            if not found:
+                return False
+            start, end = found[-1]
+            now = time.monotonic()
+            allowance = fsk_frame if end - start >= 0.6 * fsk_frame else 1.0
+            if not detector.receiving(now) and now - end > allowance:
+                return False
+            if self.event_frame_received.wait(0.2):
+                return True
+        return False
+
+    def answer_heard(self, since) -> bool:
+        """True if a signal like an answer came after since (SignalDetector)."""
+        detector = self.get_signal_detector()
+        if detector is None:
+            return False
+        return any(end - start >= self.HEARD_ANSWER_SECONDS for start, end in detector.segments(since))
+
     def send_probe(self):
         """Sends one datac4 burst on an FSK session, to find out whether OFDM gets
         through again (ARQSession.leave_fsk). Without an answer the session goes on
@@ -530,7 +582,7 @@ class ARQSessionISS(arq_session.ARQSession):
         payload = self.data[offset : offset + payload_size]
         self.expected_byte_offset = offset + len(payload)
         self.burst_id = (self.burst_id + 1) % 256
-        self.last_burst = {"offsets": [offset], "size": payload_size}
+        self.last_burst = {"offsets": [offset], "size": payload_size, "fsk": False}
         self.probing = True
         self.log("Probing with a datac4 burst whether OFDM gets through again")
         probe = self.frame_factory.build_arq_burst_frame(mode, self.id, offset, payload, level, burst_id=self.burst_id)
@@ -548,6 +600,10 @@ class ARQSessionISS(arq_session.ARQSession):
         Args:
             ack: The ARQ_BURST_ACK, with offset, burst_id and frames_received.
         """
+        if not self.last_burst.get("fsk", True):
+            # the IRS fell back to FSK on an OFDM burst it could not decode
+            self.irs_holds = set()
+            return
         size = self.last_burst["size"]
         self.irs_holds = {ack["offset"] + (i + 1) * size for i in range(16) if ack["frames_received"] >> i & 1}
         if ack["burst_id"] != self.burst_id:

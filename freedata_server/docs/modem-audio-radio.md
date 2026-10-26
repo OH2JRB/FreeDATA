@@ -249,6 +249,10 @@ codec2's FSK_LDPC receiver (`data_vhf_1`), once it has decoded a frame, checks f
 
 The replay decodes some frames twice. `fsk_is_new(mode, payload)` drops a frame decoded again within `FSK_DUPLICATE_FRAMES` (2) frame lengths of audio (`fsk_seen`, by sample time); ARQ repeats a frame only after its timeout, 20 s or more on `data_fsk4_50`.
 
+### Signal detector
+
+`Demodulator.signal_detector` ([signal_detector.py](../signal_detector.py)) finds transmissions on the channel by their power, for the ARQ sessions: on a strongly fading path the OFDM modes do not sync on a frame, so codec2 reports nothing. `RF.run_rx_audio_dsp` ([modem.py](../modem.py)) pushes every 8 kHz block to it, before the auto level (which would hide the steps in power), marked while transmitting. It keeps 0.1 s block powers for a minute; the noise floor is the lowest 0.5 s average, signal is 3 dB above it. `segments(since)` lists the signals as (start, end) in `time.monotonic()`, `receiving()` tells whether one is on now. See [fading-channels.md](fading-channels.md), section 8.
+
 ### Early FSK decoding
 
 The FSK_LDPC receiver decodes a frame only after another frame length of audio, up to 5.4 s after the end of a `data_fsk4_50` frame. `FskEarlyDecoder` ([fsk_early.py](../fsk_early.py)), one per FSK mode (`fsk_early`), gets most frames within a second of their end:

@@ -7,6 +7,7 @@ freedata_server/docs/fading-channels.md, section 8)."""
 import base64
 import queue
 import threading
+import time
 import types
 import unittest
 from unittest import mock
@@ -39,6 +40,7 @@ def make_iss(speed_level=DATAC4_LEVEL):
     iss.probing = False
     iss.state = ISS_State.INFO_SENT
     iss.confirmed_bytes = 0
+    iss.ctx = None  # no modem
     iss.log = mock.Mock()
     iss.transmit_frame = mock.Mock()
     iss.send_data = mock.Mock()
@@ -533,6 +535,47 @@ class TestAuroraEnds(SessionOnFadingPath, unittest.TestCase):
         # the IRS answered the probe in DATAC14
         acks = self.frames(FRAME_TYPE.ARQ_BURST_ACK, "IRS")
         self.assertIs(acks[-1], FREEDV_MODE.signalling_ack)
+
+
+class TestUndecodableBursts(SessionOnFadingPath, unittest.TestCase):
+    """hl_disturbed after the session has opened: the OFDM bursts arrive at the
+    IRS loud and clear, but do not decode, and codec2 does not even sync on
+    them. The IRS's SignalDetector hears them and the IRS answers in FSK at once,
+    instead of the ISS stepping down through the levels on its retries."""
+
+    def setUp(self):
+        super().setUp()
+        # time for the IRS to notice; its own allowance shortened
+        for target, name, value in (
+            (ARQSessionISS, "TIMEOUT_TRANSFER", 3.0),
+            (ARQSessionIRS, "DECODE_ALLOWANCE", 0.1),
+        ):
+            patcher = mock.patch.object(target, name, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def lost(self, mode, frame_type):
+        if mode is FSK or frame_type != FRAME_TYPE.ARQ_BURST_FRAME.value:
+            return False
+        # the IRS hears the burst: quiet before it, then the burst's airtime of signal
+        detector = self.ctx_IRS.rf_modem.demodulator.signal_detector
+        now = time.monotonic()
+        airtime = codec2.get_frame_duration(mode.value)
+        rng = np.random.default_rng(0)
+        detector.push(rng.standard_normal(3 * 8000) * 300, now=now - airtime)
+        detector.push(rng.standard_normal(int(airtime * 8000)) * 3000, now=now)
+        return True
+
+    def test_irs_moves_the_session_to_fsk(self):
+        payload = np.random.default_rng(5).bytes(100)
+        self.assertTrue(self.transfer(payload))
+        self.assertEqual(self.received(), payload)
+
+        bursts = self.frames(FRAME_TYPE.ARQ_BURST_FRAME)
+        # one OFDM burst at the level the SNR gives, then FSK
+        self.assertEqual(bursts[0], FREEDV_MODE.data_ofdm_2438)
+        self.assertTrue(all(mode is FSK for mode in bursts[1:]), bursts)
+        self.assertIs(self.frames(FRAME_TYPE.ARQ_BURST_ACK, "IRS")[0], FSK)
 
 
 if __name__ == "__main__":

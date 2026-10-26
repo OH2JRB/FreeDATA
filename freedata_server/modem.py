@@ -570,6 +570,9 @@ class RF:
 
         self.enqueue_streaming_audio_chunks(audio_8k, self.ctx.audio_rx_queue)
 
+        # before the auto level, which would hide the power steps it looks for
+        self.demodulator.signal_detector.push(audio_8k, transmitting=self.ctx.state_manager.isTransmitting())
+
         if self.ctx.config_manager.config["AUDIO"].get("rx_auto_audio_level"):
             audio_8k = audio.normalize_audio(audio_8k)
 

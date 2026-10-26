@@ -608,6 +608,49 @@ energy on the frame's tones), against about 0.35 for a wrong frame; the decoder
 needs 0.6. The frames the early decoder misses come from the regular receiver as
 before, 4 to 5 s after their end. It costs about 1% of one CPU core per FSK mode.
 
+### Detecting frames codec2 does not see
+
+On `hl_disturbed` the OFDM modes do not sync on a frame at all (rx status 0
+throughout), so neither the IRS nor the ISS learns from codec2 that a frame
+came. The FSK receiver reports sync only once a frame is decoded. Yet the
+frames arrive with their full power: an OFDM burst at 0 dB SNR raises the
+received power by 2 to 4 dB, at 5 dB SNR and more by far more.
+
+`freedata_server/signal_detector.py` (`SignalDetector`, fed by the modem with
+the received audio before the auto level) cuts the audio into 0.1 s blocks and
+takes as noise floor the lowest 0.5 s average of the last minute, leaving out
+the station's own transmissions. Blocks 3 dB above it are signal; pauses under
+0.3 s are bridged and signals under 0.3 s ignored. In the simulator, on
+`hl_disturbed`:
+
+| Frame | 0 dB | 5 dB and more |
+|---|---|---|
+| `datac4`, `data_ofdm_2438` (5.4 s) | fragments | found to the 0.1 s block |
+| `data_ofdm_500` (3.7 s) | 1.4 s of it | found to the block |
+| DATAC14 (0.7 s) | not found | found to the block |
+
+On 120 s of noise whose level drifts by 10% it finds nothing. The ARQ sessions
+use it in two ways:
+
+- **IRS:** when a signal at least 0.6 of the expected burst's frame long has
+  come since its answer, and nothing was decoded 1 s after its end
+  (`burst_heard_not_decoded`), the IRS falls back to FSK and answers in FSK with
+  the bytes received so far (`answer_undecodable_burst`). The ISS, which always
+  decodes FSK, follows.
+- **ISS:** when its wait for an answer runs out while the other station is
+  still transmitting, it waits on, for the end of that transmission and for
+  its decoding (a frame length for an FSK frame), at most three FSK frame
+  lengths (`wait_for_answer_on_air`). This is what lets the IRS's FSK answer
+  to an OFDM burst arrive, and it keeps the ISS from sending over a late answer.
+  When an answer was heard but not decoded (`answer_heard`), OFDM does not get
+  through, and the ISS goes to FSK at once instead of after two more tries.
+
+A receiver's AGC that raises the noise in the pauses hides the steps in power
+that the detector looks for: then it finds nothing, and the sessions fall back
+on their retries as before. Signals of other stations in the pauses can set it
+off: a session then goes to FSK needlessly, and comes back to OFDM with the next
+probe.
+
 ### In ARQ
 
 `data_fsk4_50` is ARQ speed level 0, below `datac4`, and sessions move to it,
@@ -625,9 +668,11 @@ by one and the burst frames gained two bytes.
   down to `datac4` first. The IRS steps down as well when OFDM frames arrive but
   fail to decode (rx status 10, twice since its last answer): to `datac4`, held
   there for three answers whatever the SNR says, or from `datac4` to FSK. In the
-  simulator that happens on `hl_moderate`; on `hl_disturbed` the OFDM modes do
-  not even sync, so there the ISS's fallback remains. A station that receives an
-  ARQ frame in FSK follows.
+  simulator that happens on `hl_moderate`. On `hl_disturbed` the OFDM modes do
+  not even sync, so codec2 reports nothing; there the IRS hears the burst by its
+  power instead (see "Detecting frames codec2 does not see" below) and falls
+  back to FSK after the first burst it cannot decode, answering in FSK. A
+  station that receives an ARQ frame in FSK follows.
 - **Way back up.** On FSK every fifth burst is a single `datac4` frame instead.
   If the IRS hears it, it leaves FSK and answers in DATAC14; when that answer
   arrives, the ISS leaves FSK too. Without an answer the ISS goes on with FSK at
@@ -667,7 +712,10 @@ by one and the burst frames gained two bytes.
   burst, which the ACK timer covers; only the missing frames are sent again),
   or every OFDM frame until the first probe (the second probe brings the
   session back to OFDM), plus unit tests of each rule. `tests/test_fsk_early.py`
-  checks the early decoder, `tests/test_p2p_fsk.py` the P2P fallback.
+  checks the early decoder, `tests/test_p2p_fsk.py` the P2P fallback, and
+  `tests/test_signal_detector.py` the signal detector and the rules built on it;
+  `tests/test_arq_fsk.py` also runs a session whose OFDM bursts the IRS hears
+  but cannot decode, which moves to FSK after the first of them.
 
 What one burst costs on FSK, when the early decoder gets the last frame and the
 ACK: N x 5.44 s for the frames, up to about 1 s until the IRS has it, 5.44 s for
@@ -690,7 +738,7 @@ delays measured above, not measured sessions.
    delay. A codec2 change that lets the receiver decode a frame as soon as it is
    complete, and that `freedv_set_sync()` resets it, would make the early
    decoder and the receiver restart unnecessary.
-4. **IRS detection on `hl_disturbed`.** There the OFDM modes do not sync, so the
-   IRS sees no failed decodes and only the ISS's retries move the session to
-   FSK. Counting syncs that end without a frame might work there, but could also
-   be set off by other stations' signals.
+4. **Signal detection on the air.** The signal detector is tested in the
+   simulator only. Real receivers' AGC, filters and other stations' signals
+   will show how well its power threshold works; an AGC that is fast or not
+   switched off hides the signals from it.

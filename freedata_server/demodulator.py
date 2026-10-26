@@ -8,6 +8,7 @@ import itertools
 import numpy as np
 from freedata_server.audio_buffer import CircularBuffer
 from freedata_server.fsk_early import FskEarlyDecoder
+from freedata_server.signal_detector import SignalDetector
 
 TESTMODE = False
 
@@ -68,6 +69,9 @@ class Demodulator:
 
         # init codec2 resampler
         self.resampler = codec2.resampler()
+
+        # transmissions on the channel by their power, for the ARQ sessions
+        self.signal_detector = SignalDetector()
 
         self.init_codec2()
 

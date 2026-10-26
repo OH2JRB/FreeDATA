@@ -356,6 +356,8 @@ it on failures, not on SNR:
 | A signalling frame (`ARQ_SESSION_OPEN`, `ARQ_SESSION_INFO`) unanswered `RETRIES_BEFORE_FSK` (2) times | ISS `transmit_wait_and_retry` |
 | Two failed bursts at datac4 | ISS `transmit_wait_and_retry` |
 | `DECODE_FAILURES_TO_STEP_DOWN` (2) frames found but not decoded (rx status 10, `Demodulator.take_decode_failures`) in the current mode since the last answer, at datac4. At a higher level this steps down to datac4 and keeps the level there for `STEP_DOWN_HOLD` (3) answers | IRS `calibrate_speed_settings` |
+| A burst heard (`SignalDetector`) for at least `HEARD_FRAME_SHARE` (0.6) of its frame length, with nothing decoded `DECODE_ALLOWANCE` (1 s) after it: the OFDM modes do not even sync on `hl_disturbed`. The IRS answers in FSK (`answer_undecodable_burst`) | IRS `transmit_and_wait` (`burst_heard_not_decoded`) |
+| An answer heard (`SignalDetector`, at least `HEARD_ANSWER_SECONDS`, 0.5 s) but not decoded | ISS `transmit_wait_and_retry` (`answer_heard`) |
 | Any ARQ frame received in `data_fsk4_50` | `ARQSession.on_frame_received`, both sides |
 
 `fall_back_to_fsk()` sets `fsk = True` and `speed_level = 0` (`reset_session()` clears it). From then on:
@@ -387,6 +389,11 @@ it on failures, not on SNR:
   late. After a burst of several frames one more frame length is added for the IRS's ACK timer: 25.3 s. The
   demodulator's early FSK decoder usually passes frames on within a second of their end
   ([modem-audio-radio.md](modem-audio-radio.md), "Early FSK decoding"), so answers come sooner.
+
+When the ISS's wait runs out while the `SignalDetector` shows the other station still transmitting, the ISS
+waits on for the end of that transmission and its decoding, at most three FSK frame lengths
+(`wait_for_answer_on_air`): the IRS's FSK answer to an OFDM burst comes later than an OFDM answer would. See
+[fading-channels.md](fading-channels.md), section 8, "Detecting frames codec2 does not see".
 
 The demodulator decodes `data_fsk4_50` at all times (unless `EXP.enable_vhf`); it costs less CPU than
 `datac4`. A session that cannot reach the other station at all now takes longer to fail: two `signalling`

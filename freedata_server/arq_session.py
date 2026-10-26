@@ -6,6 +6,7 @@ from freedata_server.modem_frametypes import FRAME_TYPE
 import time
 from freedata_server.arq_data_type_handler import ARQDataTypeHandler
 from freedata_server.codec2 import FREEDV_MODE_USED_SLOTS, FREEDV_MODE
+from freedata_server.signal_detector import SignalDetector
 
 
 class ARQSession:
@@ -172,6 +173,12 @@ class ARQSession:
             FREEDV_MODE: FSK_MODE once the session has fallen back to FSK, else mode.
         """
         return self.FSK_MODE if self.fsk else mode
+
+    def get_signal_detector(self):
+        """The demodulator's SignalDetector, or None (no modem, as in some tests)."""
+        demodulator = getattr(getattr(self.ctx, "rf_modem", None), "demodulator", None)
+        detector = getattr(demodulator, "signal_detector", None)
+        return detector if isinstance(detector, SignalDetector) else None
 
     def is_fsk_frame(self, frame) -> bool:
         """True if the frame was received in FSK_MODE.

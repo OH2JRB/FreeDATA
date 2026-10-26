@@ -55,6 +55,15 @@ class ARQSessionIRS(arq_session.ARQSession):
     DECODE_FAILURES_TO_STEP_DOWN = 2
     STEP_DOWN_HOLD = 3
 
+    # A signal at least this share of the expected burst's frame long, with
+    # nothing decoded DECODE_ALLOWANCE seconds after its end: on a path that
+    # defeats OFDM (30 Hz of Doppler spread) the OFDM modes do not even sync,
+    # so only the SignalDetector shows that the burst came. The IRS then falls
+    # back to FSK and answers in FSK (answer_undecodable_burst)
+    HEARD_FRAME_SHARE = 0.6
+    DECODE_ALLOWANCE = 1.0
+    DETECTION_INTERVAL = 0.2
+
     STATE_TRANSITION = {
         IRS_State.NEW: {
             FRAME_TYPE.ARQ_SESSION_OPEN.value: "send_open_ack",
@@ -195,12 +204,58 @@ class ARQSessionIRS(arq_session.ARQSession):
         self.event_frame_received.clear()
         self.transmit_frame(frame, mode)
         self.log(f"Waiting {timeout} seconds...")
-        if not self.event_frame_received.wait(timeout) and self.state not in [
-            IRS_State.ABORTED,
-            IRS_State.FAILED,
-        ]:
-            self.log("Timeout waiting for ISS. Session failed.")
-            self.transmission_failed()
+        since = time.monotonic()
+        deadline = since + timeout
+        while not self.event_frame_received.wait(self.DETECTION_INTERVAL):
+            if time.monotonic() >= deadline:
+                if self.state not in [IRS_State.ABORTED, IRS_State.FAILED]:
+                    self.log("Timeout waiting for ISS. Session failed.")
+                    self.transmission_failed()
+                return
+            if self.burst_heard_not_decoded(since):
+                self.answer_undecodable_burst()
+                since = time.monotonic()
+
+    def burst_heard_not_decoded(self, since) -> bool:
+        """True if a burst came after since but was not decoded.
+
+        Args:
+            since: time.monotonic() at the end of the own transmission.
+        """
+        if (
+            self.fsk
+            or self.received_data is None
+            or self.state
+            not in [
+                IRS_State.INFO_ACK_SENT,
+                IRS_State.BURST_REPLY_SENT,
+            ]
+        ):
+            return False
+        detector = self.get_signal_detector()
+        if detector is None:
+            return False
+        frame_duration = codec2.get_frame_duration(self.get_mode_by_speed_level(self.speed_level).value)
+        now = time.monotonic()
+        return any(
+            end - start >= self.HEARD_FRAME_SHARE * frame_duration and now - end >= self.DECODE_ALLOWANCE
+            for start, end in detector.segments(since)
+        )
+
+    def answer_undecodable_burst(self):
+        """Falls back to FSK and answers the burst that came but could not be decoded.
+
+        The FSK burst ACK carries the bytes received so far, so the ISS sends
+        them again, in FSK: it follows the IRS there as the ACK arrives in FSK.
+        Its burst id is the one after the last burst decoded, the one that came.
+        """
+        with self.burst_ack_lock:
+            self.log("A burst came but could not be decoded: falling back to FSK", isWarning=True)
+            self.fall_back_to_fsk()
+            self.burst_id = (self.burst_id + 1) % 256
+            ack = self.build_burst_ack(flag_abort=self.abort)
+            self.set_state(IRS_State.BURST_REPLY_SENT)
+            self.transmit_frame(ack, mode=self.FSK_MODE)
 
     def launch_transmit_and_wait(self, frame, timeout, mode):
         """Launches the transmit_and_wait method in a separate thread.
