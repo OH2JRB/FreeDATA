@@ -391,7 +391,24 @@ it on failures, not on SNR:
   frame up to one frame length after its end, and its FSK answer takes 5.44 s on the air and may be decoded as
   late. After a burst of several frames one more frame length is added for the IRS's ACK timer: 25.3 s. The
   demodulator's early FSK decoder usually passes frames on within a second of their end
-  ([modem-audio-radio.md](modem-audio-radio.md), "Early FSK decoding"), so answers come sooner.
+  ([modem-audio-radio.md](modem-audio-radio.md), "Early FSK decoding"), so answers come sooner;
+* the session signalling (`ARQ_SESSION_OPEN`, `ARQ_SESSION_INFO`, `ARQ_STOP` and their answers) goes out
+  `FSK_SIGNALLING_COPIES` (2) times in one transmission (`signalling_frames`); the receiver drops the second
+  copy when it decoded the first (`Demodulator.fsk_is_new`). The ISS waits one more frame length for the
+  doubled answer. Once the signalling falls back to FSK it gets at least `RETRIES_FSK_SIGNALLING` (4)
+  attempts there. Since both copies may be answered, each `launch_twr` starts a new generation
+  (`twr_generation`), and an older retry loop stops instead of retransmitting or failing the session;
+* when a burst goes unanswered, the ISS sends only its last frame again: the IRS answers it with what it
+  holds, and the ISS then sends what is missing. The IRS takes a frame it already has, or already holds after
+  a gap, as a sign that its last answer was lost (`answer_lost`), and sends its next burst or final ACK twice
+  in one transmission (`answer_frames`); the ISS waits for two answer frames on such a retry;
+* before transmitting, a station waits while the `SignalDetector` shows the other station still on the air,
+  at most `CLEAR_CHANNEL_SECONDS` (12 s; `wait_for_clear_channel`): the early decoder passes a frame on at its
+  end, but more frames of the same transmission may follow;
+* the IRS waits `FSK_TIMEOUT_FACTOR` (4) times its `TIMEOUT_CONNECT` / `TIMEOUT_DATA` on FSK, since one ISS
+  attempt there takes about 37 s; a session that failed in the meantime takes up an `ARQ_SESSION_INFO` again
+  (`FAILED` -> `send_info_ack`). The schedule manager's 90 s limit, after which it sets a quiet IRS session
+  to `RESUME`, is also four times longer for FSK sessions.
 
 When the ISS's wait runs out while the `SignalDetector` shows the other station still transmitting, the ISS
 waits on for the end of that transmission and its decoding, at most three FSK frame lengths
@@ -400,8 +417,8 @@ waits on for the end of that transmission and its decoding, at most three FSK fr
 
 The demodulator decodes `data_fsk4_50` at all times (unless `EXP.enable_vhf`); it costs less CPU than
 `datac4`. A session that cannot reach the other station at all now takes longer to fail: two `signalling`
-attempts (2.2 s of airtime + 4.5 s each) and three FSK attempts (5.44 s of airtime + 4.5 + 3 x 5.44 s each),
-about 92 s instead of about 34 s.
+attempts (2.2 s of airtime + 4.5 s each) and four FSK attempts (2 x 5.44 s of airtime + 4.5 + 4 x 5.44 s
+each), about 162 s instead of about 34 s.
 
 P2P connections ([p2p_connection.py](../p2p_connection.py)) fall back the same way for their own frames:
 after `RETRIES_BEFORE_FSK` (2) unanswered attempts of a frame that fits an FSK frame (then at least

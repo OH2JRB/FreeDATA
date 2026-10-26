@@ -59,6 +59,8 @@ class ARQSessionISS(arq_session.ARQSession):
     # an answer heard (SignalDetector) at least this long, but not decoded:
     # OFDM fails on this path, so the session goes to FSK at once
     HEARD_ANSWER_SECONDS = 0.5
+    # once session signalling falls back to FSK, at least this many attempts there
+    RETRIES_FSK_SIGNALLING = 4
 
     # DJ2LS: 3 seconds seems to be too small for radios with a too slow PTT toggle time
     # DJ2LS: 3.5 seconds is working well WITHOUT a channel busy detection delay
@@ -121,6 +123,7 @@ class ARQSessionISS(arq_session.ARQSession):
         self.fsk_frames_per_burst = self.FSK_FRAMES_PER_BURST
         self.fsk_bursts = 0
         self.probing = False
+        self.twr_generation = 0  # the newest transmit_wait_and_retry loop (launch_twr)
 
         # instance of p2p connection
         self.running_p2p_connection = None
@@ -182,7 +185,7 @@ class ARQSessionISS(arq_session.ARQSession):
                 # Return False if all possible session IDs are exhausted
                 return False
 
-    def get_response_timeout(self, timeout, mode="auto", frames=1) -> float:
+    def get_response_timeout(self, timeout, mode="auto", frames=1, answer_frames=1) -> float:
         """Returns how long to wait for the IRS's answer to a frame sent in mode.
 
         The TIMEOUT_* values count from the end of the transmission and assume
@@ -200,6 +203,8 @@ class ARQSessionISS(arq_session.ARQSession):
             mode: The FreeDV mode the frame is sent in, or 'auto' for the
                 mode of the current speed level.
             frames (int): The number of frames sent back to back.
+            answer_frames (int): The frames of the answer (signalling answers on
+                FSK come twice); the last one may be the one that gets through.
 
         Returns:
             float: The timeout in seconds.
@@ -208,12 +213,12 @@ class ARQSessionISS(arq_session.ARQSession):
             mode = self.get_mode_by_speed_level(self.speed_level)
         wait = timeout + codec2.get_decode_delay(mode.value)
         if mode is self.FSK_MODE:
-            wait += codec2.get_frame_duration(mode.value) + codec2.get_decode_delay(mode.value)
+            wait += answer_frames * codec2.get_frame_duration(mode.value) + codec2.get_decode_delay(mode.value)
         if frames > 1:
             wait += codec2.get_frame_duration(mode.value)
         return wait
 
-    def transmit_wait_and_retry(self, frame_or_burst, timeout, retries, mode, isARQBurst=False):
+    def transmit_wait_and_retry(self, frame_or_burst, timeout, retries, mode, isARQBurst=False, generation=None):
         """Transmits a frame or burst, waits for a response, and retries if necessary.
 
         This method transmits the given frame or burst of frames, waits for a
@@ -231,15 +236,38 @@ class ARQSessionISS(arq_session.ARQSession):
             mode: The FreeDV mode to use for transmission. FREEDV_MODE.signalling
                 stands for the session's signalling mode (get_signalling_mode).
             isARQBurst (bool, optional): True if transmitting an ARQ burst, False otherwise. Defaults to False.
+            generation (int, optional): From launch_twr; the loop stops once a newer
+                one has started, so a frame answered twice (both copies of an FSK
+                signalling frame, say) does not leave two loops retransmitting.
         """
+
+        def superseded():
+            return generation is not None and generation != self.twr_generation
+
         failures = 0
         while retries > 0 and self.state not in [ISS_State.ABORTED, ISS_State.ABORTING]:
+            if superseded():
+                return
             self.event_frame_received = threading.Event()
             if isinstance(frame_or_burst, list):
                 burst = frame_or_burst
             else:
                 burst = [frame_or_burst]
             tx_mode = self.get_signalling_mode() if mode is FREEDV_MODE.signalling else mode
+            if mode is FREEDV_MODE.signalling and self.fsk:
+                # two copies in one transmission (FSK_SIGNALLING_COPIES)
+                burst = list(self.signalling_frames(burst[0]))
+            elif isARQBurst and self.fsk and failures and len(burst) > 1:
+                # the ACK was lost, or the whole burst: its last frame alone makes the
+                # IRS answer again, with what it holds, instead of the whole burst
+                burst = burst[-1:]
+            # signalling answers on FSK come twice, and so do burst ACKs after a lost one
+            # (ARQSessionIRS.answer_frames)
+            answer_frames = (
+                self.FSK_SIGNALLING_COPIES
+                if self.fsk and (mode is FREEDV_MODE.signalling or (isARQBurst and failures))
+                else 1
+            )
             if len(burst) > 1:
                 # one transmission, so the frames follow each other without PTT gaps
                 self.transmit_frame(burst, tx_mode)
@@ -247,7 +275,7 @@ class ARQSessionISS(arq_session.ARQSession):
                 self.transmit_frame(burst[0], tx_mode)
             self.event_frame_received.clear()
             since = time.monotonic()
-            wait = self.get_response_timeout(timeout, tx_mode, frames=len(burst))
+            wait = self.get_response_timeout(timeout, tx_mode, frames=len(burst), answer_frames=answer_frames)
             self.log(f"Waiting {wait} seconds...")
             if self.event_frame_received.wait(wait) or self.wait_for_answer_on_air(since):
                 return
@@ -268,6 +296,7 @@ class ARQSessionISS(arq_session.ARQSession):
 
             if mode is FREEDV_MODE.signalling and not self.fsk and (heard or failures == self.RETRIES_BEFORE_FSK):
                 self.fall_back_to_fsk()
+                retries = max(retries, self.RETRIES_FSK_SIGNALLING)
 
             if heard and isARQBurst and not self.fsk and self.state not in [ISS_State.ABORTED, ISS_State.ABORTING]:
                 # the IRS answers, but in OFDM nothing gets here: on with FSK at once
@@ -302,7 +331,7 @@ class ARQSessionISS(arq_session.ARQSession):
                 return
 
         # an abort is running or done - don't override it with a failed state
-        if self.state in [ISS_State.ABORTED, ISS_State.ABORTING]:
+        if self.state in [ISS_State.ABORTED, ISS_State.ABORTING] or superseded():
             return
 
         self.set_state(ISS_State.FAILED)
@@ -322,9 +351,10 @@ class ARQSessionISS(arq_session.ARQSession):
             mode: The FreeDV mode to use for transmission.
             isARQBurst (bool, optional): True if the transmission is an ARQ burst, False otherwise. Defaults to False.
         """
+        self.twr_generation += 1
         twr = threading.Thread(
             target=self.transmit_wait_and_retry,
-            args=[frame_or_burst, timeout, retries, mode, isARQBurst],
+            args=[frame_or_burst, timeout, retries, mode, isARQBurst, self.twr_generation],
             daemon=True,
         )
         twr.start()
@@ -777,7 +807,7 @@ class ARQSessionISS(arq_session.ARQSession):
         while retries > 0 and self.state is ISS_State.ABORTING:
             self.event_frame_received = threading.Event()
             mode = self.get_signalling_mode()
-            self.transmit_frame(stop_frame, mode=mode)
+            self.transmit_frame(self.signalling_frames(stop_frame), mode=mode)
             wait = self.get_response_timeout(self.TIMEOUT_STOP_ACK, mode)
             self.log(f"Waiting {wait} seconds for stop ack...")
             self.event_frame_received.wait(wait)

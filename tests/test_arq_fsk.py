@@ -150,9 +150,11 @@ class TestFallback(unittest.TestCase):
     def test_signalling_falls_back_to_fsk(self):
         iss = make_iss()
         sent, waits = self.run_twr(iss, 2, FREEDV_MODE.signalling, ARQSessionISS.RETRIES_CONNECT)
+        # in FSK twice in one transmission, and the answer comes twice as well
         self.assertEqual(sent, [FREEDV_MODE.signalling, FREEDV_MODE.signalling, FSK])
+        self.assertEqual(iss.transmit_frame.call_args_list[2].args[0], [b"frame", b"frame"])
         self.assertEqual(waits[:2], [1.0, 1.0])
-        self.assertAlmostEqual(waits[2], 1.0 + FSK_ROUND_TRIP)
+        self.assertAlmostEqual(waits[2], 1.0 + FSK_ROUND_TRIP + 2 * 5.44)
         self.assertTrue(iss.fsk)
         self.assertEqual(iss.speed_level, ARQSessionISS.FSK_LEVEL)
 
@@ -175,6 +177,30 @@ class TestFallback(unittest.TestCase):
         self.assertEqual(iss.speed_level, ARQSessionISS.FSK_LEVEL)
         self.assertTrue(iss.fsk)
         iss.send_data.assert_called_once()
+
+    def test_lost_ack_resends_only_the_last_frame(self):
+        iss = make_iss(ARQSessionISS.FSK_LEVEL)
+        iss.fsk = True
+        event = answer_after(2)
+        burst = [b"1", b"2", b"3", b"4"]
+        with mock.patch("freedata_server.arq_session_iss.threading.Event", return_value=event):
+            iss.transmit_wait_and_retry(burst, 1.0, ARQSessionISS.RETRIES_DATA, "auto", isARQBurst=True)
+        sent = [c.args[0] for c in iss.transmit_frame.call_args_list]
+        self.assertEqual(sent, [burst, b"4", b"4"])
+        waits = [c.args[0] for c in event.wait.call_args_list]
+        # no ACK timer allowance for one frame, but time for an ACK sent twice
+        self.assertAlmostEqual(waits[0], waits[1])
+
+    def test_superseded_loop_stops(self):
+        # a newer loop (an answer came twice) takes over: the old one neither
+        # retransmits nor fails the session
+        iss = make_iss()
+        iss.twr_generation = 2
+        event = answer_after(5)
+        with mock.patch("freedata_server.arq_session_iss.threading.Event", return_value=event):
+            iss.transmit_wait_and_retry(b"frame", 1.0, 5, FREEDV_MODE.signalling, generation=1)
+        iss.transmit_frame.assert_not_called()
+        self.assertEqual(iss.state, ISS_State.INFO_SENT)
 
     def test_fsk_bursts_keep_trying(self):
         iss = make_iss(ARQSessionISS.FSK_LEVEL)
@@ -373,6 +399,83 @@ class TestIrsDetection(unittest.TestCase):
         self.assertEqual(irs.calibrate_speed_settings(), 4)
 
 
+class TestAnswerAfterLoss(unittest.TestCase):
+    def test_answer_twice_after_a_repeat(self):
+        irs = ARQSessionIRS.__new__(ARQSessionIRS)
+        irs.fsk = True
+        irs.answer_lost = False
+        self.assertEqual(irs.answer_frames(b"ack"), b"ack")
+        irs.answer_lost = True  # a frame came again
+        self.assertEqual(irs.answer_frames(b"ack"), [b"ack", b"ack"])
+        self.assertEqual(irs.answer_frames(b"ack"), b"ack")  # once more only after the next repeat
+        irs.fsk = False
+        irs.answer_lost = True
+        self.assertEqual(irs.answer_frames(b"ack"), b"ack")  # DATAC14 as before
+
+    def test_held_frame_again_means_a_lost_answer(self):
+        irs = ARQSessionIRS.__new__(ARQSessionIRS)
+        irs.log = mock.Mock()
+        irs.received_bytes = 231
+        irs.pending_frames = {}
+        irs.answer_lost = False
+        frame = {"offset": 273, "data": b"x" * 21}
+        irs.process_incoming_data(frame)  # after a lost frame: held
+        self.assertFalse(irs.answer_lost)
+        irs.process_incoming_data(frame)  # the same again: the ISS missed the ACK
+        self.assertTrue(irs.answer_lost)
+
+    def test_schedule_keeps_fsk_sessions_longer(self):
+        from freedata_server.schedule_manager import ScheduleManager
+
+        def irs(fsk, age):
+            session = ARQSessionIRS.__new__(ARQSessionIRS)
+            session.is_IRS = True
+            session.fsk = fsk
+            session.state = IRS_State.BURST_REPLY_SENT
+            session.state_enum = IRS_State
+            session.last_state_change_timestamp = time.time() - age
+            session.log = mock.Mock()
+            return session
+
+        sessions = {1: irs(False, 100), 2: irs(True, 100), 3: irs(True, 400)}
+        manager = ScheduleManager.__new__(ScheduleManager)
+        manager.log = mock.Mock()
+        manager.ctx = types.SimpleNamespace(
+            state_manager=types.SimpleNamespace(arq_irs_sessions=sessions, arq_iss_sessions={})
+        )
+        manager.update_transmission_state()
+        self.assertEqual(
+            [s.state for s in sessions.values()], [IRS_State.RESUME, IRS_State.BURST_REPLY_SENT, IRS_State.RESUME]
+        )
+
+
+class TestIrsPatience(unittest.TestCase):
+    def make_irs(self, fsk):
+        irs = ARQSessionIRS.__new__(ARQSessionIRS)
+        irs.fsk = fsk
+        irs.state = IRS_State.OPEN_ACK_SENT
+        irs.log = mock.Mock()
+        irs.transmit_frame = mock.Mock()
+        irs.transmission_failed = mock.Mock()
+        irs.event_frame_received = threading.Event()
+        irs.ctx = None
+        return irs
+
+    def test_waits_longer_on_fsk(self):
+        for fsk, at_least in ((False, 0.2), (True, 0.2 * ARQSessionIRS.FSK_TIMEOUT_FACTOR)):
+            irs = self.make_irs(fsk)
+            started = time.monotonic()
+            irs.transmit_and_wait(b"ack", 0.2, FSK)
+            self.assertGreaterEqual(time.monotonic() - started, at_least - 0.05)
+            irs.transmission_failed.assert_called_once()
+
+    def test_info_restarts_a_failed_session(self):
+        # the ISS may go on trying after the IRS gave up
+        self.assertEqual(
+            ARQSessionIRS.STATE_TRANSITION[IRS_State.FAILED][FRAME_TYPE.ARQ_SESSION_INFO.value], "send_info_ack"
+        )
+
+
 class TestProbe(unittest.TestCase):
     def test_unanswered_probe_goes_on_with_fsk(self):
         iss = make_iss(ARQSessionISS.FSK_LEVEL)
@@ -437,6 +540,7 @@ class SessionOnFadingPath:
             patcher.start()
             self.addCleanup(patcher.stop)
         self.sent = []  # (station, mode, frame type, frame) of every frame sent
+        self.delivered = {}  # frame -> time, per receiving station
         self.running = True
         self.channels = [
             threading.Thread(target=self.channel, args=[self.ctx_ISS, self.ctx_IRS, "ISS"], daemon=True),
@@ -464,6 +568,13 @@ class SessionOnFadingPath:
                 self.sent.append((station, mode, frame_type, frame))
                 if self.lost(mode, frame_type):
                     continue
+                # the demodulator drops a frame decoded again soon after (both copies
+                # of an FSK signalling frame, say): Demodulator.fsk_is_new
+                seen = self.delivered.setdefault(station, {})
+                now = time.monotonic()
+                if mode is FSK and now - seen.get(frame, -10) < 2:
+                    continue
+                seen[frame] = now
                 # the demodulator names a frame's mode like this
                 ctx_b.service_manager.frame_dispatcher.process_data(
                     frame, None, len(frame), 15, 0, mode_name=mode.name.upper()

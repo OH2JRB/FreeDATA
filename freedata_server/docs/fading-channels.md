@@ -716,8 +716,24 @@ by one and the burst frames gained two bytes.
   misses it), and its FSK answer takes 5.44 s on the air and may be decoded as
   late (`get_response_timeout()`). After a burst of several frames one more
   frame length is added for the IRS's ACK timer. These are the longest waits;
-  with the early decoder the answer usually comes much sooner. The IRS's own
-  timeouts (`TIMEOUT_CONNECT` 55 s, `TIMEOUT_DATA` 90 s) are long enough.
+  with the early decoder the answer usually comes much sooner. The IRS waits
+  four times its `TIMEOUT_CONNECT` (55 s) and `TIMEOUT_DATA` (90 s) on FSK, since
+  one ISS attempt there takes about 37 s, and the schedule manager keeps quiet
+  FSK sessions four times as long before it sets them to `RESUME`.
+- **Session setup.** On FSK the session open, info and stop frames and their
+  answers go out twice in one transmission; the receiver drops the second copy
+  when it decoded the first. On `hl_disturbed` about half of the single frames
+  get through, so a question and its answer got through together only about a
+  quarter of the time. Once the signalling falls back to FSK it gets at least
+  four attempts there, and an IRS session that failed in the meantime takes up
+  the info frame again. Before transmitting, a station waits while it still
+  hears the other one (at most 12 s): the early decoder passes a frame on at its
+  end, and the second copy may still be on the air.
+- **Lost ACKs.** When a burst goes unanswered, the ISS sends only its last frame
+  again, which makes the IRS answer with what it holds, instead of the whole
+  burst. A frame the IRS already has, or already holds after a gap, tells it
+  that its last answer was lost, and its next ACK goes out twice in one
+  transmission; the ISS waits for both.
 - **P2P connections** fall back the same way: after two unanswered attempts of a
   frame that fits an FSK frame, and when a frame arrives in FSK. On FSK, data up
   to 26 bytes goes in one FSK payload frame, larger data in an ARQ session that
@@ -761,7 +777,10 @@ sessions in parallel.
 
 Transfers of 500 random bytes (`raw`), one session each, seed 1 unless noted.
 "Setup" is the time from the command to the first data burst (session open and
-info), "data phase" the rate from there on.
+info), "data phase" the rate from there on. The OFDM rows are from before the
+setup and ACK changes above (they change nothing on OFDM), the `hl_moderate`
+rows from before the last of them (a held frame received again counts as a lost
+answer).
 
 | Channel | SNR | Result | Time | Payload bps | Setup | Data phase bps | Transmissions (ISS, IRS) |
 |---|---|---|---|---|---|---|---|
@@ -771,38 +790,41 @@ info), "data phase" the rate from there on.
 | `mid_disturbed` | 5 dB | ok | 37 s | 109 | 18 s | 213 | DATAC13 3, data_ofdm_500 1, datac1 2; DATAC13 2, DATAC14 2 |
 | `mid_disturbed` | 10 dB | ok | 26 s | 157 | 20 s | 715 | DATAC13 3, datac1 1; DATAC13 2, DATAC14 1 |
 | `mid_disturbed` | 20 dB | ok | 28 s | 145 | 22 s | 716 | as at 10 dB |
-| `hl_moderate` | 5 dB | ok | 353 s | 11.3 | 71 s | 14.2 | DATAC13 2, FSK 10, datac4 1; FSK 9 |
-| `hl_moderate` | 10 dB | ok | 220 s | 18.2 | 40 s | 22.2 | DATAC13 2, FSK 7, datac4 1; FSK 7 |
-| `hl_moderate` | 10 dB, seed 2 | ok | 525 s | 7.6 | 70 s | 8.8 | DATAC13 2, FSK 13, datac4 1; FSK 12 |
-| `hl_moderate` | 10 dB, seed 3 | ok | 225 s | 17.8 | 44 s | 22.1 | DATAC13 2, FSK 7, datac4 1; FSK 7 |
-| `hl_moderate` | 20 dB | ok | 226 s | 17.7 | 42 s | 21.8 | DATAC13 2, FSK 7, datac4 1; FSK 7 |
-| `hl_disturbed` | 5 dB | failed | 294 s | | | | DATAC13 2, FSK 11; FSK 2 |
-| `hl_disturbed` | 10 dB | failed | 322 s | | | | DATAC13 2, FSK 12; FSK 4 |
-| `hl_disturbed` | 10 dB, seed 2 | failed | 99 s | | | | DATAC13 2, FSK 3; FSK 2 |
-| `hl_disturbed` | 10 dB, seed 3 | failed | 94 s | | | | DATAC13 2, FSK 3; FSK 1 |
-| `hl_disturbed` | 20 dB | failed | 97 s | | | | DATAC13 2, FSK 3; FSK 1 |
+| `hl_moderate` | 5 dB | ok | 286 s | 14.0 | 61 s | 17.8 | DATAC13 2, FSK 8, datac4 1; FSK 8 |
+| `hl_moderate` | 10 dB | ok | 236 s | 16.9 | 61 s | 22.9 | DATAC13 2, FSK 7, datac4 1; FSK 7 |
+| `hl_moderate` | 20 dB | ok | 256 s | 15.6 | 65 s | 20.9 | DATAC13 2, FSK 7, datac4 1; FSK 7 |
+| `hl_disturbed` | 5 dB | ok | 389 s | 10.3 | 69 s | 12.5 | DATAC13 2, FSK 11, datac4 1; FSK 10 |
+| `hl_disturbed` | 5 dB, seed 2 | ok | 507 s | 7.9 | 71 s | 9.2 | DATAC13 2, FSK 15, datac4 1; FSK 16 |
+| `hl_disturbed` | 10 dB | ok | 871 s | 4.6 | 108 s | 5.2 | DATAC13 2, FSK 26, datac4 1; FSK 18 |
+| `hl_disturbed` | 10 dB, seed 2 | ok | 936 s | 4.3 | 66 s | 4.6 | DATAC13 2, FSK 30, datac4 1; FSK 17 |
+| `hl_disturbed` | 20 dB | ok | 1712 s | 2.3 | 72 s | 2.4 | DATAC13 2, FSK 57, datac4 3; FSK 33 |
+| `hl_disturbed` | 20 dB, seed 2 | ok | 961 s | 4.2 | 106 s | 4.7 | DATAC13 2, FSK 31, datac4 2; FSK 21 |
 
 What they show:
 
 - **OFDM paths are unchanged**: on `awgn` and `mid_disturbed` 500 bytes take
   16 to 37 s in one OFDM burst after the DATAC13/DATAC14 handshake, 600 to
   730 bps once data flows. The FSK fallback never comes into play there.
-- **`hl_moderate` works on FSK**: every session completes, 7.6 to 18 bps
-  overall and 9 to 22 bps once data flows, with 40 to 70 s of setup (two
-  DATAC13 attempts, then session open and info in FSK). The best sessions match
-  the estimate above (22 bps with bursts of 4 frames). The slow ones lost
-  burst ACKs: a lost ACK costs a repeat of the whole burst, although the IRS
-  already holds it, about 35 s each.
-- **`hl_disturbed` does not get past the setup**: none of these five sessions
-  completed; while the bugs below were being fixed, 3 of 22 sessions did, at
-  3 to 6 bps. The session open and info frames are single FSK frames, and on
-  `hl_disturbed` about half of them get through in each direction, so one
-  question and its answer get through about a quarter of the time. Three FSK
-  attempts for the session open and the info are not enough. The data phase
-  copes better, since lost frames are repeated selectively and bursts have
-  several frames.
+- **`hl_moderate` works on FSK**: every session completes, 14 to 17 bps
+  overall and 18 to 23 bps once data flows, close to the estimate above (22 bps
+  with bursts of 4 frames). The setup takes about 61 s, against 40 s with single
+  signalling frames, since each FSK question and answer is now two frames long.
+- **`hl_disturbed` now works on FSK too**: all six sessions complete, 2.3 to
+  10 bps overall, after 66 to 108 s of setup. With single signalling frames
+  none of five sessions got past the setup. With the doubled signalling alone,
+  1 of 7 completed: the IRS gave up after 55 s, before the ISS's FSK attempts
+  were over, and then ignored the info frame (bug 6 below). With the longer IRS
+  timeouts all 7 connected but only 3 completed, and with doubled ACKs after a
+  repeated frame 7 of 9 (3 to 12 bps). The two that failed had lost a frame
+  inside a burst; the ISS then sent the last frame again and again, the IRS kept
+  it and answered once each time, and those answers were lost until the retries
+  ran out. With that counted as a lost answer too, all six above completed.
+- **What is slow on `hl_disturbed`** is the data phase, 2.4 to 12.5 bps. The ISS
+  sends 1.5 to 2 FSK transmissions per IRS answer: about half of the answers,
+  single frames unless one was lost before, do not get through. The slowest
+  session (20 dB) spent most of its time on a few frames lost again and again.
 
-The simulator found five bugs, now fixed:
+The simulator found seven bugs, now fixed:
 
 1. **FSK frames without a scrambler.** FSK_LDPC frames carry no scrambler, and
    the LDPC code is linear, so a frame of mostly zero bytes, as the zero-padded
@@ -832,24 +854,31 @@ The simulator found five bugs, now fixed:
 5. **Session id 0.** One message in 256 (those whose CRC-32 ends in a zero byte)
    got session id 0, and the ARQ command took it for no id and never started the
    session. `generate_id()` no longer gives 0.
+6. **The IRS gave up before the ISS.** The IRS waited 55 s for the info frame
+   after its open ACK, while the ISS's FSK attempts take about 37 s each, and a
+   failed IRS session ignored the info frame when it came. On FSK the IRS now
+   waits four times as long, and a failed session takes the info frame up.
+7. **The schedule manager ended FSK sessions.** It sets an IRS session that has
+   not changed state for 90 s to `RESUME`, which on FSK hit sessions that were
+   still running, and it deleted finished sessions before the ISS had the final
+   ACK. On FSK it now waits four times as long.
 
 ### Still open
 
 1. **Air tests.** All numbers here are from the simulator (section 5). The
    fallback, the early decoder's frame location and the probing should be tried
    on a real high-latitude path, with real radios' PTT and audio latencies.
-2. **Session setup on `hl_disturbed`.** Session open and info are single FSK
-   frames, and a question and its answer get through together only about a
-   quarter of the time there, so sessions rarely connect (above). Sending them
-   twice in one transmission, or more FSK attempts, would raise that.
-3. **ACK losses on FSK.** A lost burst ACK costs a repeat of the whole burst. The
-   ISS could instead send only the last frame of the burst, which makes the IRS
-   answer again and costs one frame instead of all of them.
-4. **codec2.** The early decoder works around the FSK_LDPC receiver's decoding
+2. **Data rate on `hl_disturbed`.** Sessions now connect and complete, but at
+   2 to 12 bps, mostly because about half of the single-frame ACKs are lost.
+   Sending every FSK ACK twice would cost 5.44 s per burst and save most repeats
+   there, but slow `hl_moderate` down; choosing by the share of answers lost so
+   far could get both. These are 12 sessions on one channel model; more seeds
+   would show the spread better.
+3. **codec2.** The early decoder works around the FSK_LDPC receiver's decoding
    delay. A codec2 change that lets the receiver decode a frame as soon as it is
    complete, and that `freedv_set_sync()` resets it, would make the early
    decoder and the receiver restart unnecessary.
-5. **Signal detection on the air.** The signal detector is tested in the
+4. **Signal detection on the air.** The signal detector is tested in the
    simulator only. Real receivers' AGC, filters and other stations' signals
    will show how well its power threshold works; an AGC that is fast or not
    switched off hides the signals from it.
