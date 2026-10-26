@@ -454,6 +454,39 @@ def get_bytes_per_frame(mode: int) -> int:
     return int(api.freedv_get_bits_per_modem_frame(freedv) / 8)
 
 
+def _prbs9(n: int) -> bytes:
+    """n bytes of the PRBS9 sequence (x^9 + x^5 + 1, seed all ones), MSB first."""
+    state = 0x1FF
+    out = bytearray(n)
+    for i in range(n):
+        byte = 0
+        for _ in range(8):
+            bit = ((state >> 8) ^ (state >> 4)) & 1
+            state = ((state << 1) | bit) & 0x1FF
+            byte = (byte << 1) | bit
+        out[i] = byte
+    return bytes(out)
+
+
+# FSK_LDPC frames carry no scrambler. A frame with long runs of zero bytes, as
+# the zero-padded ARQ signalling frames are, comes out nearly all one tone: the
+# LDPC code is linear, so zero data gives zero parity. Without tone changes the
+# receiver loses timing and frequency on a fading path (hl_disturbed: 2 of 24
+# such frames decoded, 10 of 24 random ones). The payload of these modes is
+# therefore XORed with PRBS9 before modulation and after decoding
+# (docs/fading-channels.md, section 8). data_vhf_1 stays as it was, for the
+# stations already using it.
+WHITENED_MODES = {FREEDV_MODE.data_fsk4_50.value}
+_WHITENING = _prbs9(256)
+
+
+def whiten(mode: int, payload: bytes) -> bytes:
+    """XORs a frame payload (without CRC) with PRBS9 in WHITENED_MODES; again to undo it."""
+    if mode not in WHITENED_MODES:
+        return bytes(payload)
+    return bytes(b ^ w for b, w in zip(payload, _WHITENING))
+
+
 def modulate_frame(freedv: ctypes.c_void_p, frame: bytes) -> bytes:
     """Modulates one modem frame: the data padded to the frame's payload size,
     with the CRC16 of codec2 appended.

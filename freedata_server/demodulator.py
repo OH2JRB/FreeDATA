@@ -205,16 +205,22 @@ class Demodulator:
     def fsk_is_new(self, mode, payload) -> bool:
         """Notes a decoded FSK frame; False if it was decoded within the last
         FSK_DUPLICATE_FRAMES frame lengths of audio already."""
+        if self.fsk_seen_recently(mode, payload):
+            return False
+        data = self.MODE_DICT[mode]
+        data["fsk_seen"][payload] = data["fsk_early"].time
+        return True
+
+    def fsk_seen_recently(self, mode, payload) -> bool:
+        """True if the frame was decoded within the last FSK_DUPLICATE_FRAMES frame
+        lengths of audio; forgets older ones, so a later repeat (ARQ) counts as new."""
         data = self.MODE_DICT[mode]
         now = data["fsk_early"].time
         window = self.FSK_DUPLICATE_FRAMES * data["frame_samples"]
         seen = data["fsk_seen"]
         for old in [p for p, t in seen.items() if now - t > window]:
             del seen[old]
-        if payload in seen:
-            return False
-        seen[payload] = now
-        return True
+        return payload in seen
 
     def decode_fsk_early(self, mode, live, transmitting) -> None:
         """Feeds new audio to the early decoder of an FSK mode (fsk_early) and
@@ -231,7 +237,9 @@ class Demodulator:
             early.time += len(live)
             early.reset()
         else:
-            for frame in early.push(live, self.get_fsk_stats, known=lambda payload: payload in data["fsk_seen"]):
+            for frame in early.push(
+                live, self.get_fsk_stats, known=lambda payload: self.fsk_seen_recently(mode, payload)
+            ):
                 if self.fsk_is_new(mode, frame["payload"]):
                     frame["release"] = frame["end"] + int(self.FSK_RELEASE_MARGIN * codec2.api.FREEDV_FS_8000)
                     data["fsk_pending"].append(frame)
@@ -240,7 +248,7 @@ class Demodulator:
             data["fsk_pending"].remove(frame)
             self.log.debug("[MDM] [demod_audio] FSK frame decoded early", mode_name=data["name"])
             self.ctx.rf_modem.data_queue_received.put({
-                "payload": frame["payload"],
+                "payload": self.unwhiten(mode, frame["payload"]),
                 "freedv": data["instance"],
                 "bytes_per_frame": data["bytes_per_frame"],
                 "snr": frame["snr"],
@@ -263,6 +271,11 @@ class Demodulator:
             failures += self.MODE_DICT[mode]["decode_failures"]
             self.MODE_DICT[mode]["decode_failures"] = 0
         return failures
+
+    def unwhiten(self, mode, payload) -> bytes:
+        """Undoes the whitening of a decoded frame (codec2.whiten); the CRC stays."""
+        size = self.MODE_DICT[mode]["bytes_per_frame"] - 2
+        return codec2.whiten(mode, payload[:size]) + payload[size:]
 
     def get_fsk_stats(self, freedv):
         """(SNR, frequency offset) of a codec2 instance, for the early decoder."""
@@ -399,7 +412,7 @@ class Demodulator:
                         self.get_scatter(freedv)
 
                         item = {
-                            "payload": payload,
+                            "payload": self.unwhiten(mode, payload),
                             "freedv": freedv,
                             "bytes_per_frame": bytes_per_frame,
                             "snr": snr,

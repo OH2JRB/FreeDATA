@@ -258,6 +258,30 @@ class TestSelectiveRepeats(unittest.TestCase):
         # DATAC14 ACKs carry no burst id
         self.assertFalse(iss.is_stale_frame({"frame_type_int": FRAME_TYPE.ARQ_BURST_ACK.value}))
 
+    def test_final_ack_never_stale(self):
+        # the IRS's final ACK may answer the burst before the one the ISS just started
+        iss = self.make_iss()
+        final = dict(self.ack(500, burst_id=4), flag={"FINAL": True, "CHECKSUM": True, "ABORT": False})
+        self.assertFalse(iss.is_stale_frame(final))
+
+    def test_repeated_final_ack_answers_the_burst(self):
+        irs = ARQSessionIRS.__new__(ARQSessionIRS)
+        irs.fsk = True
+        irs.id = 9
+        irs.speed_level = 0
+        irs.received_bytes = 500
+        irs.burst_id = 4
+        irs.burst_frame_size = 21
+        irs.pending_frames = {}
+        irs.delivered_crc = irs.total_crc = "abcd"
+        irs.log = mock.Mock()
+        irs.transmit_frame = mock.Mock()
+        irs.frame_factory = mock.Mock()
+        irs.receive_data({"burst_id": 6, "offset": 0, "data": b""})
+        kwargs = irs.frame_factory.build_arq_burst_ack.call_args.kwargs
+        self.assertEqual(kwargs["burst_id"], 6)
+        self.assertTrue(kwargs["flag_final"])
+
     def test_irs_reports_frames_held(self):
         irs = ARQSessionIRS.__new__(ARQSessionIRS)
         irs.fsk = True

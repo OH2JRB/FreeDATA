@@ -209,6 +209,10 @@ class Modulator:
             for frame in frames:
                 if add_ambles:
                     txbuffer = self.transmit_add_preamble(txbuffer, freedv)
+                if mode.value in codec2.WHITENED_MODES:
+                    # the whole payload, padding included (codec2.whiten)
+                    size = int(codec2.api.freedv_get_bits_per_modem_frame(freedv) / 8) - 2
+                    frame = codec2.whiten(mode.value, bytes(frame).ljust(size, b"\x00"))
                 txbuffer = self.transmit_create_frame(txbuffer, freedv, frame)
                 if add_ambles:
                     txbuffer = self.transmit_add_postamble(txbuffer, freedv)

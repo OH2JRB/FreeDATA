@@ -45,13 +45,15 @@ class TestFskEarlyDecoder(unittest.TestCase):
         for start in range(0, len(rx), 1600):
             for frame in decoder.push(rx[start : start + 1600], lambda freedv: (0, 0), known=found.__contains__):
                 found[frame["payload"]] = (frame["end"], decoder.time)
+        # the decoder hands out the frames as decoded, still whitened (codec2.whiten)
+        found = {codec2.whiten(HF_FSK.value, k[:-2]): v for k, v in found.items()}
         results = []
         for payload, end in zip(payloads, ends):
-            hit = [v for k, v in found.items() if k[:-2] == payload]
+            hit = [v for k, v in found.items() if k == payload]
             if hit:
                 located, decoded_at = hit[0]
                 results.append(((located - end) / cs.FS, (max(decoded_at, located) - end) / cs.FS))
-        self.assertTrue(all(k[:-2] in payloads for k in found))  # no wrong frame
+        self.assertTrue(all(k in payloads for k in found))  # no wrong frame
         return results
 
     def payloads(self, n, seed=1):

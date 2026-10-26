@@ -621,10 +621,15 @@ class ARQSessionISS(arq_session.ARQSession):
 
     def is_stale_frame(self, frame) -> bool:
         """True for an FSK burst ACK that answers an earlier burst than the last one
-        sent: a repeated or late ACK, which must not count as the answer."""
+        sent: a repeated or late ACK, which must not count as the answer.
+
+        A final ACK (all data received) is never stale: the IRS may send it right
+        after an ACK that started the ISS's next burst, and it ends the session
+        whichever burst it answers."""
         return (
             frame.get("frame_type_int") == FRAME_TYPE.ARQ_BURST_ACK.value
             and "burst_id" in frame
+            and not frame.get("flag", {}).get("FINAL")
             and self.state == ISS_State.BURST_SENT
             and frame["burst_id"] != self.burst_id
         )

@@ -451,6 +451,8 @@ class ARQSessionIRS(arq_session.ARQSession):
         # its last burst. Repeat the final ACK, but don't deliver the data a second time.
         if self.delivered_crc is not None and self.delivered_crc == self.total_crc:
             self.log("Data already received and delivered, repeating final ACK", isWarning=True)
+            # it answers this burst (FSK burst ACKs carry its id)
+            self.burst_id = burst_frame["burst_id"]
             ack = self.build_burst_ack(flag_final=True, flag_checksum=True)
             self.transmit_frame(ack, mode=self.get_signalling_mode(FREEDV_MODE.signalling_ack))
             return None, None

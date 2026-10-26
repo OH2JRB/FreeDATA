@@ -164,6 +164,34 @@ class TestHfFsk(DemodulatorThread):
         burst = modulator.create_burst(HF_FSK, 1, 0, bytearray(self.make_payloads(1)[0]))
         self.assertEqual(len(burst) // 2, self.data["frame_samples"])
 
+    def test_whitened(self):
+        # a zero-padded frame (ARQ signalling) must not come out as nearly one tone
+        self.assertEqual(codec2._prbs9(4).hex(), "07be2e64")
+        payload = bytes(range(14)) + bytes(16)
+        self.assertEqual(codec2.whiten(HF_FSK.value, codec2.whiten(HF_FSK.value, payload)), payload)
+        self.assertEqual(codec2.whiten(FSK.value, payload), payload)  # data_vhf_1 as before
+        burst = np.frombuffer(cs._modulator(vhf=False).create_burst(HF_FSK, 1, 0, bytearray(bytes(30))), np.int16)
+        spectrum = np.abs(np.fft.rfft(burst.astype(float))) ** 2
+        freqs = np.fft.rfftfreq(len(burst), 1 / cs.FS)
+        config = codec2.fsk_configurations[HF_FSK.value]
+        shares = [
+            spectrum[abs(freqs - (config.first_tone + k * config.tone_spacing)) < 40].sum() / spectrum.sum()
+            for k in range(config.M)
+        ]
+        self.assertLess(max(shares), 0.4)  # unwhitened: 0.64 on one tone
+
+    def test_repeat_passed_on_again(self):
+        # an ARQ repeat of the same frame, 15 s later: no duplicate, it is new
+        payload = bytes([7]) * 14 + bytes(16)
+        self.feed(fsk_audio([payload, payload], gap_ms=15000, snr_db=20, mode=HF_FSK))
+        self.drain()
+        self.assertEqual(self.decoded([payload]), [payload, payload])
+
+    def test_zero_padded_frames_decode(self):
+        # through the demodulator, whitened and back: the payload as sent
+        payloads = [bytes([i]) * 4 + bytes(26) for i in range(1, 4)]
+        self.assert_bursts_decode(payloads, 2, snr_db=10)
+
     def assert_bursts_decode(self, payloads, minimum, **channel):
         self.feed(fsk_audio(payloads, mode=HF_FSK, **channel))
         self.drain()
