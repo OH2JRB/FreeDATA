@@ -3,6 +3,7 @@ Python interface to the C-language codec2 library.
 """
 
 import ctypes
+import functools
 import glob
 import os
 import sys
@@ -824,3 +825,21 @@ fsk_configurations = {
     FREEDV_MODE.data_vhf_1.value: data_vhf_1_config,
     FREEDV_MODE.data_fsk4_50.value: data_fsk4_50_config,
 }
+
+
+@functools.cache
+def get_decode_delay(mode: int) -> float:
+    """Longest time in seconds after the end of a frame until a receiver has decoded it.
+
+    The OFDM modes decode a frame as soon as it has ended. The FSK_LDPC receiver
+    decodes a frame only once it has collected the frame length that follows it,
+    so a frame is decoded up to one frame length after its end: up to 5.1 s for
+    data_fsk4_50 (docs/fading-channels.md, section 8). Counted as 0 for OFDM modes.
+    """
+    if mode not in fsk_configurations:
+        return 0.0
+    freedv = open_instance(mode)
+    try:
+        return api.freedv_get_n_tx_modem_samples(freedv) / api.FREEDV_FS_8000
+    finally:
+        api.freedv_close(freedv)

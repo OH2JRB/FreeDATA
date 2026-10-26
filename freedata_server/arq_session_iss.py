@@ -1,4 +1,5 @@
 import threading
+from freedata_server import codec2
 from freedata_server import data_frame_factory
 import random
 from freedata_server.codec2 import FREEDV_MODE
@@ -161,6 +162,26 @@ class ARQSessionISS(arq_session.ARQSession):
                 # Return False if all possible session IDs are exhausted
                 return False
 
+    def get_response_timeout(self, timeout, mode="auto") -> float:
+        """Returns how long to wait for the IRS's answer to a frame sent in mode.
+
+        The TIMEOUT_* values count from the end of the transmission and assume
+        that the IRS decodes the frame right away, as with the OFDM modes. An FSK
+        frame is decoded up to one frame length later (codec2.get_decode_delay),
+        5.44 s for data_fsk4_50, so that is added.
+
+        Args:
+            timeout (float): The timeout for an OFDM mode, in seconds.
+            mode: The FreeDV mode the frame is sent in, or 'auto' for the
+                mode of the current speed level.
+
+        Returns:
+            float: The timeout in seconds.
+        """
+        if mode in ["auto"]:
+            mode = self.get_mode_by_speed_level(self.speed_level)
+        return timeout + codec2.get_decode_delay(mode.value)
+
     def transmit_wait_and_retry(self, frame_or_burst, timeout, retries, mode, isARQBurst=False):
         """Transmits a frame or burst, waits for a response, and retries if necessary.
 
@@ -186,8 +207,9 @@ class ARQSessionISS(arq_session.ARQSession):
             for f in burst:
                 self.transmit_frame(f, mode)
             self.event_frame_received.clear()
-            self.log(f"Waiting {timeout} seconds...")
-            if self.event_frame_received.wait(timeout):
+            wait = self.get_response_timeout(timeout, mode)
+            self.log(f"Waiting {wait} seconds...")
+            if self.event_frame_received.wait(wait):
                 return
             self.log("Timeout!")
             retries = retries - 1

@@ -590,14 +590,19 @@ signalling on disturbed paths:
    5.44). The speed level travels as a byte in the ARQ frames, so renumbering the
    levels needs a protocol version bump, or the mode gets a new number above the
    others with an explicit order list for stepping up and down.
-2. **Timeouts.** The fixed timeouts do not fit: `TIMEOUT_TRANSFER` (3.5 s) and
-   `TIMEOUT_CONNECT_ACK` (4.5 s) run out before the IRS has even decoded the frame
-   (up to 5.1 s after its end, see above), let alone sent the ACK. The ISS timeout
-   has to come from the mode: decode delay (about one frame) plus the ACK's
-   airtime and its own decode delay. If the ACK is also sent in
-   `data_fsk4_50`, that is about 5.4 + 5.4 + 5.4 s, roughly 16 s plus PTT and
-   audio latency, per burst. A codec2 change that lets the FSK_LDPC receiver
-   decode as soon as a frame is complete would cut this by two frame lengths.
+2. **Timeouts (done for the ISS's own frames).** The fixed timeouts did not
+   fit: `TIMEOUT_TRANSFER` (3.5 s) and `TIMEOUT_CONNECT_ACK` (4.5 s) ran out
+   before the IRS had even decoded the frame (up to 5.1 s after its end, see
+   above). `ARQSessionISS.get_response_timeout()` now adds
+   `codec2.get_decode_delay()` of the mode the frame was sent in: one frame
+   length for FSK modes (5.44 s for `data_fsk4_50`), 0 for OFDM modes, so the
+   OFDM waits stay as they were. That is enough while the IRS answers in
+   DATAC13/DATAC14. If the answers also go in `data_fsk4_50` (point 3), the wait
+   has to add the answer's airtime and its decode delay too, about
+   5.4 + 5.4 + 5.4 s, roughly 16 s plus PTT and audio latency per burst. A codec2
+   change that lets the FSK_LDPC receiver decode as soon as a frame is complete
+   would cut this by two frame lengths. The IRS's own timeouts
+   (`TIMEOUT_CONNECT` 55 s, `TIMEOUT_DATA` 90 s) are long enough as they are.
 3. **Signalling.** A data level alone is of no use on an auroral path, since
    `signalling` (DATAC13) and `signalling_ack` (DATAC14) fail there as well (from
    3 to 7 Hz of spread, section 3). Session open, info, ACK, NACK and stop

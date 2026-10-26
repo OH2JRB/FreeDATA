@@ -51,6 +51,11 @@ Terminology: **ISS** = Information Sending Station (sender), **IRS** = Informati
 | `TIMEOUT_STOP_ACK` | 4.5 s | wait after STOP, and the delay before sending STOP |
 | `TIMEOUT_CHANNEL_BUSY` | 0 | added to all of the above |
 
+`transmit_wait_and_retry()` waits `get_response_timeout(timeout, mode)`: the timeout plus
+`codec2.get_decode_delay()` of the mode the frame went out in. That is 0 for the OFDM modes, and one frame
+length for the FSK modes, whose receiver decodes a frame only once it has collected the frame length after it
+(5.44 s for `data_fsk4_50`; see [fading-channels.md](fading-channels.md), section 8).
+
 ### 2.2 Session id and resume
 
 `generate_id()`:
