@@ -668,7 +668,11 @@ data_ofdm_250_config.config.contents.tcp = 0.006
 data_ofdm_250_config.config.contents.ts = 0.016
 data_ofdm_250_config.config.contents.rs = 1.0 / data_ofdm_250_config.config.contents.ts
 data_ofdm_250_config.config.contents.nc = 4
-data_ofdm_250_config.config.contents.timing_mx_thresh = 0.5
+# codec2's datac4 uses 0.5, but its receiver also has a bandpass filter that
+# codec2 only enables for modes named datac4/13/14. Without it the timing
+# metric peaks just below 0.5 even at 30 dB SNR, and lower as the noise of
+# the whole audio band comes in, so the mode never synced.
+data_ofdm_250_config.config.contents.timing_mx_thresh = 0.10
 data_ofdm_250_config.config.contents.bad_uw_errors = 12
 data_ofdm_250_config.config.contents.codename = "H_1024_2048_4f".encode("utf-8")
 data_ofdm_250_config.config.contents.amp_scale = 2 * 300e3

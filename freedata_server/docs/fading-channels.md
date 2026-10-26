@@ -67,7 +67,7 @@ the ARQ speed levels (`arq_session.SPEED_LEVEL_DICT`) are in bold.
 | datac3 | 296 | 0% | 100% | 100% | 100% | 100% | 100% | 100% |
 | **datac1** | 927 | 0% | 0% | 100% | 100% | 100% | 100% | 100% |
 | data_ofdm_200 | 51 | 0% | 0% | 0% | 0% | 100% | 100% | 100% |
-| data_ofdm_250 | 80 | 0% | 0% | 0% | 0% | 0% | 0% | 0% |
+| data_ofdm_250 | 80 | 85% | 100% | 100% | 100% | 100% | 100% | 100% |
 | **data_ofdm_500** | 255 | 0% | 100% | 100% | 100% | 100% | 100% | 100% |
 | data_ofdm_1700 | 927 | 0% | 0% | 100% | 100% | 100% | 100% | 100% |
 | **data_ofdm_2438** | 1797 | 0% | 0% | 100% | 100% | 100% | 100% | 100% |
@@ -84,7 +84,7 @@ the ARQ speed levels (`arq_session.SPEED_LEVEL_DICT`) are in bold.
 | datac3 | 296 | 0% | 40% | 100% | 100% | 100% | 100% | 100% |
 | **datac1** | 927 | 0% | 0% | 75% | 100% | 100% | 100% | 100% |
 | data_ofdm_200 | 51 | 0% | 0% | 0% | 10% | 80% | 100% | 100% |
-| data_ofdm_250 | 80 | 0% | 0% | 0% | 0% | 0% | 0% | 0% |
+| data_ofdm_250 | 80 | 25% | 70% | 100% | 95% | 100% | 100% | 100% |
 | **data_ofdm_500** | 255 | 10% | 75% | 100% | 100% | 100% | 100% | 100% |
 | data_ofdm_1700 | 927 | 0% | 0% | 80% | 100% | 100% | 100% | 100% |
 | **data_ofdm_2438** | 1797 | 0% | 0% | 25% | 95% | 95% | 100% | 100% |
@@ -101,7 +101,7 @@ the ARQ speed levels (`arq_session.SPEED_LEVEL_DICT`) are in bold.
 | datac3 | 296 | 0% | 70% | 90% | 100% | 100% | 100% | 100% |
 | **datac1** | 927 | 0% | 0% | 60% | 100% | 100% | 100% | 100% |
 | data_ofdm_200 | 51 | 0% | 0% | 0% | 15% | 55% | 95% | 85% |
-| data_ofdm_250 | 80 | 0% | 0% | 0% | 0% | 0% | 0% | 0% |
+| data_ofdm_250 | 80 | 35% | 85% | 95% | 100% | 100% | 100% | 100% |
 | **data_ofdm_500** | 255 | 0% | 90% | 100% | 100% | 100% | 100% | 100% |
 | data_ofdm_1700 | 927 | 0% | 0% | 75% | 100% | 100% | 100% | 100% |
 | **data_ofdm_2438** | 1797 | 0% | 0% | 25% | 100% | 100% | 100% | 100% |
@@ -174,9 +174,22 @@ the ARQ speed levels (`arq_session.SPEED_LEVEL_DICT`) are in bold.
   most promising way to get through auroral paths.
 - Because the speed level is chosen from the SNR alone, FreeDATA would pick
   DATAC1 or faster on a strong auroral signal, which then fails completely.
-- `data_ofdm_250` decodes nothing, even on a clean channel at 30 dB. It is not
-  used by the ARQ speed levels; its configuration in `codec2.py` probably needs
-  fixing.
+- `data_ofdm_250` (a copy of DATAC4, not used by the ARQ speed levels) used to
+  decode nothing, even on a clean channel at 30 dB. Its config took DATAC4's
+  `timing_mx_thresh` of 0.5, but codec2's DATAC4 also has a receive bandpass
+  filter around its carriers, which codec2 only enables for the modes named
+  `datac4`, `datac13` and `datac14` (for any other mode `rx_bpf_en` hits an
+  assert). Without the filter the timing metric of the acquisition, normalised
+  against the power of the whole audio band, peaks just below 0.5 even at
+  30 dB, so the receiver never syncs. With the threshold at 0.10, like
+  `data_ofdm_500`, `_1700` and `_2438`, it decodes from 0 dB on `awgn` (85% at
+  -5 dB) and does about as well as `data_ofdm_500` on the fading channels; the
+  rows above are measured with that fix. DATAC4 itself is still better at -5 dB
+  thanks to the filter.
+- `data_ofdm_200` (a copy of DATAC13) has the same problem in a milder form: its
+  threshold of 0.45 without the filter makes it decode only from 15 dB on
+  `awgn`, where DATAC13 decodes at -5 dB. With 0.10 it decodes from 0 dB in a
+  quick check (8 frames); it is left unchanged here.
 
 ## 5. Limits
 
