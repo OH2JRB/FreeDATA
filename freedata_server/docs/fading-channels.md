@@ -66,7 +66,7 @@ the ARQ speed levels (`arq_session.SPEED_LEVEL_DICT`) are in bold.
 | datac0 | 170 | 0% | 100% | 100% | 100% | 100% | 100% | 100% |
 | datac3 | 296 | 0% | 100% | 100% | 100% | 100% | 100% | 100% |
 | **datac1** | 927 | 0% | 0% | 100% | 100% | 100% | 100% | 100% |
-| data_ofdm_200 | 51 | 0% | 0% | 0% | 0% | 100% | 100% | 100% |
+| data_ofdm_200 | 51 | 80% | 100% | 100% | 100% | 100% | 100% | 100% |
 | data_ofdm_250 | 80 | 85% | 100% | 100% | 100% | 100% | 100% | 100% |
 | **data_ofdm_500** | 255 | 0% | 100% | 100% | 100% | 100% | 100% | 100% |
 | data_ofdm_1700 | 927 | 0% | 0% | 100% | 100% | 100% | 100% | 100% |
@@ -83,7 +83,7 @@ the ARQ speed levels (`arq_session.SPEED_LEVEL_DICT`) are in bold.
 | datac0 | 170 | 10% | 50% | 95% | 95% | 100% | 100% | 100% |
 | datac3 | 296 | 0% | 40% | 100% | 100% | 100% | 100% | 100% |
 | **datac1** | 927 | 0% | 0% | 75% | 100% | 100% | 100% | 100% |
-| data_ofdm_200 | 51 | 0% | 0% | 0% | 10% | 80% | 100% | 100% |
+| data_ofdm_200 | 51 | 55% | 75% | 90% | 100% | 100% | 100% | 100% |
 | data_ofdm_250 | 80 | 25% | 70% | 100% | 95% | 100% | 100% | 100% |
 | **data_ofdm_500** | 255 | 10% | 75% | 100% | 100% | 100% | 100% | 100% |
 | data_ofdm_1700 | 927 | 0% | 0% | 80% | 100% | 100% | 100% | 100% |
@@ -100,7 +100,7 @@ the ARQ speed levels (`arq_session.SPEED_LEVEL_DICT`) are in bold.
 | datac0 | 170 | 5% | 60% | 100% | 100% | 100% | 100% | 100% |
 | datac3 | 296 | 0% | 70% | 90% | 100% | 100% | 100% | 100% |
 | **datac1** | 927 | 0% | 0% | 60% | 100% | 100% | 100% | 100% |
-| data_ofdm_200 | 51 | 0% | 0% | 0% | 15% | 55% | 95% | 85% |
+| data_ofdm_200 | 51 | 45% | 80% | 85% | 90% | 100% | 100% | 100% |
 | data_ofdm_250 | 80 | 35% | 85% | 95% | 100% | 100% | 100% | 100% |
 | **data_ofdm_500** | 255 | 0% | 90% | 100% | 100% | 100% | 100% | 100% |
 | data_ofdm_1700 | 927 | 0% | 0% | 75% | 100% | 100% | 100% | 100% |
@@ -186,10 +186,12 @@ the ARQ speed levels (`arq_session.SPEED_LEVEL_DICT`) are in bold.
   -5 dB) and does about as well as `data_ofdm_500` on the fading channels; the
   rows above are measured with that fix. DATAC4 itself is still better at -5 dB
   thanks to the filter.
-- `data_ofdm_200` (a copy of DATAC13) has the same problem in a milder form: its
-  threshold of 0.45 without the filter makes it decode only from 15 dB on
-  `awgn`, where DATAC13 decodes at -5 dB. With 0.10 it decodes from 0 dB in a
-  quick check (8 frames); it is left unchanged here.
+- `data_ofdm_200` (a copy of DATAC13) had the same problem in a milder form: its
+  threshold of 0.45 without the filter made it decode only from 15 dB on
+  `awgn`, where DATAC13 decodes at -5 dB. With 0.10 it decodes from 0 dB on
+  `awgn` (80% at -5 dB); the rows above are measured with that fix. On the
+  mid-latitude channels it still trails DATAC13 by a few dB below 10 dB, again
+  because DATAC13 has the filter.
 
 ## 5. Limits
 
