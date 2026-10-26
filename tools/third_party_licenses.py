@@ -34,6 +34,8 @@ GUI = ROOT / "freedata_gui"
 # license texts for packages that don't ship one in their wheel or npm package
 PACKAGE_TEXTS = {
     "pyserial": "tools/licenses/pyserial-LICENSE.txt",
+    # ISC per its package.json; the package and its repository have no license file
+    "js-image-compressor": "tools/licenses/js-image-compressor-LICENSE.txt",
 }
 
 LICENSE_FILE_RE = re.compile(r"^(licen[cs]e|copying|notice|unlicense)([-._].*)?$", re.IGNORECASE)
@@ -112,11 +114,18 @@ NATIVE = [
     {
         "name": "Airport list (airports.json)",
         "shipped": "GUI: freedata_gui/src/assets/airports.json",
-        "license": "unknown",
-        "copyright": "unknown",
-        "source": "not recorded in the repository",
-        "texts": [],
-        "note": "Used to show airport names for METAR messages. Its origin and license still have to be checked.",
+        "license": "MIT",
+        "copyright": "Copyright (c) 2011 James Brooks and the JSON-Airports contributors (including Ray Bellis)",
+        "source": (
+            "https://github.com/jbrooksuk/JSON-Airports, as in the fork "
+            "https://github.com/raybellis/JSON-Airports (commit 83353d8a8afc3abb32dd8eb82eb6b543b2f6ee91)"
+        ),
+        "texts": ["tools/licenses/JSON-Airports-LICENSE.txt"],
+        "note": (
+            "Used to show airport names for METAR messages. The file is identical to airports.json "
+            "at that commit of the fork; the upstream readme gives the license as MIT "
+            "(http://jbrooksuk.mit-license.org)."
+        ),
     },
 ]
 

@@ -82,181 +82,181 @@ World map data (countries-50m.json)
 
 Airport list (airports.json)
   Shipped in: GUI: freedata_gui/src/assets/airports.json
-  License:    unknown
-  Copyright:  unknown
-  Source:     not recorded in the repository
-  Text:       none
-  Note:       Used to show airport names for METAR messages. Its origin and license still have to be checked.
+  License:    MIT
+  Copyright:  Copyright (c) 2011 James Brooks and the JSON-Airports contributors (including Ray Bellis)
+  Source:     https://github.com/jbrooksuk/JSON-Airports, as in the fork https://github.com/raybellis/JSON-Airports (commit 83353d8a8afc3abb32dd8eb82eb6b543b2f6ee91)
+  Text:       [11]
+  Note:       Used to show airport names for METAR messages. The file is identical to airports.json at that commit of the fork; the upstream readme gives the license as MIT (http://jbrooksuk.mit-license.org).
 
 
 2. Python packages (server, all builds)
 ==============================================================================
 
-agent-detector 2.0.0                             MIT                                      text [11]
-annotated-doc 0.0.5                              MIT                                      text [12]
-annotated-types 0.8.0                            MIT                                      text [13]
-anyio 4.15.1                                     MIT                                      text [14]
-certifi 2026.10.23                               Mozilla Public License 2.0 (MPL 2.0)     text [15]
-cffi 2.1.1                                       MIT-0                                    text [16]
-charset-normalizer 3.5.2                         MIT                                      text [17]
-click 8.5.0                                      BSD-3-Clause                             text [18]
-colorama 0.4.6                                   BSD License                              text [19]
-cryptography 50.0.2                              Apache-2.0 OR BSD-3-Clause               text [20] [21] [22]
-detect-installer 0.2.1                           0BSD                                     text [23]
-dnspython 2.8.0                                  ISC License (ISCL)                       text [24]
-email-validator 2.3.0                            The Unlicense (Unlicense)                text [25]
-fastapi 0.142.2                                  MIT                                      text [26]
-fastapi-cli 0.0.32                               MIT                                      text [27]
-fastapi-cloud-cli 0.26.0                         MIT License                              text [27]
-fastar 0.12.0                                    MIT                                      text [28]
-googleapis-common-protos 1.75.5                  Apache-2.0                               text [29]
-h11 0.16.0                                       MIT License                              text [30]
-httpcore 1.0.9                                   BSD-3-Clause                             text [31]
-httptools 0.8.0                                  MIT                                      text [32] [33] [34]
-httpx 0.28.1                                     BSD License                              text [35]
-idna 3.20                                        BSD-3-Clause                             text [36]
-Jinja2 3.1.6                                     BSD License                              text [37]
-markdown-it-py 4.2.0                             MIT License                              text [38] [39]
-MarkupSafe 3.0.4                                 BSD-3-Clause                             text [40]
-mdurl 0.1.2                                      MIT License                              text [41]
-numpy 2.5.3                                      BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0 text [42] [43] [44] [45] [46] [47] [48] [49] [50] [51] [52] [53] [54] [55] [56] [57] [58]
-opentelemetry-api 1.45.1                         Apache-2.0                               text [29]
-opentelemetry-exporter-http-transport 0.66b1     Apache-2.0                               text [29]
-opentelemetry-exporter-otlp-common 0.66b1        Apache-2.0                               text [29]
-opentelemetry-exporter-otlp-proto-common 1.45.1  Apache-2.0                               text [29]
-opentelemetry-exporter-otlp-proto-http 1.45.1    Apache-2.0                               text [29]
-opentelemetry-proto 1.45.1                       Apache-2.0                               text [29]
-opentelemetry-sdk 1.45.1                         Apache-2.0                               text [29]
-opentelemetry-semantic-conventions 0.66b1        Apache-2.0                               text [29]
-protobuf 7.36.2                                  3-Clause BSD License                     text [59]
-psutil 7.2.2                                     BSD-3-Clause                             text [60]
-pycparser 3.0                                    BSD-3-Clause                             text [61]
-pydantic 2.13.5                                  MIT                                      text [62]
-pydantic_core 2.46.5                             MIT                                      text [63]
-pydantic-extra-types 2.11.1                      MIT                                      text [64]
-pydantic-settings 2.15.0                         MIT                                      text [65]
-Pygments 2.21.0                                  BSD-2-Clause                             text [66] [67]
-pyserial 3.5                                     BSD License                              text [68]
-python-dotenv 1.2.4                              BSD-3-Clause                             text [69]
-python-multipart 0.0.32                          Apache-2.0                               text [29]
-PyYAML 6.0.3                                     MIT License                              text [70]
-requests 2.34.2                                  Apache Software License                  text [71] [72]
-rich 15.0.0                                      MIT License                              text [73]
-rich-toolkit 0.20.5                              MIT                                      text [74] [75]
-rignore 0.8.1                                    MIT                                      text [74]
-sentry-sdk 2.71.0                                MIT                                      text [76]
-shellingham 1.5.4                                ISC License (ISCL)                       text [77]
-sounddevice 0.5.6                                MIT                                      text [78]
-SQLAlchemy 2.1.3                                 MIT                                      text [79] [80]
-starlette 1.7.0                                  BSD-3-Clause                             text [81]
-structlog 26.1.0                                 MIT OR Apache-2.0                        text [82] [83] [84]
-typer 0.27.2                                     MIT                                      text [85]
-typing_extensions 4.16.0                         PSF-2.0                                  text [86]
-typing-inspection 0.4.4                          MIT                                      text [87]
-urllib3 2.8.0                                    MIT                                      text [88]
-uvicorn 0.54.0                                   BSD-3-Clause                             text [89]
-watchfiles 1.3.0                                 MIT License                              text [90]
-websockets 17.2                                  BSD-3-Clause                             text [91]
+agent-detector 2.0.0                             MIT                                      text [12]
+annotated-doc 0.0.5                              MIT                                      text [13]
+annotated-types 0.8.0                            MIT                                      text [14]
+anyio 4.15.1                                     MIT                                      text [15]
+certifi 2026.10.23                               Mozilla Public License 2.0 (MPL 2.0)     text [16]
+cffi 2.1.1                                       MIT-0                                    text [17]
+charset-normalizer 3.5.2                         MIT                                      text [18]
+click 8.5.0                                      BSD-3-Clause                             text [19]
+colorama 0.4.6                                   BSD License                              text [20]
+cryptography 50.0.2                              Apache-2.0 OR BSD-3-Clause               text [21] [22] [23]
+detect-installer 0.2.1                           0BSD                                     text [24]
+dnspython 2.8.0                                  ISC License (ISCL)                       text [25]
+email-validator 2.3.0                            The Unlicense (Unlicense)                text [26]
+fastapi 0.142.2                                  MIT                                      text [27]
+fastapi-cli 0.0.32                               MIT                                      text [28]
+fastapi-cloud-cli 0.26.0                         MIT License                              text [28]
+fastar 0.12.0                                    MIT                                      text [29]
+googleapis-common-protos 1.75.5                  Apache-2.0                               text [30]
+h11 0.16.0                                       MIT License                              text [31]
+httpcore 1.0.9                                   BSD-3-Clause                             text [32]
+httptools 0.8.0                                  MIT                                      text [33] [34] [35]
+httpx 0.28.1                                     BSD License                              text [36]
+idna 3.20                                        BSD-3-Clause                             text [37]
+Jinja2 3.1.6                                     BSD License                              text [38]
+markdown-it-py 4.2.0                             MIT License                              text [39] [40]
+MarkupSafe 3.0.4                                 BSD-3-Clause                             text [41]
+mdurl 0.1.2                                      MIT License                              text [42]
+numpy 2.5.3                                      BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0 text [43] [44] [45] [46] [47] [48] [49] [50] [51] [52] [53] [54] [55] [56] [57] [58] [59]
+opentelemetry-api 1.45.1                         Apache-2.0                               text [30]
+opentelemetry-exporter-http-transport 0.66b1     Apache-2.0                               text [30]
+opentelemetry-exporter-otlp-common 0.66b1        Apache-2.0                               text [30]
+opentelemetry-exporter-otlp-proto-common 1.45.1  Apache-2.0                               text [30]
+opentelemetry-exporter-otlp-proto-http 1.45.1    Apache-2.0                               text [30]
+opentelemetry-proto 1.45.1                       Apache-2.0                               text [30]
+opentelemetry-sdk 1.45.1                         Apache-2.0                               text [30]
+opentelemetry-semantic-conventions 0.66b1        Apache-2.0                               text [30]
+protobuf 7.36.2                                  3-Clause BSD License                     text [60]
+psutil 7.2.2                                     BSD-3-Clause                             text [61]
+pycparser 3.0                                    BSD-3-Clause                             text [62]
+pydantic 2.13.5                                  MIT                                      text [63]
+pydantic_core 2.46.5                             MIT                                      text [64]
+pydantic-extra-types 2.11.1                      MIT                                      text [65]
+pydantic-settings 2.15.0                         MIT                                      text [66]
+Pygments 2.21.0                                  BSD-2-Clause                             text [67] [68]
+pyserial 3.5                                     BSD License                              text [69]
+python-dotenv 1.2.4                              BSD-3-Clause                             text [70]
+python-multipart 0.0.32                          Apache-2.0                               text [30]
+PyYAML 6.0.3                                     MIT License                              text [71]
+requests 2.34.2                                  Apache Software License                  text [72] [73]
+rich 15.0.0                                      MIT License                              text [74]
+rich-toolkit 0.20.5                              MIT                                      text [75] [76]
+rignore 0.8.1                                    MIT                                      text [75]
+sentry-sdk 2.71.0                                MIT                                      text [77]
+shellingham 1.5.4                                ISC License (ISCL)                       text [78]
+sounddevice 0.5.6                                MIT                                      text [79]
+SQLAlchemy 2.1.3                                 MIT                                      text [80] [81]
+starlette 1.7.0                                  BSD-3-Clause                             text [82]
+structlog 26.1.0                                 MIT OR Apache-2.0                        text [83] [84] [85]
+typer 0.27.2                                     MIT                                      text [86]
+typing_extensions 4.16.0                         PSF-2.0                                  text [87]
+typing-inspection 0.4.4                          MIT                                      text [88]
+urllib3 2.8.0                                    MIT                                      text [89]
+uvicorn 0.54.0                                   BSD-3-Clause                             text [90]
+watchfiles 1.3.0                                 MIT License                              text [91]
+websockets 17.2                                  BSD-3-Clause                             text [92]
 
 
 3. JavaScript packages (built into the web GUI)
 ==============================================================================
 
-@babel/helper-string-parser 7.29.11              MIT                                      text [92]
-@babel/helper-validator-identifier 7.29.7        MIT                                      text [92]
-@babel/parser 7.29.11                            MIT                                      text [93]
-@babel/types 7.29.11                             MIT                                      text [92]
-@jridgewell/sourcemap-codec 1.5.5                MIT                                      text [94]
-@kurkle/color 0.3.4                              MIT                                      text [95]
-@popperjs/core 2.11.8                            MIT                                      text [96]
-@types/trusted-types 2.0.7                       MIT                                      text [97]
-@vue/compiler-core 3.5.44                        MIT                                      text [98]
-@vue/compiler-dom 3.5.44                         MIT                                      text [98]
-@vue/compiler-sfc 3.5.44                         MIT                                      text [98]
-@vue/compiler-ssr 3.5.44                         MIT                                      text [98]
-@vue/devtools-api 7.7.7                          MIT                                      text [99]
-@vue/devtools-kit 7.7.7                          MIT                                      text [99]
-@vue/devtools-shared 7.7.7                       MIT                                      text [99]
-@vue/reactivity 3.5.44                           MIT                                      text [98]
-@vue/runtime-core 3.5.44                         MIT                                      text [98]
-@vue/runtime-dom 3.5.44                          MIT                                      text [98]
-@vue/server-renderer 3.5.44                      MIT                                      text [98]
-@vue/shared 3.5.44                               MIT                                      text [98]
-birpc 2.6.1                                      MIT                                      text [100]
-bootstrap 5.3.8                                  MIT                                      text [101]
-bootstrap-icons 1.13.1                           MIT                                      text [102]
-chart.js 4.5.1                                   MIT                                      text [103]
-chartjs-plugin-annotation 3.1.0                  MIT                                      text [104]
-commander 7.2.0                                  MIT                                      text [105]
-commander 2.20.3                                 MIT                                      text [105]
-copy-anything 3.0.5                              MIT                                      text [106]
-csstype 3.2.3                                    MIT                                      text [107]
-d3 7.9.0                                         ISC                                      text [108]
-d3-array 3.2.4                                   ISC                                      text [108]
-d3-axis 3.0.0                                    ISC                                      text [109]
-d3-brush 3.0.0                                   ISC                                      text [109]
-d3-chord 3.0.1                                   ISC                                      text [109]
-d3-color 3.1.0                                   ISC                                      text [110]
-d3-contour 4.0.2                                 ISC                                      text [111]
-d3-delaunay 6.0.4                                ISC                                      text [112]
-d3-dispatch 3.0.1                                ISC                                      text [109]
-d3-drag 3.0.0                                    ISC                                      text [109]
-d3-dsv 3.0.1                                     ISC                                      text [113]
-d3-ease 3.0.1                                    BSD-3-Clause                             text [114]
-d3-fetch 3.0.1                                   ISC                                      text [115]
-d3-force 3.0.0                                   ISC                                      text [109]
-d3-format 3.1.0                                  ISC                                      text [109]
-d3-geo 3.1.1                                     ISC                                      text [116]
-d3-hierarchy 3.1.2                               ISC                                      text [109]
-d3-interpolate 3.0.1                             ISC                                      text [109]
-d3-path 3.1.0                                    ISC                                      text [117]
-d3-polygon 3.0.1                                 ISC                                      text [109]
-d3-quadtree 3.0.1                                ISC                                      text [109]
-d3-random 3.0.1                                  ISC                                      text [109]
-d3-scale 4.0.2                                   ISC                                      text [109]
-d3-scale-chromatic 3.1.0                         ISC                                      text [118]
-d3-selection 3.0.0                               ISC                                      text [109]
-d3-shape 3.2.0                                   ISC                                      text [110]
-d3-time 3.1.0                                    ISC                                      text [110]
-d3-time-format 4.1.0                             ISC                                      text [109]
-d3-timer 3.0.1                                   ISC                                      text [109]
-d3-transition 3.0.1                              ISC                                      text [109]
-d3-zoom 3.0.0                                    ISC                                      text [109]
-delaunator 5.0.1                                 ISC                                      text [119]
-dompurify 3.4.17                                 (MPL-2.0 OR Apache-2.0)                  text [29] [120]
-emoji-picker-element 1.27.0                      Apache-2.0                               text [121]
-entities 7.0.1                                   BSD-2-Clause                             text [122]
-estree-walker 2.0.2                              MIT                                      text [123]
-gridstack 12.3.3                                 MIT                                      text [124]
-hookable 5.5.3                                   MIT                                      text [125]
-i18next 26.3.0                                   MIT                                      text [126]
-i18next-vue 5.4.0                                MIT                                      text [127]
-iconv-lite 0.6.3                                 MIT                                      text [128]
-internmap 2.0.3                                  ISC                                      text [129]
-is-what 4.1.16                                   MIT                                      text [106]
-js-image-compressor 2.0.0                        ISC                                      text none published by the project
-magic-string 0.30.21                             MIT                                      text [130]
-marked 18.0.3                                    MIT                                      text [131]
-mitt 3.0.1                                       MIT                                      text [132]
-nanoid 3.3.20                                    MIT                                      text [133]
-perfect-debounce 1.0.0                           MIT                                      text [134]
-picocolors 1.1.1                                 ISC                                      text [135]
-pinia 3.0.3                                      MIT                                      text [136]
-postcss 8.5.31                                   MIT                                      text [137]
-qth-locator 2.1.0                                MIT                                      text [138]
-rfdc 1.4.1                                       MIT                                      text [139]
-robust-predicates 3.0.2                          Unlicense                                text [140]
-rw 1.3.3                                         BSD-3-Clause                             text [141]
-safer-buffer 2.1.2                               MIT                                      text [142]
-source-map-js 1.2.2                              BSD-3-Clause                             text [143]
-speakingurl 14.0.1                               BSD-3-Clause                             text [144]
-superjson 2.2.2                                  MIT                                      text [145]
-topojson-client 3.1.0                            ISC                                      text [146]
-uuid 14.0.2                                      MIT                                      text [147]
-vue 3.5.44                                       MIT                                      text [98]
-vue-chartjs 5.3.2                                MIT                                      text [148]
-vue-demi 0.14.10                                 MIT                                      text [149]
-vuemoji-picker 0.3.2                             MIT                                      text [150]
+@babel/helper-string-parser 7.29.11              MIT                                      text [93]
+@babel/helper-validator-identifier 7.29.7        MIT                                      text [93]
+@babel/parser 7.29.11                            MIT                                      text [94]
+@babel/types 7.29.11                             MIT                                      text [93]
+@jridgewell/sourcemap-codec 1.5.5                MIT                                      text [95]
+@kurkle/color 0.3.4                              MIT                                      text [96]
+@popperjs/core 2.11.8                            MIT                                      text [97]
+@types/trusted-types 2.0.7                       MIT                                      text [98]
+@vue/compiler-core 3.5.44                        MIT                                      text [99]
+@vue/compiler-dom 3.5.44                         MIT                                      text [99]
+@vue/compiler-sfc 3.5.44                         MIT                                      text [99]
+@vue/compiler-ssr 3.5.44                         MIT                                      text [99]
+@vue/devtools-api 7.7.7                          MIT                                      text [100]
+@vue/devtools-kit 7.7.7                          MIT                                      text [100]
+@vue/devtools-shared 7.7.7                       MIT                                      text [100]
+@vue/reactivity 3.5.44                           MIT                                      text [99]
+@vue/runtime-core 3.5.44                         MIT                                      text [99]
+@vue/runtime-dom 3.5.44                          MIT                                      text [99]
+@vue/server-renderer 3.5.44                      MIT                                      text [99]
+@vue/shared 3.5.44                               MIT                                      text [99]
+birpc 2.6.1                                      MIT                                      text [101]
+bootstrap 5.3.8                                  MIT                                      text [102]
+bootstrap-icons 1.13.1                           MIT                                      text [103]
+chart.js 4.5.1                                   MIT                                      text [104]
+chartjs-plugin-annotation 3.1.0                  MIT                                      text [105]
+commander 7.2.0                                  MIT                                      text [106]
+commander 2.20.3                                 MIT                                      text [106]
+copy-anything 3.0.5                              MIT                                      text [107]
+csstype 3.2.3                                    MIT                                      text [108]
+d3 7.9.0                                         ISC                                      text [109]
+d3-array 3.2.4                                   ISC                                      text [109]
+d3-axis 3.0.0                                    ISC                                      text [110]
+d3-brush 3.0.0                                   ISC                                      text [110]
+d3-chord 3.0.1                                   ISC                                      text [110]
+d3-color 3.1.0                                   ISC                                      text [111]
+d3-contour 4.0.2                                 ISC                                      text [112]
+d3-delaunay 6.0.4                                ISC                                      text [113]
+d3-dispatch 3.0.1                                ISC                                      text [110]
+d3-drag 3.0.0                                    ISC                                      text [110]
+d3-dsv 3.0.1                                     ISC                                      text [114]
+d3-ease 3.0.1                                    BSD-3-Clause                             text [115]
+d3-fetch 3.0.1                                   ISC                                      text [116]
+d3-force 3.0.0                                   ISC                                      text [110]
+d3-format 3.1.0                                  ISC                                      text [110]
+d3-geo 3.1.1                                     ISC                                      text [117]
+d3-hierarchy 3.1.2                               ISC                                      text [110]
+d3-interpolate 3.0.1                             ISC                                      text [110]
+d3-path 3.1.0                                    ISC                                      text [118]
+d3-polygon 3.0.1                                 ISC                                      text [110]
+d3-quadtree 3.0.1                                ISC                                      text [110]
+d3-random 3.0.1                                  ISC                                      text [110]
+d3-scale 4.0.2                                   ISC                                      text [110]
+d3-scale-chromatic 3.1.0                         ISC                                      text [119]
+d3-selection 3.0.0                               ISC                                      text [110]
+d3-shape 3.2.0                                   ISC                                      text [111]
+d3-time 3.1.0                                    ISC                                      text [111]
+d3-time-format 4.1.0                             ISC                                      text [110]
+d3-timer 3.0.1                                   ISC                                      text [110]
+d3-transition 3.0.1                              ISC                                      text [110]
+d3-zoom 3.0.0                                    ISC                                      text [110]
+delaunator 5.0.1                                 ISC                                      text [120]
+dompurify 3.4.17                                 (MPL-2.0 OR Apache-2.0)                  text [30] [121]
+emoji-picker-element 1.27.0                      Apache-2.0                               text [122]
+entities 7.0.1                                   BSD-2-Clause                             text [123]
+estree-walker 2.0.2                              MIT                                      text [124]
+gridstack 12.3.3                                 MIT                                      text [125]
+hookable 5.5.3                                   MIT                                      text [126]
+i18next 26.3.0                                   MIT                                      text [127]
+i18next-vue 5.4.0                                MIT                                      text [128]
+iconv-lite 0.6.3                                 MIT                                      text [129]
+internmap 2.0.3                                  ISC                                      text [130]
+is-what 4.1.16                                   MIT                                      text [107]
+js-image-compressor 2.0.0                        ISC                                      text [131]
+magic-string 0.30.21                             MIT                                      text [132]
+marked 18.0.3                                    MIT                                      text [133]
+mitt 3.0.1                                       MIT                                      text [134]
+nanoid 3.3.20                                    MIT                                      text [135]
+perfect-debounce 1.0.0                           MIT                                      text [136]
+picocolors 1.1.1                                 ISC                                      text [137]
+pinia 3.0.3                                      MIT                                      text [138]
+postcss 8.5.31                                   MIT                                      text [139]
+qth-locator 2.1.0                                MIT                                      text [140]
+rfdc 1.4.1                                       MIT                                      text [141]
+robust-predicates 3.0.2                          Unlicense                                text [142]
+rw 1.3.3                                         BSD-3-Clause                             text [143]
+safer-buffer 2.1.2                               MIT                                      text [144]
+source-map-js 1.2.2                              BSD-3-Clause                             text [145]
+speakingurl 14.0.1                               BSD-3-Clause                             text [146]
+superjson 2.2.2                                  MIT                                      text [147]
+topojson-client 3.1.0                            ISC                                      text [148]
+uuid 14.0.2                                      MIT                                      text [149]
+vue 3.5.44                                       MIT                                      text [99]
+vue-chartjs 5.3.2                                MIT                                      text [150]
+vue-demi 0.14.10                                 MIT                                      text [151]
+vuemoji-picker 0.3.2                             MIT                                      text [152]
 
 
 4. License texts
@@ -2803,7 +2803,33 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 
 ------------------------------------------------------------------------------
-[11] Used by: agent-detector 2.0.0
+[11] Used by: Airport list (airports.json)
+------------------------------------------------------------------------------
+
+The MIT License (MIT)
+
+Copyright (c) 2011 James Brooks <jbrooksuk@me.com>
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+------------------------------------------------------------------------------
+[12] Used by: agent-detector 2.0.0
 ------------------------------------------------------------------------------
 
 MIT License
@@ -2829,7 +2855,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ------------------------------------------------------------------------------
-[12] Used by: annotated-doc 0.0.5
+[13] Used by: annotated-doc 0.0.5
 ------------------------------------------------------------------------------
 
 The MIT License (MIT)
@@ -2855,7 +2881,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 ------------------------------------------------------------------------------
-[13] Used by: annotated-types 0.8.0
+[14] Used by: annotated-types 0.8.0
 ------------------------------------------------------------------------------
 
 The MIT License (MIT)
@@ -2881,7 +2907,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ------------------------------------------------------------------------------
-[14] Used by: anyio 4.15.1
+[15] Used by: anyio 4.15.1
 ------------------------------------------------------------------------------
 
 The MIT License (MIT)
@@ -2906,7 +2932,7 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
-[15] Used by: certifi 2026.10.23
+[16] Used by: certifi 2026.10.23
 ------------------------------------------------------------------------------
 
 This package contains a modified version of ca-bundle.crt:
@@ -2931,7 +2957,7 @@ one at http://mozilla.org/MPL/2.0/.
 @(#) $RCSfile: certdata.txt,v $ $Revision: 1.80 $ $Date: 2011/11/03 15:11:58 $
 
 ------------------------------------------------------------------------------
-[16] Used by: cffi 2.1.1
+[17] Used by: cffi 2.1.1
 ------------------------------------------------------------------------------
 
 Except when otherwise stated (look for LICENSE files in directories or
@@ -2957,7 +2983,7 @@ documentation is licensed as follows:
     DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
-[17] Used by: charset-normalizer 3.5.2
+[18] Used by: charset-normalizer 3.5.2
 ------------------------------------------------------------------------------
 
 MIT License
@@ -2983,7 +3009,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ------------------------------------------------------------------------------
-[18] Used by: click 8.5.0
+[19] Used by: click 8.5.0
 ------------------------------------------------------------------------------
 
 Copyright 2014 Pallets
@@ -3016,7 +3042,7 @@ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ------------------------------------------------------------------------------
-[19] Used by: colorama 0.4.6
+[20] Used by: colorama 0.4.6
 ------------------------------------------------------------------------------
 
 Copyright (c) 2010 Jonathan Hartley
@@ -3048,7 +3074,7 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ------------------------------------------------------------------------------
-[20] Used by: cryptography 50.0.2
+[21] Used by: cryptography 50.0.2
 ------------------------------------------------------------------------------
 
 This software is made available under the terms of *either* of the licenses
@@ -3056,7 +3082,7 @@ found in LICENSE.APACHE or LICENSE.BSD. Contributions to cryptography are made
 under the terms of *both* these licenses.
 
 ------------------------------------------------------------------------------
-[21] Used by: cryptography 50.0.2
+[22] Used by: cryptography 50.0.2
 ------------------------------------------------------------------------------
 
                                  Apache License
@@ -3262,7 +3288,7 @@ under the terms of *both* these licenses.
    limitations under the License.
 
 ------------------------------------------------------------------------------
-[22] Used by: cryptography 50.0.2
+[23] Used by: cryptography 50.0.2
 ------------------------------------------------------------------------------
 
 Copyright (c) Individual contributors.
@@ -3294,7 +3320,7 @@ ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ------------------------------------------------------------------------------
-[23] Used by: detect-installer 0.2.1
+[24] Used by: detect-installer 0.2.1
 ------------------------------------------------------------------------------
 
 Copyright (C) 2025 Patrick Arminio
@@ -3311,7 +3337,7 @@ OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 
 ------------------------------------------------------------------------------
-[24] Used by: dnspython 2.8.0
+[25] Used by: dnspython 2.8.0
 ------------------------------------------------------------------------------
 
 ISC License
@@ -3351,7 +3377,7 @@ ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT
 OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 ------------------------------------------------------------------------------
-[25] Used by: email-validator 2.3.0
+[26] Used by: email-validator 2.3.0
 ------------------------------------------------------------------------------
 
 This is free and unencumbered software released into the public
@@ -3383,7 +3409,7 @@ THE SOFTWARE.
 For more information, please refer to <https://unlicense.org/>
 
 ------------------------------------------------------------------------------
-[26] Used by: fastapi 0.142.2
+[27] Used by: fastapi 0.142.2
 ------------------------------------------------------------------------------
 
 The MIT License (MIT)
@@ -3409,7 +3435,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 ------------------------------------------------------------------------------
-[27] Used by: fastapi-cli 0.0.32, fastapi-cloud-cli 0.26.0
+[28] Used by: fastapi-cli 0.0.32, fastapi-cloud-cli 0.26.0
 ------------------------------------------------------------------------------
 
 The MIT License (MIT)
@@ -3435,7 +3461,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 ------------------------------------------------------------------------------
-[28] Used by: fastar 0.12.0
+[29] Used by: fastar 0.12.0
 ------------------------------------------------------------------------------
 
 Copyright 2025 Jonathan Ehwald
@@ -3447,7 +3473,7 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
-[29] Used by: googleapis-common-protos 1.75.5, opentelemetry-api 1.45.1, opentelemetry-exporter-http-transport 0.66b1, opentelemetry-exporter-otlp-common 0.66b1, opentelemetry-exporter-otlp-proto-common 1.45.1, opentelemetry-exporter-otlp-proto-http 1.45.1, opentelemetry-proto 1.45.1, opentelemetry-sdk 1.45.1, opentelemetry-semantic-conventions 0.66b1, python-multipart 0.0.32, dompurify 3.4.17
+[30] Used by: googleapis-common-protos 1.75.5, opentelemetry-api 1.45.1, opentelemetry-exporter-http-transport 0.66b1, opentelemetry-exporter-otlp-common 0.66b1, opentelemetry-exporter-otlp-proto-common 1.45.1, opentelemetry-exporter-otlp-proto-http 1.45.1, opentelemetry-proto 1.45.1, opentelemetry-sdk 1.45.1, opentelemetry-semantic-conventions 0.66b1, python-multipart 0.0.32, dompurify 3.4.17
 ------------------------------------------------------------------------------
 
                                  Apache License
@@ -3653,7 +3679,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
    limitations under the License.
 
 ------------------------------------------------------------------------------
-[30] Used by: h11 0.16.0
+[31] Used by: h11 0.16.0
 ------------------------------------------------------------------------------
 
 The MIT License (MIT)
@@ -3680,7 +3706,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
-[31] Used by: httpcore 1.0.9
+[32] Used by: httpcore 1.0.9
 ------------------------------------------------------------------------------
 
 Copyright © 2020, [Encode OSS Ltd](https://www.encode.io/).
@@ -3712,7 +3738,7 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ------------------------------------------------------------------------------
-[32] Used by: httptools 0.8.0
+[33] Used by: httptools 0.8.0
 ------------------------------------------------------------------------------
 
 The MIT License
@@ -3738,7 +3764,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 ------------------------------------------------------------------------------
-[33] Used by: httptools 0.8.0
+[34] Used by: httptools 0.8.0
 ------------------------------------------------------------------------------
 
 Copyright Joyent, Inc. and other Node contributors.
@@ -3762,7 +3788,7 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE. 
 
 ------------------------------------------------------------------------------
-[34] Used by: httptools 0.8.0
+[35] Used by: httptools 0.8.0
 ------------------------------------------------------------------------------
 
 MIT License
@@ -3789,7 +3815,7 @@ OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
 USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
-[35] Used by: httpx 0.28.1
+[36] Used by: httpx 0.28.1
 ------------------------------------------------------------------------------
 
 Copyright © 2019, [Encode OSS Ltd](https://www.encode.io/).
@@ -3806,7 +3832,7 @@ Redistribution and use in source and binary forms, with or without modification,
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ------------------------------------------------------------------------------
-[36] Used by: idna 3.20
+[37] Used by: idna 3.20
 ------------------------------------------------------------------------------
 
 BSD 3-Clause License
@@ -3842,7 +3868,7 @@ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ------------------------------------------------------------------------------
-[37] Used by: Jinja2 3.1.6
+[38] Used by: Jinja2 3.1.6
 ------------------------------------------------------------------------------
 
 Copyright 2007 Pallets
@@ -3875,7 +3901,7 @@ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ------------------------------------------------------------------------------
-[38] Used by: markdown-it-py 4.2.0
+[39] Used by: markdown-it-py 4.2.0
 ------------------------------------------------------------------------------
 
 MIT License
@@ -3901,7 +3927,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ------------------------------------------------------------------------------
-[39] Used by: markdown-it-py 4.2.0
+[40] Used by: markdown-it-py 4.2.0
 ------------------------------------------------------------------------------
 
 Copyright (c) 2014 Vitaly Puzrin, Alex Kocharin.
@@ -3928,7 +3954,7 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 OTHER DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
-[40] Used by: MarkupSafe 3.0.4
+[41] Used by: MarkupSafe 3.0.4
 ------------------------------------------------------------------------------
 
 Copyright 2010 Pallets
@@ -3961,7 +3987,7 @@ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ------------------------------------------------------------------------------
-[41] Used by: mdurl 0.1.2
+[42] Used by: mdurl 0.1.2
 ------------------------------------------------------------------------------
 
 Copyright (c) 2015 Vitaly Puzrin, Alex Kocharin.
@@ -4012,7 +4038,7 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
-[42] Used by: numpy 2.5.3
+[43] Used by: numpy 2.5.3
 ------------------------------------------------------------------------------
 
 Copyright (c) 2005-2025, NumPy Developers.
@@ -4930,7 +4956,7 @@ Public License instead of this License.  But first, please read
 <https://www.gnu.org/licenses/why-not-lgpl.html>.
 
 ------------------------------------------------------------------------------
-[43] Used by: numpy 2.5.3
+[44] Used by: numpy 2.5.3
 ------------------------------------------------------------------------------
 
   zlib License
@@ -4956,7 +4982,7 @@ Public License instead of this License.  But first, please read
   3. This notice may not be removed or altered from any source distribution.
 
 ------------------------------------------------------------------------------
-[44] Used by: numpy 2.5.3
+[45] Used by: numpy 2.5.3
 ------------------------------------------------------------------------------
 
 BSD Zero Clause License
@@ -4975,7 +5001,7 @@ OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 
 ------------------------------------------------------------------------------
-[45] Used by: numpy 2.5.3
+[46] Used by: numpy 2.5.3
 ------------------------------------------------------------------------------
 
 This project is primarily dual-licensed under your choice of either the Apache
@@ -5351,7 +5377,7 @@ express Statement of Purpose.
     this CC0 or use of the Work.
 
 ------------------------------------------------------------------------------
-[46] Used by: numpy 2.5.3
+[47] Used by: numpy 2.5.3
 ------------------------------------------------------------------------------
 
 Copyright (c) 2014 Ryan Juckett
@@ -5383,7 +5409,7 @@ Ryan Juckett's original code was under the Zlib license; he gave numpy
 permission to include it under the MIT license instead.
 
 ------------------------------------------------------------------------------
-[47] Used by: numpy 2.5.3
+[48] Used by: numpy 2.5.3
 ------------------------------------------------------------------------------
 
 BSD 3-Clause License
@@ -5416,7 +5442,7 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ------------------------------------------------------------------------------
-[48] Used by: numpy 2.5.3
+[49] Used by: numpy 2.5.3
 ------------------------------------------------------------------------------
 
 Copyright (c) 2005-2021, NumPy Developers.
@@ -5451,7 +5477,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ------------------------------------------------------------------------------
-[49] Used by: numpy 2.5.3
+[50] Used by: numpy 2.5.3
 ------------------------------------------------------------------------------
 
 Copyright (C) 2010-2018 Max-Planck-Society
@@ -5481,7 +5507,7 @@ ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ------------------------------------------------------------------------------
-[50] Used by: numpy 2.5.3
+[51] Used by: numpy 2.5.3
 ------------------------------------------------------------------------------
 
 Copyright (c) 1992-2013 The University of Tennessee and The University
@@ -5534,7 +5560,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ------------------------------------------------------------------------------
-[51] Used by: numpy 2.5.3
+[52] Used by: numpy 2.5.3
 ------------------------------------------------------------------------------
 
 * Copyright (c) 2006, University of Georgia and Pierre G.F. Gerard-Marchant
@@ -5563,7 +5589,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ------------------------------------------------------------------------------
-[52] Used by: numpy 2.5.3
+[53] Used by: numpy 2.5.3
 ------------------------------------------------------------------------------
 
 **This software is dual-licensed under the The University of Illinois/NCSA
@@ -5639,7 +5665,7 @@ often the algorithm's designer. Component licenses are located with
 the component code.
 
 ------------------------------------------------------------------------------
-[53] Used by: numpy 2.5.3
+[54] Used by: numpy 2.5.3
 ------------------------------------------------------------------------------
 
 ## NumPy
@@ -5705,7 +5731,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
-[54] Used by: numpy 2.5.3
+[55] Used by: numpy 2.5.3
 ------------------------------------------------------------------------------
 
 # MT19937
@@ -5771,7 +5797,7 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
-[55] Used by: numpy 2.5.3
+[56] Used by: numpy 2.5.3
 ------------------------------------------------------------------------------
 
 # PCG64
@@ -5798,7 +5824,7 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
-[56] Used by: numpy 2.5.3
+[57] Used by: numpy 2.5.3
 ------------------------------------------------------------------------------
 
 # PHILOX
@@ -5834,7 +5860,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ------------------------------------------------------------------------------
-[57] Used by: numpy 2.5.3
+[58] Used by: numpy 2.5.3
 ------------------------------------------------------------------------------
 
 # SFC64
@@ -5866,7 +5892,7 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
-[58] Used by: numpy 2.5.3
+[59] Used by: numpy 2.5.3
 ------------------------------------------------------------------------------
 
 # SPLITMIX64
@@ -5880,7 +5906,7 @@ worldwide. This software is distributed without any warranty.
 See <http://creativecommons.org/publicdomain/zero/1.0/>.
 
 ------------------------------------------------------------------------------
-[59] Used by: protobuf 7.36.2
+[60] Used by: protobuf 7.36.2
 ------------------------------------------------------------------------------
 
 Copyright 2008 Google Inc.  All rights reserved.
@@ -5917,7 +5943,7 @@ standalone and requires a support library to be linked with it.  This
 support library is itself covered by the above license.
 
 ------------------------------------------------------------------------------
-[60] Used by: psutil 7.2.2
+[61] Used by: psutil 7.2.2
 ------------------------------------------------------------------------------
 
 BSD 3-Clause License
@@ -5951,7 +5977,7 @@ ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ------------------------------------------------------------------------------
-[61] Used by: pycparser 3.0
+[62] Used by: pycparser 3.0
 ------------------------------------------------------------------------------
 
 pycparser -- A C parser in Python
@@ -5983,7 +6009,7 @@ LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
 OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ------------------------------------------------------------------------------
-[62] Used by: pydantic 2.13.5
+[63] Used by: pydantic 2.13.5
 ------------------------------------------------------------------------------
 
 The MIT License (MIT)
@@ -6009,7 +6035,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ------------------------------------------------------------------------------
-[63] Used by: pydantic_core 2.46.5
+[64] Used by: pydantic_core 2.46.5
 ------------------------------------------------------------------------------
 
 The MIT License (MIT)
@@ -6035,7 +6061,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ------------------------------------------------------------------------------
-[64] Used by: pydantic-extra-types 2.11.1
+[65] Used by: pydantic-extra-types 2.11.1
 ------------------------------------------------------------------------------
 
 The MIT License (MIT)
@@ -6061,7 +6087,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ------------------------------------------------------------------------------
-[65] Used by: pydantic-settings 2.15.0
+[66] Used by: pydantic-settings 2.15.0
 ------------------------------------------------------------------------------
 
 The MIT License (MIT)
@@ -6087,7 +6113,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ------------------------------------------------------------------------------
-[66] Used by: Pygments 2.21.0
+[67] Used by: Pygments 2.21.0
 ------------------------------------------------------------------------------
 
 Pygments is written and maintained by Georg Brandl <georg@python.org>.
@@ -6388,7 +6414,7 @@ Other contributors, listed alphabetically, are:
 Many thanks for all contributions!
 
 ------------------------------------------------------------------------------
-[67] Used by: Pygments 2.21.0
+[68] Used by: Pygments 2.21.0
 ------------------------------------------------------------------------------
 
 Copyright (c) 2006-2022 by the respective authors (see AUTHORS file).
@@ -6418,7 +6444,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ------------------------------------------------------------------------------
-[68] Used by: pyserial 3.5
+[69] Used by: pyserial 3.5
 ------------------------------------------------------------------------------
 
 Copyright (c) 2001-2020 Chris Liechti <cliechti@gmx.net>
@@ -6462,7 +6488,7 @@ This enables machine processing of license information based on the SPDX
 License Identifiers that are here available: http://spdx.org/licenses/
 
 ------------------------------------------------------------------------------
-[69] Used by: python-dotenv 1.2.4
+[70] Used by: python-dotenv 1.2.4
 ------------------------------------------------------------------------------
 
 Copyright (c) 2014, Saurabh Kumar (python-dotenv), 2013, Ted Tieken (django-dotenv-rw), 2013, Jacob Kaplan-Moss (django-dotenv)
@@ -6494,7 +6520,7 @@ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ------------------------------------------------------------------------------
-[70] Used by: PyYAML 6.0.3
+[71] Used by: PyYAML 6.0.3
 ------------------------------------------------------------------------------
 
 Copyright (c) 2017-2021 Ingy döt Net
@@ -6519,7 +6545,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ------------------------------------------------------------------------------
-[71] Used by: requests 2.34.2
+[72] Used by: requests 2.34.2
 ------------------------------------------------------------------------------
 
                                  Apache License
@@ -6698,14 +6724,14 @@ SOFTWARE.
       of your accepting any such warranty or additional liability.
 
 ------------------------------------------------------------------------------
-[72] Used by: requests 2.34.2
+[73] Used by: requests 2.34.2
 ------------------------------------------------------------------------------
 
 Requests
 Copyright 2019 Kenneth Reitz
 
 ------------------------------------------------------------------------------
-[73] Used by: rich 15.0.0
+[74] Used by: rich 15.0.0
 ------------------------------------------------------------------------------
 
 Copyright (c) 2020 Will McGugan
@@ -6729,7 +6755,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ------------------------------------------------------------------------------
-[74] Used by: rich-toolkit 0.20.5, rignore 0.8.1
+[75] Used by: rich-toolkit 0.20.5, rignore 0.8.1
 ------------------------------------------------------------------------------
 
 MIT License
@@ -6755,7 +6781,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ------------------------------------------------------------------------------
-[75] Used by: rich-toolkit 0.20.5
+[76] Used by: rich-toolkit 0.20.5
 ------------------------------------------------------------------------------
 
 Third-Party Licenses
@@ -6824,7 +6850,7 @@ The following files contain code derived from Textual:
 - src/rich_toolkit/_getchar_textual.py
 
 ------------------------------------------------------------------------------
-[76] Used by: sentry-sdk 2.71.0
+[77] Used by: sentry-sdk 2.71.0
 ------------------------------------------------------------------------------
 
 MIT License
@@ -6850,7 +6876,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ------------------------------------------------------------------------------
-[77] Used by: shellingham 1.5.4
+[78] Used by: shellingham 1.5.4
 ------------------------------------------------------------------------------
 
 Copyright (c) 2018, Tzu-ping Chung <uranusjr@gmail.com>
@@ -6868,7 +6894,7 @@ ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 ------------------------------------------------------------------------------
-[78] Used by: sounddevice 0.5.6
+[79] Used by: sounddevice 0.5.6
 ------------------------------------------------------------------------------
 
 Copyright (c) 2015-2025 Matthias Geier
@@ -6892,7 +6918,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 ------------------------------------------------------------------------------
-[79] Used by: SQLAlchemy 2.1.3
+[80] Used by: SQLAlchemy 2.1.3
 ------------------------------------------------------------------------------
 
 SQLAlchemy was created by Michael Bayer.
@@ -6927,7 +6953,7 @@ Major contributing authors include:
 - Rodrigo Menezes
 
 ------------------------------------------------------------------------------
-[80] Used by: SQLAlchemy 2.1.3
+[81] Used by: SQLAlchemy 2.1.3
 ------------------------------------------------------------------------------
 
 Copyright 2005-2026 SQLAlchemy authors and contributors <see AUTHORS file>.
@@ -6951,7 +6977,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ------------------------------------------------------------------------------
-[81] Used by: starlette 1.7.0
+[82] Used by: starlette 1.7.0
 ------------------------------------------------------------------------------
 
 Copyright © 2018, [Encode OSS Ltd](https://www.encode.io/).
@@ -6983,7 +7009,7 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ------------------------------------------------------------------------------
-[82] Used by: structlog 26.1.0
+[83] Used by: structlog 26.1.0
 ------------------------------------------------------------------------------
 
                                  Apache License
@@ -7164,7 +7190,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
    END OF TERMS AND CONDITIONS
 
 ------------------------------------------------------------------------------
-[83] Used by: structlog 26.1.0
+[84] Used by: structlog 26.1.0
 ------------------------------------------------------------------------------
 
 The MIT License (MIT)
@@ -7190,14 +7216,14 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ------------------------------------------------------------------------------
-[84] Used by: structlog 26.1.0
+[85] Used by: structlog 26.1.0
 ------------------------------------------------------------------------------
 
 structlog
 Copyright 2013 Hynek Schlawack and the structlog contributors
 
 ------------------------------------------------------------------------------
-[85] Used by: typer 0.27.2
+[86] Used by: typer 0.27.2
 ------------------------------------------------------------------------------
 
 The MIT License (MIT)
@@ -7223,7 +7249,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 ------------------------------------------------------------------------------
-[86] Used by: typing_extensions 4.16.0
+[87] Used by: typing_extensions 4.16.0
 ------------------------------------------------------------------------------
 
 A. HISTORY OF THE SOFTWARE
@@ -7507,7 +7533,7 @@ OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 
 ------------------------------------------------------------------------------
-[87] Used by: typing-inspection 0.4.4
+[88] Used by: typing-inspection 0.4.4
 ------------------------------------------------------------------------------
 
 MIT License
@@ -7533,7 +7559,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ------------------------------------------------------------------------------
-[88] Used by: urllib3 2.8.0
+[89] Used by: urllib3 2.8.0
 ------------------------------------------------------------------------------
 
 MIT License
@@ -7559,7 +7585,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ------------------------------------------------------------------------------
-[89] Used by: uvicorn 0.54.0
+[90] Used by: uvicorn 0.54.0
 ------------------------------------------------------------------------------
 
 Copyright © 2017-present, [Encode OSS Ltd](https://www.encode.io/).
@@ -7591,7 +7617,7 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ------------------------------------------------------------------------------
-[90] Used by: watchfiles 1.3.0
+[91] Used by: watchfiles 1.3.0
 ------------------------------------------------------------------------------
 
 The MIT License (MIT)
@@ -7617,7 +7643,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ------------------------------------------------------------------------------
-[91] Used by: websockets 17.2
+[92] Used by: websockets 17.2
 ------------------------------------------------------------------------------
 
 Copyright (c) Aymeric Augustin and contributors
@@ -7646,7 +7672,7 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ------------------------------------------------------------------------------
-[92] Used by: @babel/helper-string-parser 7.29.11, @babel/helper-validator-identifier 7.29.7, @babel/types 7.29.11
+[93] Used by: @babel/helper-string-parser 7.29.11, @babel/helper-validator-identifier 7.29.7, @babel/types 7.29.11
 ------------------------------------------------------------------------------
 
 MIT License
@@ -7673,7 +7699,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
-[93] Used by: @babel/parser 7.29.11
+[94] Used by: @babel/parser 7.29.11
 ------------------------------------------------------------------------------
 
 Copyright (C) 2012-2014 by various contributors (see AUTHORS)
@@ -7697,7 +7723,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 ------------------------------------------------------------------------------
-[94] Used by: @jridgewell/sourcemap-codec 1.5.5
+[95] Used by: @jridgewell/sourcemap-codec 1.5.5
 ------------------------------------------------------------------------------
 
 Copyright 2024 Justin Ridgewell <justin@ridgewell.name>
@@ -7721,7 +7747,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ------------------------------------------------------------------------------
-[95] Used by: @kurkle/color 0.3.4
+[96] Used by: @kurkle/color 0.3.4
 ------------------------------------------------------------------------------
 
 The MIT License (MIT)
@@ -7735,7 +7761,7 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
-[96] Used by: @popperjs/core 2.11.8
+[97] Used by: @popperjs/core 2.11.8
 ------------------------------------------------------------------------------
 
 The MIT License (MIT)
@@ -7760,7 +7786,7 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
-[97] Used by: @types/trusted-types 2.0.7
+[98] Used by: @types/trusted-types 2.0.7
 ------------------------------------------------------------------------------
 
     MIT License
@@ -7786,7 +7812,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
     SOFTWARE
 
 ------------------------------------------------------------------------------
-[98] Used by: @vue/compiler-core 3.5.44, @vue/compiler-dom 3.5.44, @vue/compiler-sfc 3.5.44, @vue/compiler-ssr 3.5.44, @vue/reactivity 3.5.44, @vue/runtime-core 3.5.44, @vue/runtime-dom 3.5.44, @vue/server-renderer 3.5.44, @vue/shared 3.5.44, vue 3.5.44
+[99] Used by: @vue/compiler-core 3.5.44, @vue/compiler-dom 3.5.44, @vue/compiler-sfc 3.5.44, @vue/compiler-ssr 3.5.44, @vue/reactivity 3.5.44, @vue/runtime-core 3.5.44, @vue/runtime-dom 3.5.44, @vue/server-renderer 3.5.44, @vue/shared 3.5.44, vue 3.5.44
 ------------------------------------------------------------------------------
 
 The MIT License (MIT)
@@ -7812,7 +7838,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 ------------------------------------------------------------------------------
-[99] Used by: @vue/devtools-api 7.7.7, @vue/devtools-kit 7.7.7, @vue/devtools-shared 7.7.7
+[100] Used by: @vue/devtools-api 7.7.7, @vue/devtools-kit 7.7.7, @vue/devtools-shared 7.7.7
 ------------------------------------------------------------------------------
 
 MIT License
@@ -7838,7 +7864,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ------------------------------------------------------------------------------
-[100] Used by: birpc 2.6.1
+[101] Used by: birpc 2.6.1
 ------------------------------------------------------------------------------
 
 MIT License
@@ -7864,7 +7890,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ------------------------------------------------------------------------------
-[101] Used by: bootstrap 5.3.8
+[102] Used by: bootstrap 5.3.8
 ------------------------------------------------------------------------------
 
 The MIT License (MIT)
@@ -7890,7 +7916,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 ------------------------------------------------------------------------------
-[102] Used by: bootstrap-icons 1.13.1
+[103] Used by: bootstrap-icons 1.13.1
 ------------------------------------------------------------------------------
 
 The MIT License (MIT)
@@ -7916,7 +7942,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 ------------------------------------------------------------------------------
-[103] Used by: chart.js 4.5.1
+[104] Used by: chart.js 4.5.1
 ------------------------------------------------------------------------------
 
 The MIT License (MIT)
@@ -7930,7 +7956,7 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
-[104] Used by: chartjs-plugin-annotation 3.1.0
+[105] Used by: chartjs-plugin-annotation 3.1.0
 ------------------------------------------------------------------------------
 
 The MIT License (MIT)
@@ -7944,7 +7970,7 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
-[105] Used by: commander 7.2.0, commander 2.20.3
+[106] Used by: commander 7.2.0, commander 2.20.3
 ------------------------------------------------------------------------------
 
 (The MIT License)
@@ -7971,7 +7997,7 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
-[106] Used by: copy-anything 3.0.5, is-what 4.1.16
+[107] Used by: copy-anything 3.0.5, is-what 4.1.16
 ------------------------------------------------------------------------------
 
 MIT License
@@ -7997,7 +8023,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ------------------------------------------------------------------------------
-[107] Used by: csstype 3.2.3
+[108] Used by: csstype 3.2.3
 ------------------------------------------------------------------------------
 
 Copyright (c) 2017-2018 Fredrik Nicol
@@ -8021,7 +8047,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ------------------------------------------------------------------------------
-[108] Used by: d3 7.9.0, d3-array 3.2.4
+[109] Used by: d3 7.9.0, d3-array 3.2.4
 ------------------------------------------------------------------------------
 
 Copyright 2010-2023 Mike Bostock
@@ -8039,7 +8065,7 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 
 ------------------------------------------------------------------------------
-[109] Used by: d3-axis 3.0.0, d3-brush 3.0.0, d3-chord 3.0.1, d3-dispatch 3.0.1, d3-drag 3.0.0, d3-force 3.0.0, d3-format 3.1.0, d3-hierarchy 3.1.2, d3-interpolate 3.0.1, d3-polygon 3.0.1, d3-quadtree 3.0.1, d3-random 3.0.1, d3-scale 4.0.2, d3-selection 3.0.0, d3-time-format 4.1.0, d3-timer 3.0.1, d3-transition 3.0.1, d3-zoom 3.0.0
+[110] Used by: d3-axis 3.0.0, d3-brush 3.0.0, d3-chord 3.0.1, d3-dispatch 3.0.1, d3-drag 3.0.0, d3-force 3.0.0, d3-format 3.1.0, d3-hierarchy 3.1.2, d3-interpolate 3.0.1, d3-polygon 3.0.1, d3-quadtree 3.0.1, d3-random 3.0.1, d3-scale 4.0.2, d3-selection 3.0.0, d3-time-format 4.1.0, d3-timer 3.0.1, d3-transition 3.0.1, d3-zoom 3.0.0
 ------------------------------------------------------------------------------
 
 Copyright 2010-2021 Mike Bostock
@@ -8057,7 +8083,7 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 
 ------------------------------------------------------------------------------
-[110] Used by: d3-color 3.1.0, d3-shape 3.2.0, d3-time 3.1.0
+[111] Used by: d3-color 3.1.0, d3-shape 3.2.0, d3-time 3.1.0
 ------------------------------------------------------------------------------
 
 Copyright 2010-2022 Mike Bostock
@@ -8075,7 +8101,7 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 
 ------------------------------------------------------------------------------
-[111] Used by: d3-contour 4.0.2
+[112] Used by: d3-contour 4.0.2
 ------------------------------------------------------------------------------
 
 Copyright 2012-2023 Mike Bostock
@@ -8093,7 +8119,7 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 
 ------------------------------------------------------------------------------
-[112] Used by: d3-delaunay 6.0.4
+[113] Used by: d3-delaunay 6.0.4
 ------------------------------------------------------------------------------
 
 Copyright 2018-2021 Observable, Inc.
@@ -8112,7 +8138,7 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 
 ------------------------------------------------------------------------------
-[113] Used by: d3-dsv 3.0.1
+[114] Used by: d3-dsv 3.0.1
 ------------------------------------------------------------------------------
 
 Copyright 2013-2021 Mike Bostock
@@ -8130,7 +8156,7 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 
 ------------------------------------------------------------------------------
-[114] Used by: d3-ease 3.0.1
+[115] Used by: d3-ease 3.0.1
 ------------------------------------------------------------------------------
 
 Copyright 2010-2021 Mike Bostock
@@ -8163,7 +8189,7 @@ ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ------------------------------------------------------------------------------
-[115] Used by: d3-fetch 3.0.1
+[116] Used by: d3-fetch 3.0.1
 ------------------------------------------------------------------------------
 
 Copyright 2016-2021 Mike Bostock
@@ -8181,7 +8207,7 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 
 ------------------------------------------------------------------------------
-[116] Used by: d3-geo 3.1.1
+[117] Used by: d3-geo 3.1.1
 ------------------------------------------------------------------------------
 
 Copyright 2010-2024 Mike Bostock
@@ -8220,7 +8246,7 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
-[117] Used by: d3-path 3.1.0
+[118] Used by: d3-path 3.1.0
 ------------------------------------------------------------------------------
 
 Copyright 2015-2022 Mike Bostock
@@ -8238,7 +8264,7 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 
 ------------------------------------------------------------------------------
-[118] Used by: d3-scale-chromatic 3.1.0
+[119] Used by: d3-scale-chromatic 3.1.0
 ------------------------------------------------------------------------------
 
 Copyright 2010-2024 Mike Bostock
@@ -8271,7 +8297,7 @@ CONDITIONS OF ANY KIND, either express or implied. See the License for the
 specific language governing permissions and limitations under the License.
 
 ------------------------------------------------------------------------------
-[119] Used by: delaunator 5.0.1
+[120] Used by: delaunator 5.0.1
 ------------------------------------------------------------------------------
 
 ISC License
@@ -8291,7 +8317,7 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 
 ------------------------------------------------------------------------------
-[120] Used by: dompurify 3.4.17
+[121] Used by: dompurify 3.4.17
 ------------------------------------------------------------------------------
 
 Mozilla Public License Version 2.0
@@ -8669,7 +8695,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
   defined by the Mozilla Public License, v. 2.0.
 
 ------------------------------------------------------------------------------
-[121] Used by: emoji-picker-element 1.27.0
+[122] Used by: emoji-picker-element 1.27.0
 ------------------------------------------------------------------------------
 
                                  Apache License
@@ -8875,7 +8901,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
    limitations under the License.
 
 ------------------------------------------------------------------------------
-[122] Used by: entities 7.0.1
+[123] Used by: entities 7.0.1
 ------------------------------------------------------------------------------
 
 Copyright (c) Felix Böhm
@@ -8891,7 +8917,7 @@ THIS IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRE
 EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ------------------------------------------------------------------------------
-[123] Used by: estree-walker 2.0.2
+[124] Used by: estree-walker 2.0.2
 ------------------------------------------------------------------------------
 
 Copyright (c) 2015-20 [these people](https://github.com/Rich-Harris/estree-walker/graphs/contributors)
@@ -8903,7 +8929,7 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
-[124] Used by: gridstack 12.3.3
+[125] Used by: gridstack 12.3.3
 ------------------------------------------------------------------------------
 
 MIT License
@@ -8929,7 +8955,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ------------------------------------------------------------------------------
-[125] Used by: hookable 5.5.3
+[126] Used by: hookable 5.5.3
 ------------------------------------------------------------------------------
 
 The MIT License (MIT)
@@ -8955,7 +8981,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ------------------------------------------------------------------------------
-[126] Used by: i18next 26.3.0
+[127] Used by: i18next 26.3.0
 ------------------------------------------------------------------------------
 
 The MIT License (MIT)
@@ -8981,7 +9007,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ------------------------------------------------------------------------------
-[127] Used by: i18next-vue 5.4.0
+[128] Used by: i18next-vue 5.4.0
 ------------------------------------------------------------------------------
 
 MIT License
@@ -9007,7 +9033,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ------------------------------------------------------------------------------
-[128] Used by: iconv-lite 0.6.3
+[129] Used by: iconv-lite 0.6.3
 ------------------------------------------------------------------------------
 
 Copyright (c) 2011 Alexander Shtuchkin
@@ -9032,7 +9058,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
-[129] Used by: internmap 2.0.3
+[130] Used by: internmap 2.0.3
 ------------------------------------------------------------------------------
 
 Copyright 2021 Mike Bostock
@@ -9050,7 +9076,27 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 
 ------------------------------------------------------------------------------
-[130] Used by: magic-string 0.30.21
+[131] Used by: js-image-compressor 2.0.0
+------------------------------------------------------------------------------
+
+ISC License
+
+Copyright (c) 2020 wuwhs
+
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+------------------------------------------------------------------------------
+[132] Used by: magic-string 0.30.21
 ------------------------------------------------------------------------------
 
 Copyright 2018 Rich Harris
@@ -9062,7 +9108,7 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
-[131] Used by: marked 18.0.3
+[133] Used by: marked 18.0.3
 ------------------------------------------------------------------------------
 
 # License information
@@ -9111,7 +9157,7 @@ Redistribution and use in source and binary forms, with or without modification,
 This software is provided by the copyright holders and contributors “as is” and any express or implied warranties, including, but not limited to, the implied warranties of merchantability and fitness for a particular purpose are disclaimed. In no event shall the copyright owner or contributors be liable for any direct, indirect, incidental, special, exemplary, or consequential damages (including, but not limited to, procurement of substitute goods or services; loss of use, data, or profits; or business interruption) however caused and on any theory of liability, whether in contract, strict liability, or tort (including negligence or otherwise) arising in any way out of the use of this software, even if advised of the possibility of such damage.
 
 ------------------------------------------------------------------------------
-[132] Used by: mitt 3.0.1
+[134] Used by: mitt 3.0.1
 ------------------------------------------------------------------------------
 
 MIT License
@@ -9137,7 +9183,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ------------------------------------------------------------------------------
-[133] Used by: nanoid 3.3.20
+[135] Used by: nanoid 3.3.20
 ------------------------------------------------------------------------------
 
 The MIT License (MIT)
@@ -9162,7 +9208,7 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
-[134] Used by: perfect-debounce 1.0.0
+[136] Used by: perfect-debounce 1.0.0
 ------------------------------------------------------------------------------
 
 MIT License
@@ -9188,7 +9234,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ------------------------------------------------------------------------------
-[135] Used by: picocolors 1.1.1
+[137] Used by: picocolors 1.1.1
 ------------------------------------------------------------------------------
 
 ISC License
@@ -9208,7 +9254,7 @@ ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 ------------------------------------------------------------------------------
-[136] Used by: pinia 3.0.3
+[138] Used by: pinia 3.0.3
 ------------------------------------------------------------------------------
 
 The MIT License (MIT)
@@ -9234,7 +9280,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ------------------------------------------------------------------------------
-[137] Used by: postcss 8.5.31
+[139] Used by: postcss 8.5.31
 ------------------------------------------------------------------------------
 
 The MIT License (MIT)
@@ -9259,7 +9305,7 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
-[138] Used by: qth-locator 2.1.0
+[140] Used by: qth-locator 2.1.0
 ------------------------------------------------------------------------------
 
 Copyright 2019 Juuso Lehtinen
@@ -9279,7 +9325,7 @@ CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFT
 OR OTHER DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
-[139] Used by: rfdc 1.4.1
+[141] Used by: rfdc 1.4.1
 ------------------------------------------------------------------------------
 
 Copyright 2019 "David Mark Clements <david.mark.clements@gmail.com>"
@@ -9299,7 +9345,7 @@ CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFT
 IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
-[140] Used by: robust-predicates 3.0.2
+[142] Used by: robust-predicates 3.0.2
 ------------------------------------------------------------------------------
 
 This is free and unencumbered software released into the public domain.
@@ -9328,7 +9374,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 For more information, please refer to <http://unlicense.org>
 
 ------------------------------------------------------------------------------
-[141] Used by: rw 1.3.3
+[143] Used by: rw 1.3.3
 ------------------------------------------------------------------------------
 
 Copyright (c) 2014-2016, Michael Bostock
@@ -9359,7 +9405,7 @@ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
 EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ------------------------------------------------------------------------------
-[142] Used by: safer-buffer 2.1.2
+[144] Used by: safer-buffer 2.1.2
 ------------------------------------------------------------------------------
 
 MIT License
@@ -9385,7 +9431,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ------------------------------------------------------------------------------
-[143] Used by: source-map-js 1.2.2
+[145] Used by: source-map-js 1.2.2
 ------------------------------------------------------------------------------
 
 Copyright (c) 2009-2011, Mozilla Foundation and contributors
@@ -9417,7 +9463,7 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ------------------------------------------------------------------------------
-[144] Used by: speakingurl 14.0.1
+[146] Used by: speakingurl 14.0.1
 ------------------------------------------------------------------------------
 
 The BSD 3-Clause License (BSD3)
@@ -9434,7 +9480,7 @@ Redistribution and use in source and binary forms, with or without modification,
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ------------------------------------------------------------------------------
-[145] Used by: superjson 2.2.2
+[147] Used by: superjson 2.2.2
 ------------------------------------------------------------------------------
 
 MIT License
@@ -9460,7 +9506,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ------------------------------------------------------------------------------
-[146] Used by: topojson-client 3.1.0
+[148] Used by: topojson-client 3.1.0
 ------------------------------------------------------------------------------
 
 Copyright 2012-2019 Michael Bostock
@@ -9478,7 +9524,7 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 
 ------------------------------------------------------------------------------
-[147] Used by: uuid 14.0.2
+[149] Used by: uuid 14.0.2
 ------------------------------------------------------------------------------
 
 The MIT License (MIT)
@@ -9492,7 +9538,7 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------------
-[148] Used by: vue-chartjs 5.3.2
+[150] Used by: vue-chartjs 5.3.2
 ------------------------------------------------------------------------------
 
 MIT License
@@ -9518,7 +9564,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ------------------------------------------------------------------------------
-[149] Used by: vue-demi 0.14.10
+[151] Used by: vue-demi 0.14.10
 ------------------------------------------------------------------------------
 
 MIT License
@@ -9544,7 +9590,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ------------------------------------------------------------------------------
-[150] Used by: vuemoji-picker 0.3.2
+[152] Used by: vuemoji-picker 0.3.2
 ------------------------------------------------------------------------------
 
 MIT License
