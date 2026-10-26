@@ -1065,6 +1065,7 @@ onBeforeUnmount(() => {
         <a
           href="#"
           class="list-group-item list-group-item-action"
+          data-bs-dismiss="offcanvas"
           @click="updateFrequencyAndApply(50616000)"
         >
           <div class="d-flex w-100 justify-content-between">
@@ -1076,6 +1077,7 @@ onBeforeUnmount(() => {
         <a
           href="#"
           class="list-group-item list-group-item-action"
+          data-bs-dismiss="offcanvas"
           @click="updateFrequencyAndApply(50308000)"
         >
           <div class="d-flex w-100 justify-content-between">
@@ -1087,6 +1089,7 @@ onBeforeUnmount(() => {
         <a
           href="#"
           class="list-group-item list-group-item-action"
+          data-bs-dismiss="offcanvas"
           @click="updateFrequencyAndApply(28093000)"
         >
           <div class="d-flex w-100 justify-content-between">
@@ -1098,6 +1101,7 @@ onBeforeUnmount(() => {
         <a
           href="#"
           class="list-group-item list-group-item-action"
+          data-bs-dismiss="offcanvas"
           @click="updateFrequencyAndApply(27265000)"
         >
           <div class="d-flex w-100 justify-content-between">
@@ -1109,6 +1113,7 @@ onBeforeUnmount(() => {
         <a
           href="#"
           class="list-group-item list-group-item-action"
+          data-bs-dismiss="offcanvas"
           @click="updateFrequencyAndApply(27245000)"
         >
           <div class="d-flex w-100 justify-content-between">
@@ -1120,6 +1125,7 @@ onBeforeUnmount(() => {
         <a
           href="#"
           class="list-group-item list-group-item-action"
+          data-bs-dismiss="offcanvas"
           @click="updateFrequencyAndApply(24908000)"
         >
           <div class="d-flex w-100 justify-content-between">
@@ -1131,6 +1137,7 @@ onBeforeUnmount(() => {
         <a
           href="#"
           class="list-group-item list-group-item-action"
+          data-bs-dismiss="offcanvas"
           @click="updateFrequencyAndApply(21093000)"
         >
           <div class="d-flex w-100 justify-content-between">
@@ -1142,6 +1149,7 @@ onBeforeUnmount(() => {
         <a
           href="#"
           class="list-group-item list-group-item-action"
+          data-bs-dismiss="offcanvas"
           @click="updateFrequencyAndApply(18106000)"
         >
           <div class="d-flex w-100 justify-content-between">
@@ -1153,6 +1161,7 @@ onBeforeUnmount(() => {
         <a
           href="#"
           class="list-group-item list-group-item-action"
+          data-bs-dismiss="offcanvas"
           @click="updateFrequencyAndApply(14093000)"
         >
           <div class="d-flex w-100 justify-content-between">
@@ -1164,6 +1173,7 @@ onBeforeUnmount(() => {
         <a
           href="#"
           class="list-group-item list-group-item-action"
+          data-bs-dismiss="offcanvas"
           @click="updateFrequencyAndApply(7053000)"
         >
           <div class="d-flex w-100 justify-content-between">
