@@ -49,6 +49,11 @@ class radio:
         self.connection = None
         self.connected = False
         self.shutdown = False
+        # set by disconnect(): ends the connection attempts and their waits
+        self.stop_event = threading.Event()
+        # one connect thread at a time (start_connecting)
+        self.connect_lock = threading.Lock()
+        self.connect_thread = None
         self.await_response = threading.Event()
         self.await_response.set()
 
@@ -66,22 +71,66 @@ class radio:
             "vfo": "---",
         }
 
-        # start rigctld...
-        if self.ctx.config_manager.config["RADIO"]["control"] in ["rigctld_bundle"]:
-            self.stop_service()
-            self.start_service()
+        # start rigctld (rigctld_bundle) and connect in the background: the
+        # attempts can take minutes, and the radio manager is created on the
+        # service manager's thread
+        self.start_connecting(start_bundled_service=True)
 
-        # connect to radio
+    def start_connecting(self, start_bundled_service=False):
+        """Starts connecting in a background thread, unless a connect thread
+        is already running. Returns at once.
+
+        Args:
+            start_bundled_service (bool): Restart the bundled rigctld first
+                (RADIO.control rigctld_bundle).
+        """
+        if self.shutdown:
+            return
+        if self.connect_thread is not None and self.connect_thread.is_alive():
+            return
+        self.connect_thread = threading.Thread(
+            target=self.connect_worker, args=[start_bundled_service], name="rigctld connect", daemon=True
+        )
+        self.connect_thread.start()
+
+    def connect_worker(self, start_bundled_service):
+        if start_bundled_service and self.ctx.config_manager.config["RADIO"]["control"] in ["rigctld_bundle"]:
+            self.restart_service()
         self.connect()
 
+    def restart_service(self):
+        """Restarts the bundled rigctld, unless the radio is being disconnected."""
+        if self.shutdown:
+            return
+        self.stop_service()
+        self.start_service()
+        # disconnect() may have run (and stopped the service) meanwhile
+        if self.shutdown:
+            self.stop_service()
+
     def connect(self):
+        """Tries to connect to rigctld, up to max_connection_attempts times.
+
+        Blocks until connected or out of attempts; disconnect() ends it early.
+        Only one connect runs at a time: a second call returns at once.
+        """
         if self.shutdown:
             return
 
         if self.ctx.config_manager.config["RADIO"]["control"] not in ["rigctld", "rigctld_bundle"]:
             return
 
+        if not self.connect_lock.acquire(blocking=False):
+            return
+        try:
+            self.connect_attempts()
+        finally:
+            self.connect_lock.release()
+
+    def connect_attempts(self):
         for attempt in range(1, self.max_connection_attempts + 1):
+            if self.shutdown:
+                return
             try:
                 self.log.info(
                     f"[RIGCTLD] Connection attempt {attempt}/{self.max_connection_attempts} "
@@ -90,7 +139,9 @@ class radio:
                 self.connection = socket.create_connection((self.hostname, self.port), timeout=self.timeout)
                 self.connection.settimeout(self.timeout)
                 # allow rigctld to warm up
-                threading.Event().wait(2)
+                if self.stop_event.wait(2):
+                    self.connection.close()
+                    return
 
                 # success path
                 self.connected = True
@@ -114,15 +165,16 @@ class radio:
                 ):
                     self.log.info(f"[RIGCTLD] Reached {attempt} failures, restarting rigctld service.")
                     try:
-                        self.stop_service()
-                        self.start_service()
+                        self.restart_service()
                     except Exception as svc_err:
                         self.log.error(f"[RIGCTLD] Failed to restart rigctld service: {svc_err}")
                     # give service a moment to start
-                    threading.Event().wait(5)
+                    if self.stop_event.wait(5):
+                        return
                 else:
                     # brief pause before next attempt
-                    threading.Event().wait(1)
+                    if self.stop_event.wait(1):
+                        return
 
         # if still not connected after all attempts
         if not self.connected:
@@ -136,6 +188,7 @@ class radio:
         connection.
         """
         self.shutdown = True
+        self.stop_event.set()
         self.connected = False
         if self.connection:
             self.connection.close()
@@ -399,7 +452,8 @@ class radio:
 
     def get_parameters(self):
         if not self.connected:
-            self.connect()
+            # in the background: the radio manager polls this every second
+            self.start_connecting()
 
         if self.connected:
             # self.check_vfo()

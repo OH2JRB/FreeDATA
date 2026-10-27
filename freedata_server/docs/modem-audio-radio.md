@@ -407,7 +407,7 @@ Created only by `ServiceManager.start_radio_manager()` (on `start` / `restart`),
 | `flrig` | `flrig.radio(ctx)` |
 | anything else | `rigdummy.radio()` |
 
-The backend is constructed synchronously (for rigctld this includes the connection retry loop), then the `update_parameters` daemon thread starts.
+The backend is constructed synchronously, then the `update_parameters` daemon thread starts. rigctld connects in a background thread, so its construction returns at once.
 
 Public API:
 
@@ -437,9 +437,11 @@ Common backend interface: `connect`, `disconnect`, `set_ptt`, `set_frequency`, `
 ### rigctld ([rigctld.py](../rigctld.py))
 
 - Config: `RIGCTLD.ip`, `RIGCTLD.port`, `RADIO.ptt_mode`; socket timeout 3 s.
-- `rigctld_bundle`: on init, `stop_service()` + `start_service()`. `start_service` finds `rigctld` via `helpers.find_binary_paths(..., search_system_wide=True)` and launches it with `helpers.kill_and_execute(path, args)`. `format_rigctld_args()` builds args from `RADIO` config: `-m model_id`, `-r serial_port`, `-s serial_speed`, `-p ptt_port`, `-P ptt_type`, `-D serial_dcd`, `--set-conf dtr_state/rts_state/data_bits/stop_bits`, `--vfo` if `RIGCTLD.enable_vfo`, then `RIGCTLD.arguments` split on spaces. Values `"ignore"` or integer `0` are skipped (the string `"0"` is not).
-- `connect()`: up to 60 attempts (1 s apart), 2 s warm-up after connecting, then `\chk_vfo` and `v`. In bundle mode, rigctld is restarted every 10 failed attempts (5 s pause). Sets `radio_status` in state. Does nothing after `disconnect()` (sets `shutdown`).
-- `send_command()`: one command at a time (guarded by `await_response` Event, 1 s wait), sends `cmd\n`, one `recv(1024)`. Responses containing `RPRT` or `None` become `None`. Socket timeout/errors mark the backend disconnected; the next `get_parameters()` reconnects. When not connected it returns `""`.
+- On init, `start_connecting(start_bundled_service=True)` starts the `rigctld connect` daemon thread and returns. In it, `rigctld_bundle` first restarts the service (`restart_service()`: `stop_service()` + `start_service()`, skipped or undone after `disconnect()`), then `connect()` runs.
+- `rigctld_bundle`: `start_service` finds `rigctld` via `helpers.find_binary_paths(..., search_system_wide=True)` and launches it with `helpers.kill_and_execute(path, args)`. `format_rigctld_args()` builds args from `RADIO` config: `-m model_id`, `-r serial_port`, `-s serial_speed`, `-p ptt_port`, `-P ptt_type`, `-D serial_dcd`, `--set-conf dtr_state/rts_state/data_bits/stop_bits`, `--vfo` if `RIGCTLD.enable_vfo`, then `RIGCTLD.arguments` split on spaces. Values `"ignore"` or integer `0` are skipped (the string `"0"` is not).
+- `connect()`: up to 60 attempts (1 s apart), 2 s warm-up after connecting, then `\chk_vfo` and `v`. In bundle mode, rigctld is restarted every 10 failed attempts (5 s pause). Sets `radio_status` in state. Only one runs at a time (`connect_lock`). `disconnect()` sets `shutdown` and `stop_event`, which ends the attempts and their waits at once.
+- `get_parameters()` while not connected calls `start_connecting()`: a new connect thread, unless one is running, so the radio manager's poll loop is never held up.
+- `send_command()`: one command at a time (guarded by `await_response` Event, 1 s wait), sends `cmd\n`, one `recv(1024)`. Responses containing `RPRT` or `None` become `None`. Socket timeout/errors mark the backend disconnected; the next `get_parameters()` starts reconnecting in the background. When not connected it returns `""`.
 - VFO: if `\chk_vfo` returned `1`, `insert_vfo()` inserts the current VFO after the command letter (e.g. `F VFOA 14074000`).
 - PTT modes (`PTTMode`): `RX=0`, `TX=1`, `TX_MIC=2`, `TX_DATA=3`; `RADIO.ptt_mode` names the key mode, falling back to `TX` if invalid. Un-key always sends `T 0`.
 - `get_parameters()` reads VFO, frequency, mode+bandwidth, ALC, strength, RF power (x100 as %), tuner, SWR. Failed reads set the field to `"err"`.
@@ -465,9 +467,7 @@ Observations from reading the current source:
 | Location | Observation |
 |---|---|
 | [demodulator.py](../demodulator.py) `set_frames_per_burst` | Clamps the value to 1..5 and then hard-codes it to 1 (`FIXME`). Not called in this subsystem; `init_codec2_mode` sets 1 directly. |
-| [demodulator.py](../demodulator.py) | `MODE_DICT` is a class attribute, so it is shared by every `Demodulator` instance. |
 | [codec2.py](../codec2.py) | `freedv_gen_crc16` has no `argtypes`/`restype` declaration. |
 | [codec2.py](../codec2.py) | `datac13`/`datac14` are Enum aliases of `signalling`/`signalling_ack`; `FREEDV_MODE_USED_SLOTS` members with identical lists are aliases too. |
 | [flrig.py](../flrig.py) | `connect()` only creates a `ServerProxy` (no network I/O), so it reports connected until a poll fails; the poll loop reads frequency and mode twice per cycle. |
-| [rigctld.py](../rigctld.py) | Construction (and a reconnect from the poll thread) can block for the whole 60-attempt retry loop. |
 | [modem.py](../modem.py) `transmit_morse` | Arguments unused, `tx_audio_level` not applied, and no active caller. |
