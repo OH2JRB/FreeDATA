@@ -48,7 +48,7 @@ A full run takes about a minute. Both commands exit non-zero when a test fails.
 | `test_encryption.py` | AES-GCM helpers and key parsing, the encrypted ARQ data type, holding sent/received messages until a key is entered, the station encryption API, database migration from version 1 | yes |
 | `test_common_key.py` | Common encryption key: station key precedence, `decrypt_any`, sending and receiving with the common key, decrypting pending messages of several stations, the common key API, `POST /config` switching the setting on | yes |
 | `test_encryption_reporting.py` | Turning encryption on (per station or with the common key) switches Explorer and PSK Reporter off, keeps them locked off (409, config forced to `False`) until all encryption is off, and the startup check | yes |
-| `test_norm_protocol.py` | Sending a NORM broadcast (smoke test, see section 5) | two |
+| `test_norm_protocol.py` | Sending a NORM broadcast (smoke test, see section 6) | two |
 | `test_rigctld_connect.py` | rigctld connects in a background thread: creating the radio and polling it while not connected return at once, `disconnect()` ends the attempts, one connect at a time, connecting to a fake rigctld | no (mock context, local sockets) |
 | `test_small_fixes.py` | flrig reports connected only when flrig answers and reads frequency and mode once per poll (fake XML-RPC server); codec2 CRC16 types and CRC-16/CCITT result; P2P connection data without a known session id reaches no connection | no (mock context, local XML-RPC server) |
 | `test_rx_audio_callback.py` | RX audio callback/worker split and re-blocking to whole DSP blocks | yes (not started) |
@@ -59,7 +59,7 @@ A full run takes about a minute. Both commands exit non-zero when a test fails.
 | `test_server.py` | Starts the real server as a subprocess; `/`, `GET /config`, `POST /config`, 404 for unknown message id and broadcast delete, 409 for `POST /freedata/broadcasts` with group chat disabled, `PATCH /freedata/broadcasts/{domain}/read` | separate process |
 | `test_demodulator_fsk.py` | The demodulator's FSK receiver restart: `data_vhf_1` bursts 500 ms apart decode without duplicates, the restart after transmitting (`reset_data_sync`), the audio history; runs one decoding thread on simulator audio | no (mock context) |
 | `test_fading_channel.py` | The HF fading channel simulator in `tools/channel_sim.py` (Doppler spread, SNR, power, Doppler shift), decoding on a clean channel, one HF FSK candidate and FSK bursts with the receiver restart; the mode measurements themselves are in [fading-channels.md](fading-channels.md) | no |
-| `test_p2p_connection.py` | Disabled, see section 5 | — |
+| `test_p2p_connection.py` | P2P connections between two test-mode stations: connect and disconnect, payload frames both ways (signalling and datac4, the IRS sending after a heartbeat), 300 bytes in an ARQ session inside the connection, the IRS addressed by a `MYCALL` callsign that is not the station callsign; which `ARQ_SESSION_OPEN` destinations `is_frame_for_me` accepts; the socket interface is a mock | yes (two stations, own channel threads) |
 
 ## 3. Test environment isolation
 
@@ -119,10 +119,6 @@ an ARQ transfer shows up as `{"arq-transfer-outbound": {...}}` on the ISS and
 
 ## 6. Gaps
 
-- `test_p2p_connection.py` has no runnable test. Its only test is named `DisabledtestConnect`, and
-  its setup uses old constructor signatures (`CONFIG(path)`, a 5-argument `DISPATCHER`,
-  `SocketInterfaceHandler(modem, config, state, event)`), so it has to be rewritten before it can
-  run again.
 - `test_arq_session.py` has disabled tests (`Disabled...`): small payload with frame loss and session
   cleanup.
 - `test_norm_protocol.py` only checks that sending a broadcast doesn't fail. It swallows exceptions

@@ -634,7 +634,7 @@ whitespace-split into arguments. Unmatched lines get `WRONG \r`. Every response 
 |---|---|---|---|
 | `CONNECT` | `<origin> <destination>` | `P2PConnectionCommand(ctx, {origin, destination}).run()`. The session is stored in the handler, and `connecting_callsign = origin` | `OK`, `REGISTERED <origin>`, `UNENCRYPTED LINK` (sent whether or not the session was created). `ERR: [args]` on exception |
 | `DISCONNECT` | - | `session.disconnect()` | `OK` |
-| `MYCALL` | `<call> [<call> ...]` | stores the list as `socket_interface_callsigns`. These callsigns are accepted as `P2P_CONNECTION_CONNECT` destinations (see [protocol-frames.md](protocol-frames.md#4-base-framehandler-lifecycle)) | `OK`, `UNENCRYPTED LINK`, `ENCRYPTION DISABLED` |
+| `MYCALL` | `<call> [<call> ...]` | stores the list as `socket_interface_callsigns`. These callsigns are accepted as `P2P_CONNECTION_CONNECT` destinations, and as `ARQ_SESSION_OPEN` destinations for the ARQ session inside a P2P connection (see [protocol-frames.md](protocol-frames.md#4-base-framehandler-lifecycle)) | `OK`, `UNENCRYPTED LINK`, `ENCRYPTION DISABLED` |
 | `BW` | `<int>` | stores `socket_interface_bandwidth`. The value is not used anywhere else | `OK` |
 | `ABORT` | - | `session.abort_connection()` | `OK`, (`ERR: <e>` on exception), `DISCONNECTED` |
 | `PUBLIC` | ignored | none | `OK` |
@@ -743,4 +743,5 @@ sequenceDiagram
 ## 10. Known issues
 
 None currently known. Fixed: P2P connection data without a session id used to reach every P2P
-connection (see section 6).
+connection (see section 6), and the ARQ session inside a P2P connection was ignored when the
+connection was made to a `MYCALL` callsign other than the station callsign (see section 8).
