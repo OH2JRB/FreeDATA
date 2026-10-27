@@ -29,7 +29,7 @@ Terminology: **ISS** = Information Sending Station (sender), **IRS** = Informati
 | Output | `transmit_frame(frame, mode="auto")` calls `rf_modem.transmit(mode, 1, 1, frame)`. `"auto"` means the mode of the current speed level |
 | State | `set_state()` updates `last_state_change_timestamp` (used by the scheduler, see 2.4) |
 | Statistics | `calculate_session_statistics(confirmed, total)` returns `total_bytes`, `duration`, `bytes_per_minute`, `bits_per_second` and time/SNR/BPM/BPS histograms. `update_histograms()` appends one sample and keeps the last 20 |
-| Cleanup | `is_session_outdated()`: state in `FAILED/ENDED/ABORTED` and `session_ended` older than 500 s. It is used by `state_manager.check_if_running_arq_session()` |
+| Cleanup | `is_session_outdated()`: state in `FAILED/ENDED/ABORTED` and `session_ended` older than 500 s. It is used by `state_manager.check_if_running_arq_session()`, which removes such sessions while it looks for a running one (iterating over a copy of the ids) |
 | `reset_session()` | Clears received data/CRC/length, `delivered_crc`, histograms, `maximum_bandwidth` and `abort` |
 
 ---
@@ -108,7 +108,10 @@ daemon thread:
    return.
 2. Update histograms. `update_speed_level(frame)` adopts the ACK's `speed_level` if it is in range.
 3. Refresh `running_p2p_connection.last_data_timestamp` if the session belongs to a P2P connection.
-4. `confirmed_bytes = expected_byte_offset` (capped at `total_length`, unchanged for fallback). Emit
+4. `confirmed_bytes = expected_byte_offset` (capped at `total_length`, unchanged for fallback); a `FINAL`
+   ACK with `CHECKSUM` confirms `total_length`. The IRS holds all data then, while `expected_byte_offset`
+   may be short of the end: an OFDM ACK has no offset, and a final ACK the IRS repeats may answer a burst
+   resent from an earlier offset (its first final ACK lost, then the fallback speed level). Emit
    `arq_session_progress`.
 5. `ABORT` flag -> `transmission_aborted`.
 6. `FINAL` flag -> `transmission_ended` if `confirmed_bytes == total_length` and `CHECKSUM` is set,

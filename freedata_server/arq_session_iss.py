@@ -515,7 +515,13 @@ class ARQSessionISS(arq_session.ARQSession):
         if self.running_p2p_connection:
             self.running_p2p_connection.last_data_timestamp = time.time()
 
-        if self.expected_byte_offset > self.total_length:
+        if irs_frame["flag"]["FINAL"] and irs_frame["flag"].get("CHECKSUM"):
+            # the IRS holds all data with a matching CRC. An OFDM ACK has no
+            # offset, and a final ACK the IRS repeats may answer a burst resent
+            # from an earlier offset (a lost final ACK, then the fallback speed
+            # level), so expected_byte_offset can be short of the end
+            self.confirmed_bytes = self.total_length
+        elif self.expected_byte_offset > self.total_length:
             self.confirmed_bytes = self.total_length
         elif not fallback:
             self.confirmed_bytes = self.expected_byte_offset

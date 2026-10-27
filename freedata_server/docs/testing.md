@@ -41,7 +41,8 @@ A full run takes about a minute. Both commands exit non-zero when a test fails.
 | `test_message_p2p.py` | `MessageP2P` from API params, payloads with attachments | yes |
 | `test_protocols.py` | PING → PING_ACK and CQ → QRV through the real frame dispatcher | yes |
 | `test_arq_stop.py` | The IRS sends `ARQ_STOP_ACK` in the signalling mode (`data_fsk4_50` on FSK), and the ISS reads it as a stop acknowledgement | no (mock context) |
-| `test_arq_session.py` | A full ARQ transfer (1000 random bytes) between two stations; IRS success event; the user's stop during a transfer (the ISS sends `ARQ_STOP`, both sides end `ABORTED` through the stop acknowledgement); the IRS aborting (abort flag in its ACK) | two |
+| `test_arq_session.py` | A full ARQ transfer (1000 random bytes) between two stations; IRS success event; the user's stop during a transfer (the ISS sends `ARQ_STOP`, both sides end `ABORTED` through the stop acknowledgement); the IRS aborting (abort flag in its ACK); 600 bytes with 30 % of the frames lost both ways (seeded per channel, the FSK fallback included); removing outdated ISS and IRS sessions in `check_if_running_arq_session` | two |
+| `test_arq_final_ack.py` | A final burst ACK with `CHECKSUM` ends the ISS's session although it expected fewer bytes confirmed (a repeated final ACK after a resend); without `CHECKSUM` it fails | no (partial ISS) |
 | `test_message_protocol.py` | A P2P message sent over an ARQ session, checked on both stations; the same with encryption on | two |
 | `test_message_database_fixes.py` | One engine shared by all database managers, missing indexes added at startup, broadcast lookups returning snapshots, one update per ARQ result | yes |
 | `test_message_send.py` | Two concurrent `SendMessageCommand.transmit()` calls for the same queued message (like the API and the scheduler) start only one ARQ session (`ARQSessionISS` mocked); a queued message passed to the command (as the scheduler does) is not added to the database again | yes (mocked modem) |
@@ -120,8 +121,6 @@ an ARQ transfer shows up as `{"arq-transfer-outbound": {...}}` on the ISS and
 
 ## 6. Gaps
 
-- `test_arq_session.py` has disabled tests (`Disabled...`): small payload with frame loss and session
-  cleanup.
 - `test_norm_protocol.py` only checks that sending a broadcast doesn't fail. It swallows exceptions
   from `Norm.run()` and NORM emits no `arq-transfer-*` events, so its success check never runs.
 - The socket interface and radio backends are only partly covered (the TCP data port target, rigctld connecting, flrig connecting and polling); serial PTT and the command port have no tests, and the REST endpoints are tested only for `/`, `/config` and a few handlers called directly (`test_api_fixes.py`).
