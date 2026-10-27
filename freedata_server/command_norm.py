@@ -47,6 +47,7 @@ class Norm(TxCommand):
                 daemon=True,
             )
             tx_thread.start()
+            return True
 
         except Exception as e:
             self.log(f"Error starting NORM transmission: {e}", isWarning=True)

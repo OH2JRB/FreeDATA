@@ -13,6 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from freedata_server.log_handler import setup_logging
 from freedata_server.constants import CONFIG_ENV_VAR, DEFAULT_CONFIG_FILE, DEFAULT_APP_DIR, API_VERSION
 from freedata_server.context import AppContext
+from freedata_server import helpers
 from freedata_server.shutdown_guard import exit_if_threads_hang, stop_signals_raise_keyboard_interrupt
 
 from freedata_server.api.general import router as general_router
@@ -165,7 +166,7 @@ def main():
 
     # Launch GUI if available
     if gui_dir and os.path.isdir(gui_dir):
-        url = f"http://{host}:{port}/gui"
+        url = f"http://{helpers.browsable_host(host)}:{port}/gui"
         logger.info("---------------------------------------------------")
         logger.info("                                                   ")
         logger.info(f"[GUI] AVAILABLE ON {url}")

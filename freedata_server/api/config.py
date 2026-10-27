@@ -78,7 +78,7 @@ modem_log = structlog.get_logger("Modem")
         },
         404: {
             "description": "The requested resource was not found.",
-            "content": {"application/json": {"example": {"error": "Resource not found."}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Resource not found."}}}},
         },
     },
 )
@@ -118,15 +118,15 @@ async def get_config(ctx: AppContext = Depends(get_ctx)):
         },
         400: {
             "description": "Invalid configuration data.",
-            "content": {"application/json": {"example": {"error": "Invalid config"}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Invalid config"}}}},
         },
         500: {
             "description": "Error writing configuration.",
-            "content": {"application/json": {"example": {"error": "Error writing config"}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Error writing config"}}}},
         },
         404: {
             "description": "The requested resource was not found.",
-            "content": {"application/json": {"example": {"error": "Resource not found."}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Resource not found."}}}},
         },
     },
 )

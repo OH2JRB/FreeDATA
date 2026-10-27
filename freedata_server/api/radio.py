@@ -30,7 +30,7 @@ router = APIRouter()
         },
         404: {
             "description": "The requested resource was not found.",
-            "content": {"application/json": {"example": {"error": "Resource not found."}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Resource not found."}}}},
         },
     },
 )
@@ -70,11 +70,11 @@ async def get_radio(ctx: AppContext = Depends(get_ctx)):
         },
         400: {
             "description": "Bad Request: The request was malformed or missing required parameters.",
-            "content": {"application/json": {"example": {"error": "Invalid parameters."}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Invalid parameters."}}}},
         },
         404: {
             "description": "The requested resource was not found.",
-            "content": {"application/json": {"example": {"error": "Resource not found."}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Resource not found."}}}},
         },
     },
 )
@@ -117,25 +117,15 @@ async def post_radio(
         },
         400: {
             "description": "Bad Request: The request was malformed or missing required parameters.",
-            "content": {"application/json": {"example": {"error": "Invalid parameters."}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Invalid parameters."}}}},
         },
         404: {
             "description": "The requested resource was not found.",
-            "content": {"application/json": {"example": {"error": "Resource not found."}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Resource not found."}}}},
         },
         503: {
-            "description": "Modem not running or busy.",
-            "content": {
-                "application/json": {
-                    "examples": {
-                        "modem_not_running": {
-                            "summary": "Modem Not Running",
-                            "value": {"error": "Modem not running."},
-                        },
-                        "modem_busy": {"summary": "Modem Busy", "value": {"error": "Modem Busy."}},
-                    }
-                }
-            },
+            "description": "Modem not running (when enabling tuning).",
+            "content": {"application/json": {"example": {"detail": {"error": "Modem not running"}}}},
         },
     },
 )
