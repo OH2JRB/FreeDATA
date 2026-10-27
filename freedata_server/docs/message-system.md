@@ -26,7 +26,7 @@ The message system stores and moves FreeDATA peer-to-peer (P2P) chat messages, t
   2. Otherwise `DEFAULT_APP_DIR/freedata-messages.db` (`DEFAULT_APP_DIR` comes from [constants.py](../constants.py)).
   
   The parent directory is created with `os.makedirs(..., exist_ok=True)`; the returned URL is `"sqlite:///" + path`.
-- Every manager instance constructs its **own engine and sessionmaker** and runs `Base.metadata.create_all(engine)` in `__init__`. Managers are instantiated frequently (often per call, e.g. `DatabaseManagerMessages(ctx).update_message(...)`), and composite managers create nested managers (`DatabaseManagerMessages` creates a `DatabaseManagerAttachments` and a `DatabaseManagerStations`).
+- All managers share **one engine per database URL** (`get_engine()`, which also runs `Base.metadata.create_all(engine)` the first time); each manager instance has its own sessionmaker. Managers are instantiated frequently (often per call, e.g. `DatabaseManagerMessages(ctx).update_message(...)`), and composite managers create nested managers (`DatabaseManagerMessages` creates a `DatabaseManagerAttachments` and a `DatabaseManagerStations`).
 
 ### Session handling and thread safety
 
@@ -56,6 +56,8 @@ DatabaseManagerAttachments(self).clean_orphaned_attachments()
   - No row -> inserts version `"0"`.
   - `current < expected` -> `update_database_schema()` then stores the expected version.
   - `current > expected` -> warning only ("Manual intervention might be required").
+  - Then, whatever the version, `update_indexes_schema()` creates every model index an existing table lacks
+    (`create_all()` only creates indexes together with a new table).
 - `update_database_schema()` = `update_tables_schema()` + `update_columns_schema()`:
   - **Tables**: creates any table in `Base.metadata` missing from the DB (`inspect(engine).get_table_names()`).
   - **Columns**: for each existing table, every model column absent in the DB is added with `ALTER TABLE <t> ADD COLUMN <name> <type> [NOT NULL] [DEFAULT ...]`, executed inside `engine.begin()` (committed on success). A `DEFAULT` clause is only rendered for static scalar defaults; callable (e.g. lambda) and SQL-expression defaults are skipped.
@@ -359,7 +361,7 @@ When the scheduler constructs `SendMessageCommand` with an existing queued messa
 ### Delivery, ACK and receipts
 
 - Reliability is provided by the ARQ session. The ISS computes a CRC-32 over the (compressed) data (`helpers.get_crc_32`, [arq_session_iss.py](../arq_session_iss.py)); the IRS verifies it (`final_crc_matches()`, [arq_session_irs.py](../arq_session_irs.py)) and sends a final burst ACK with `flag_checksum=True` on success.
-- On ISS success, `ARQDataTypeHandler.transmitted()` -> `transmitted_p2pmsg_zlib` -> `message_transmitted()`: status `transmitted`, then `statistics` updated (two separate `update_message` calls).
+- On ISS success, `ARQDataTypeHandler.transmitted()` -> `transmitted_p2pmsg_zlib` -> `message_transmitted()`: status `transmitted`, `encrypted` and `statistics` in one `update_message` call (one commit, one change event).
 - On ISS failure, `ARQDataTypeHandler.failed()` -> `failed_p2pmsg_zlib` -> `message_failed()`: status `failed` and statistics updated.
 - There is **no end-to-end read receipt** in the code in scope. `is_read` is a local flag: received messages are stored with `is_read=False`; the client flips it via `PATCH /messages/{id}` (`update_message` accepts `is_read`). Outgoing messages default to `is_read=True`.
 
@@ -567,7 +569,7 @@ All managers take `ctx` (the `AppContext`) in `__init__`. Methods marked "event"
 | `get_broadcasts_per_domain_json(domain=None)` | str | `dict[domain -> list]` | Messages grouped by domain (items include `priority`). Read-only; does not mark anything read |
 | `delete_broadcast_message_or_domain(id)` | str | `dict` | Delete one message by id, else all messages of domain `id` (event). `status` is `success`, `not_found` (neither matched) or `error` (exception) |
 | `check_missing_bursts()` | - | `dict` or `None` | First incomplete received broadcast due for a NACK |
-| `get_broadcast_per_id(id, get_object=False)` | str, bool | `dict`, ORM object or `None` | Single broadcast |
+| `get_broadcast_per_id(id, get_object=False)` | str, bool | `dict`, with `get_object` a `SimpleNamespace` of the same fields, or `None` | Single broadcast, a snapshot read while the session is open |
 | `increment_attempts(message_id)` | str | `None` | `attempts += 1` |
 | `increment_attempts_and_update_next_transmission(message_id)` | str | `None` | Attempts + backoff schedule; `max_attempts_reached` at 20 |
 | `mark_domain_as_read(domain)` | str | `int` | Set `is_read=True` for unread rows in domain (event only if something changed). Called by `PATCH /freedata/broadcasts/{domain}/read` |
@@ -597,9 +599,6 @@ All managers take `ctx` (the `AppContext`) in `__init__`. Methods marked "event"
 
 ## 9. Known issues
 
-Observed in the current code.
-
-1. **Per-call engines** - every manager instantiation creates a new engine and runs `create_all`; messages/broadcast managers create additional nested managers (and engines).
-2. **Detached ORM objects** - broadcast `get_first_queued_message` and `get_broadcast_per_id(get_object=True)` return ORM objects after `session.remove()` (detached instances).
-3. **Two updates per ARQ callback** - `message_transmitted` / `message_failed` each perform two separate `update_message` calls (status, then statistics), producing two commits and two change events (marked `# Todo ... WIP`).
-4. **No index migration** - indexes are only created together with their table; an existing database does not get indexes that were added to the models later.
+None currently known. Fixed: managers used to create an engine each, broadcast lookups returned detached
+ORM objects, ARQ results were written in two updates, and existing databases never got indexes added later
+(see the sections above).

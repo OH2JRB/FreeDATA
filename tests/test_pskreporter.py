@@ -291,6 +291,17 @@ class TestApi(unittest.TestCase):
         finally:
             self.ctx.pskreporter.set_enabled(False)
 
+    def test_switch_in_the_states_stream(self):
+        # so an open GUI shows it as it is, also after a server restart
+        self.assertFalse(self.ctx.state_manager.get_state_event(False)["is_pskreporter_enabled"])
+        asyncio.run(post_pskreporter({"enabled": True}, ctx=self.ctx))
+        try:
+            self.assertTrue(self.ctx.state_manager.get_state_event(False)["is_pskreporter_enabled"])
+            self.assertTrue(self.ctx.state_manager.newstate["is_pskreporter_enabled"])  # pushed as a change
+        finally:
+            self.ctx.pskreporter.set_enabled(False)
+        self.assertFalse(self.ctx.state_manager.get_state_event(False)["is_pskreporter_enabled"])
+
 
 if __name__ == "__main__":
     unittest.main()

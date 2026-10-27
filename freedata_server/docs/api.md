@@ -154,6 +154,7 @@ Validation rewrites these to `"AA1AAA"` and `"JN48ea"`.
   "is_modem_running": true,
   "is_beacon_running": false,
   "is_away_from_key": false,
+  "is_pskreporter_enabled": false,
   "radio_status": true,
   "channel_busy": false,
   "channel_busy_slot": [false, false, true, false, false],
@@ -290,7 +291,7 @@ These are produced by `EventManager.broadcast()` ([event_manager.py](../event_ma
 Produced by `StateManager` ([state_manager.py](../state_manager.py)):
 
 - `{"type": "state", ...}`: a full state snapshot, sent by `sendState()` (for example from `GET /modem/state`).
-- `{"type": "state-change", ...}`: the same fields, sent by `set(key, value)` and `set_channel_slot_busy()` when the snapshot differs from the last one. Fields: `is_modem_running, is_beacon_running, is_away_from_key, radio_status, channel_busy, channel_busy_slot, is_codec2_traffic, audio_dbfs, activities, is_modem_busy`. `channel_busy` is `true` while the channel is busy (`not channel_busy_event.is_set()`; the event is set while the channel is free).
+- `{"type": "state-change", ...}`: the same fields, sent by `set(key, value)` and `set_channel_slot_busy()` when the snapshot differs from the last one. Fields: `is_modem_running, is_beacon_running, is_away_from_key, is_pskreporter_enabled, radio_status, channel_busy, channel_busy_slot, is_codec2_traffic, audio_dbfs, activities, is_modem_busy`. `channel_busy` is `true` while the channel is busy (`not channel_busy_event.is_set()`; the event is set while the channel is free).
 - `{"type": "radio-change", radio_status, radio_frequency, radio_rf_level, radio_mode, s_meter_strength, radio_swr, radio_tuner}`, sent by `set_radio()` when the value changes. `get_radio_event` can also build `type: "radio"`.
 
 ### 3.3 `/fft` messages

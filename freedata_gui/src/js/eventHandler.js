@@ -10,6 +10,7 @@ import {
 } from "./api";
 import { processRadioStatus, setAmateurBand } from "./radioHandler";
 import { loadEncryptionStatus, openEncryptionDialog } from "./encryptionHandler";
+import { useEncryptionStore } from "../store/encryptionStore";
 import i18next from "./i18n";
 
 // ----------------- init pinia stores -------------
@@ -27,6 +28,7 @@ import { useBroadcastStore } from "../store/broadcastStore";
 const broadcast = useBroadcastStore(pinia);
 import { useChatStore } from "../store/chatStore";
 const chat = useChatStore(pinia);
+const encryption = useEncryptionStore(pinia);
 
 export async function loadAllData() {
   let stateData = await getModemState();
@@ -77,6 +79,16 @@ export function stateDispatcher(data) {
     stateStore.channel_busy_slot = data.channel_busy_slot;
     stateStore.beacon_state = data.is_beacon_running;
     stateStore.away_from_key = data.is_away_from_key;
+    // the PSK Reporter switch, also after a server restart (always off then)
+    if (
+      typeof data.is_pskreporter_enabled === "boolean" &&
+      encryption.pskreporter
+    ) {
+      encryption.pskreporter = {
+        ...encryption.pskreporter,
+        enabled: data.is_pskreporter_enabled,
+      };
+    }
 
     stateStore.activities = Object.entries(data.activities).reverse();
     build_HSL();

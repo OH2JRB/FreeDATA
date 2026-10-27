@@ -35,7 +35,7 @@ A full run takes about a minute. Both commands exit non-zero when a test fails.
 | File | What it covers | Needs a running `AppContext` |
 |---|---|---|
 | `test_config.py` | `CONFIG` read, write and validation on a temporary copy of the template | no |
-| `test_data_frame_factory.py` | Building beacon, ping, ARQ, CQ and burst frames; payload sizes | no (config only) |
+| `test_data_frame_factory.py` | Building beacon, ping, ARQ, CQ and burst frames; payload sizes; the SNR byte of the ARQ session frames | no (config only) |
 | `test_data_type_handler.py` | raw, lzma and gzip handling in `ARQDataTypeHandler` | yes |
 | `test_message_database.py` | Adding, deleting and updating messages, attachments, attempt counters | yes |
 | `test_message_p2p.py` | `MessageP2P` from API params, payloads with attachments | yes |
@@ -43,6 +43,7 @@ A full run takes about a minute. Both commands exit non-zero when a test fails.
 | `test_arq_stop.py` | The IRS sends `ARQ_STOP_ACK` in the signalling mode (`data_fsk4_50` on FSK), and the ISS reads it as a stop acknowledgement | no (mock context) |
 | `test_arq_session.py` | A full ARQ transfer (1000 random bytes) between two stations; IRS success event | two |
 | `test_message_protocol.py` | A P2P message sent over an ARQ session, checked on both stations; the same with encryption on | two |
+| `test_message_database_fixes.py` | One engine shared by all database managers, missing indexes added at startup, broadcast lookups returning snapshots, one update per ARQ result | yes |
 | `test_message_send.py` | Two concurrent `SendMessageCommand.transmit()` calls for the same queued message (like the API and the scheduler) start only one ARQ session (`ARQSessionISS` mocked); a queued message passed to the command (as the scheduler does) is not added to the database again | yes (mocked modem) |
 | `test_encryption.py` | AES-GCM helpers and key parsing, the encrypted ARQ data type, holding sent/received messages until a key is entered, the station encryption API, database migration from version 1 | yes |
 | `test_common_key.py` | Common encryption key: station key precedence, `decrypt_any`, sending and receiving with the common key, decrypting pending messages of several stations, the common key API, `POST /config` switching the setting on | yes |
@@ -51,7 +52,8 @@ A full run takes about a minute. Both commands exit non-zero when a test fails.
 | `test_rx_audio_callback.py` | RX audio callback/worker split and re-blocking to whole DSP blocks | yes (not started) |
 | `test_audio_backend.py` | Server import, device listing, audio test and modem start in a fresh interpreter where `import sounddevice` fails (no PortAudio / no sound server); loading PortAudio again once it is available | separate process |
 | `test_api_fixes.py` | `GET /freedata/messages/{id}` (object / 404, called directly), broadcast DB helpers (read-only per-domain GET with `priority`, `mark_domain_as_read`, delete `not_found`), `Norm` priority coercion, `channel_busy` in state events, `POST /config` restarting only for non-GUI changes (fake ctx with its own config copy) | yes |
-| `test_pskreporter.py` | PSK Reporter datagram layout (templates compared with pskdev.html), deduplication and upload intervals, template resending, off at start, `GET`/`POST /modem/pskreporter` (called directly); a fake transport, no network traffic | yes |
+| `test_socket_data_port.py` | Which P2P session gets data from the TCP data port: the command socket's active session, else the only one, else none | no (mock context) |
+| `test_pskreporter.py` | PSK Reporter datagram layout (templates compared with pskdev.html), deduplication and upload intervals, template resending, off at start, `GET`/`POST /modem/pskreporter` (called directly), the switch in the `/states` stream; a fake transport, no network traffic | yes |
 | `test_server.py` | Starts the real server as a subprocess; `/`, `GET /config`, `POST /config`, 404 for unknown message id and broadcast delete, 409 for `POST /freedata/broadcasts` with group chat disabled, `PATCH /freedata/broadcasts/{domain}/read` | separate process |
 | `test_demodulator_fsk.py` | The demodulator's FSK receiver restart: `data_vhf_1` bursts 500 ms apart decode without duplicates, the restart after transmitting (`reset_data_sync`), the audio history; runs one decoding thread on simulator audio | no (mock context) |
 | `test_fading_channel.py` | The HF fading channel simulator in `tools/channel_sim.py` (Doppler spread, SNR, power, Doppler shift), decoding on a clean channel, one HF FSK candidate and FSK bursts with the receiver restart; the mode measurements themselves are in [fading-channels.md](fading-channels.md) | no |

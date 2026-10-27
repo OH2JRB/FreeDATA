@@ -1,11 +1,28 @@
 from sqlalchemy import create_engine, text, inspect
 from sqlalchemy.orm import scoped_session, sessionmaker
-from threading import local
+from threading import Lock, local
 from freedata_server.message_system_db_model import Base, Config, Station, Status, P2PMessage
 import structlog
 from freedata_server import helpers
 import os
 from freedata_server.constants import MESSAGE_SYSTEM_DATABASE_VERSION, DEFAULT_APP_DIR
+
+# one engine per database URL for the whole process: managers are created per
+# call, and each used to open its own engine (and connection pool)
+_engines = {}
+_engines_lock = Lock()
+
+
+def get_engine(db_url):
+    """Returns the shared engine of a database URL, creating it and the tables
+    of the model on first use."""
+    with _engines_lock:
+        engine = _engines.get(db_url)
+        if engine is None:
+            engine = create_engine(db_url, echo=False)
+            Base.metadata.create_all(engine)
+            _engines[db_url] = engine
+        return engine
 
 
 class DatabaseManager:
@@ -29,10 +46,9 @@ class DatabaseManager:
         self.ctx = ctx
 
         db_file = self.get_database()
-        self.engine = create_engine(db_file, echo=False)
+        self.engine = get_engine(db_file)
         self.thread_local = local()
         self.session_factory = sessionmaker(bind=self.engine)
-        Base.metadata.create_all(self.engine)
 
         self.logger = structlog.get_logger(type(self).__name__)
 
@@ -319,6 +335,9 @@ class DatabaseManager:
                 )
             else:
                 self.log("Database schema is up-to-date.")
+            # independent of the version: create_all() adds indexes only together
+            # with a new table, so an existing table misses indexes added later
+            self.update_indexes_schema()
         except Exception as e:
             session.rollback()
             self.log(f"Database version check failed: {e}", isWarning=True)
@@ -440,4 +459,28 @@ class DatabaseManager:
                                 isWarning=True,
                             )
                             success = False
+        return success
+
+    def update_indexes_schema(self):
+        """Creates the indexes of the model that an existing database lacks.
+
+        Returns:
+            bool: True if all missing indexes were created, False otherwise.
+        """
+        success = True
+        inspector = inspect(self.engine)
+        existing_tables = inspector.get_table_names()
+        for table in Base.metadata.sorted_tables:
+            if table.name not in existing_tables:
+                continue
+            existing = {index["name"] for index in inspector.get_indexes(table.name)}
+            for index in table.indexes:
+                if index.name in existing:
+                    continue
+                try:
+                    index.create(self.engine)
+                    self.log(f"Index '{index.name}' added to table '{table.name}'.")
+                except Exception as e:
+                    self.log(f"Failed to add index '{index.name}' to table '{table.name}': {e}", isWarning=True)
+                    success = False
         return success

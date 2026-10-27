@@ -146,9 +146,10 @@ The available payload per burst is
 `get_available_data_payload_for_mode(type, mode) = bytes_per_frame - 2 (CRC16) - 1 (type) - sum(fixed template fields)`,
 which is `bytes_per_frame - 9` for `ARQ_BURST_FRAME`.
 
-The `snr` parameter is ignored by `build_arq_session_open_ack`, `build_arq_session_info` and
-`build_arq_session_info_ack`. All three encode the constant `helpers.snr_to_bytes(1)`, so the SNR byte on the
-wire is always `0.1` dB.
+`build_arq_session_open_ack`, `build_arq_session_info` and `build_arq_session_info_ack` encode the SNR the
+session last measured (`DataFrameFactory.session_snr_byte`; 0 before it has measured one). Like every SNR byte
+(`helpers.snr_to_bytes`) it holds -12.7 to 12.7 dB in steps of 0.1 dB. FreeDATA versions before this change
+always sent 0.1 dB here. The receiver only keeps the value (`ARQSession.dx_snr`).
 
 #### 2.3.3 P2P connection frames
 

@@ -44,6 +44,8 @@ class StateManager:
 
         self.is_beacon_running = False
         self.is_away_from_key = False
+        # PSK Reporter uploads, switched at runtime (pskreporter.set_enabled)
+        self.is_pskreporter_enabled = False
 
         # If true, any wait() call is blocking
         self.transmitting_event = threading.Event()
@@ -180,6 +182,7 @@ class StateManager:
             "is_modem_running": self.is_modem_running,
             "is_beacon_running": self.is_beacon_running,
             "is_away_from_key": self.is_away_from_key,
+            "is_pskreporter_enabled": self.is_pskreporter_enabled,
             "radio_status": self.radio_status,
             "channel_busy_slot": self.channel_busy_slot,
             # channel_busy_event is *set* while the channel is free

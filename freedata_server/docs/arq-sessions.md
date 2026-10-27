@@ -594,8 +594,7 @@ Notes from the code:
   `ctx.socket_interface_manager` exists and its command server has a `command_handler` (a command client
   has connected). Other paths, such as `process_data_queue` and `received_disconnect_ack`, still
   dereference the socket interface without that check.
-* `transmit_frame(mode="auto")` would call a non-existent `get_mode_by_speed_level`. All callers pass an
-  explicit mode.
+* `transmit_frame(frame, mode)` takes the mode from its caller; P2P connections have no speed levels.
 
 ---
 
@@ -657,8 +656,9 @@ Server-initiated messages (methods of `SocketCommandHandler`):
   stripped). A zero-length result closes the handler. `get_target_sessions()` decides where each chunk
   goes: to the `p2p_data_tx_queue` of the command socket's active session
   (`command_server.command_handler.session`, set on `CONNECT` or when being connected) if that session is
-  still registered in `p2p_connection_sessions`. Otherwise, as a legacy fallback, the chunk goes to every
-  registered P2P connection.
+  still registered in `p2p_connection_sessions`. Otherwise it goes to the only registered P2P connection,
+  if there is just one. With several and none active, it is not known which one the chunk is for: it is
+  dropped with a warning (it used to go to all of them).
 * Outbound: `SocketDataHandler.send_data_to_client(data)` sends `data` unmodified (no terminator). It is
   used for P2P payload frames and for completed ARQ transfers of type `p2p_connection`.
 * `p2p_data_rx_queue` exists but is unused (its reader is in a disabled string block).
@@ -741,6 +741,4 @@ sequenceDiagram
 | Where | Observation |
 |---|---|
 | ISS `send_stop` | No caller currently passes `send_stop=True`, so `ARQ_STOP` is never sent in practice |
-| ARQ SNR fields | `OPEN_ACK`, `INFO` and `INFO_ACK` always carry SNR 0.1 (constant `snr_to_bytes(1)`) |
-| [p2p_connection.py](../p2p_connection.py) | `transmit_frame(mode="auto")` would call the non-existent `get_mode_by_speed_level` (all callers pass an explicit mode) |
-| [socket_interface.py](../socket_interface.py) | When the command socket has no active, registered session, data-port input still falls back to **all** P2P sessions. (The same `session_id=None` fallback exists in `ARQDataTypeHandler.get_p2p_connection_sessions`, but all ARQ sessions pass their id) |
+| [arq_data_type_handler.py](../arq_data_type_handler.py) | `ARQDataTypeHandler.get_p2p_connection_sessions` falls back to all P2P sessions when `session_id` is `None`; all ARQ sessions pass their id |

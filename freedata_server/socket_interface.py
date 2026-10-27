@@ -108,8 +108,10 @@ class DataSocket(socketserver.BaseRequestHandler):
         """Returns the P2P connection session(s) data from the data port is queued for.
 
         This is the active session of the command socket (set on CONNECT or when
-        being connected), if it is still registered. Otherwise all P2P sessions
-        are used (legacy behaviour).
+        being connected), if it is still registered. Otherwise the only P2P
+        session, if there is just one. With several and none of them active,
+        it is unknown which one the data is for, so it goes to none (it used to
+        go to all of them).
         """
         sessions = self.ctx.state_manager.p2p_connection_sessions
         command_server = getattr(self.server.socket_interface_manager, "command_server", None)
@@ -117,7 +119,14 @@ class DataSocket(socketserver.BaseRequestHandler):
         active_session = getattr(command_handler, "session", None)
         if active_session is not None and sessions.get(getattr(active_session, "session_id", None)) is active_session:
             return [active_session]
-        return list(sessions.values())
+        if len(sessions) == 1:
+            return list(sessions.values())
+        if sessions:
+            self.log(
+                f"Data not sent: {len(sessions)} P2P sessions and none active on the command socket",
+                isWarning=True,
+            )
+        return []
 
     def handle(self):
         self.log(f"Data connection established with {self.client_address}")
