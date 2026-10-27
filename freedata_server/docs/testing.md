@@ -12,7 +12,7 @@ python -m venv .venv
 ```
 
 CI ([modem_tests.yml](../../.github/workflows/modem_tests.yml)) runs the whole suite in one process
-on Ubuntu with Python 3.10–3.13:
+on Ubuntu with Python 3.12 and 3.13:
 
 ```bash
 python -m unittest discover tests

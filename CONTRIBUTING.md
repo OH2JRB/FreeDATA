@@ -4,7 +4,7 @@
 
 The backend of FreeDATA is built with python, with a couple dependencies written
 in C/C++, and the frontend is built with Vue 3 and Vite, so you will need Python
-(from 3.10 to 3.13) to work on the backend, and Node.js 22 or newer with npm to
+(from 3.12 to 3.13) to work on the backend, and Node.js 22 or newer with npm to
 work on the frontend.
 
 System dependencies required:
