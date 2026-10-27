@@ -13,6 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from freedata_server.log_handler import setup_logging
 from freedata_server.constants import CONFIG_ENV_VAR, DEFAULT_CONFIG_FILE, DEFAULT_APP_DIR, API_VERSION
 from freedata_server.context import AppContext
+from freedata_server.shutdown_guard import exit_if_threads_hang, stop_signals_raise_keyboard_interrupt
 
 from freedata_server.api.general import router as general_router
 from freedata_server.api.config import router as config_router
@@ -83,8 +84,6 @@ async def lifespan(app: FastAPI):
     # shutdown on exit
     ctx.shutdown()
     logger.info("Shutdown complete")
-    # hard exit: leftover non-daemon threads (audio, rig, sockets) must not keep the process alive
-    os._exit(0)
 
 
 # Create FastAPI app with unified lifespan
@@ -177,7 +176,15 @@ def main():
         if ctx.config_manager.config.get("GUI", {}).get("auto_run_browser", True):
             threading.Thread(target=open_browser_after_delay, args=(url, 2), daemon=True).start()
 
-    uvicorn.run(app, host=host, port=port, log_config=None, log_level="info")
+    stop_signals_raise_keyboard_interrupt()
+    try:
+        uvicorn.run(app, host=host, port=port, log_config=None, log_level="info")
+    except KeyboardInterrupt:
+        # uvicorn raises the stop signal again once it has shut down
+        pass
+
+    # a thread that still blocks must not keep the process alive
+    exit_if_threads_hang(timeout=3.0)
 
 
 if __name__ == "__main__":
