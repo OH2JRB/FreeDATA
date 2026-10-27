@@ -65,7 +65,8 @@ test = [
 ]
 dev = [
     "freedata[test]",
-    "ruff",
+    # exact: ruff versions format differently
+    "ruff==0.17.2",
 ]
 build = [
     "build",
