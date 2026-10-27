@@ -163,9 +163,8 @@ times, while the state stays `ABORTING`. If the state is still `ABORTING` afterw
 `transmission_aborted()` anyway. Currently no caller passes `send_stop=True`:
 [context.py](../context.py) and [state_manager.py](../state_manager.py) call
 `abort_transmission(send_stop=False)`, and [p2p_connection.py](../p2p_connection.py) calls
-`abort_transmission()` (default `False`). Note that the IRS sends `ARQ_STOP_ACK` in `signalling_ack`
-mode, where it is parsed as `ARQ_BURST_ACK` (see section 10), so in practice the stop loop would usually
-end by exhausting its retries.
+`abort_transmission()` (default `False`). The IRS answers with `ARQ_STOP_ACK` in the signalling mode
+(`data_fsk4_50` on FSK), which ends the stop loop.
 
 ### 2.5 Scheduler interaction
 
@@ -218,7 +217,7 @@ Actions:
 | `receive_data` (not complete) | `process_incoming_data` (see 3.4), histograms. If the frame is the last of its burst (`burst_info`), `send_burst_ack()`: `calibrate_speed_settings()`, `ARQ_BURST_ACK(id, speed_level, flag_abort)` in `signalling_ack` (in FSK with the offset), waits 90 s. Otherwise a timer sends it one frame length after the last frame should have been decoded (`schedule_burst_ack`, section 4.1) | `BURST_REPLY_SENT` |
 | `receive_data` (complete, CRC ok) | `ARQ_BURST_ACK(FINAL, CHECKSUM)`, `delivered_crc = total_crc`, event `arq_session_finished(success=True, data=received_data)`, returns `(received_data, type_byte)` -> data-type dispatch | `ENDED` |
 | `receive_data` (complete, CRC bad) | `ARQ_BURST_ACK(FINAL, no CHECKSUM)`, then `transmission_failed()` | `FAILED` |
-| `send_stop_ack` | `ARQ_STOP_ACK` in `signalling_ack`, waits 55 s, `setARQ(False)`, event `arq_session_finished(success=False)`; if `STATION.enable_stats`, pushes statistics in a daemon thread (`push_statistics`) | `ABORTED` |
+| `send_stop_ack` | `ARQ_STOP_ACK` in `signalling` (`data_fsk4_50` on FSK; in `signalling_ack` it would be read as an `ARQ_BURST_ACK`), waits 55 s, `setARQ(False)`, event `arq_session_finished(success=False)`; if `STATION.enable_stats`, pushes statistics in a daemon thread (`push_statistics`) | `ABORTED` |
 | `transmission_failed` | Clears `received_data` and `received_bytes`, event `arq_session_finished` (outbound `False`), statistics push if enabled, `setARQ(False)` | `FAILED` |
 | `abort_transmission()` | Sets `abort = True` only. Later INFO/BURST ACKs carry the `ABORT` flag, and the ISS aborts on receiving it | unchanged |
 
@@ -741,7 +740,6 @@ sequenceDiagram
 
 | Where | Observation |
 |---|---|
-| `ARQ_STOP_ACK` | Sent in `signalling_ack` mode, so the receiver parses it as an `ARQ_BURST_ACK` (see [protocol-frames.md](protocol-frames.md#31-the-headerless-arq_burst_ack)). An ISS waiting in `ABORTING` therefore usually finishes the abort only after its stop retries run out (section 2.4) |
 | ISS `send_stop` | No caller currently passes `send_stop=True`, so `ARQ_STOP` is never sent in practice |
 | ARQ SNR fields | `OPEN_ACK`, `INFO` and `INFO_ACK` always carry SNR 0.1 (constant `snr_to_bytes(1)`) |
 | [p2p_connection.py](../p2p_connection.py) | `transmit_frame(mode="auto")` would call the non-existent `get_mode_by_speed_level` (all callers pass an explicit mode) |
