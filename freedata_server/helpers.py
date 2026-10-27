@@ -362,10 +362,12 @@ def check_callsign(callsign: str, crc_to_check: bytes, ssid_list):
     Args:
         callsign: Callsign which we want to check
         crc_to_check: The CRC which we want the callsign to check against
+        ssid_list: The SSIDs to try (ints or strings); the callsign's own SSID
+            is always tried too. The list is not changed.
 
     Returns:
         [True, Callsign + SSID]
-        False
+        [False, b""]
     """
     if not isinstance(callsign, (bytes)):
         callsign = bytes(callsign, "utf-8")
@@ -381,12 +383,15 @@ def check_callsign(callsign: str, crc_to_check: bytes, ssid_list):
         ssid = 0
     except Exception as err:
         log.debug("[HLP] check_callsign: Error converting to bytes:", e=err)
+        ssid = 0
 
-    # ensure, we are always have the own ssid in ssid_list even if it is empty
-    if ssid not in ssid_list:
-        ssid_list.append(str(ssid))
+    # always try the own ssid, even if ssid_list is empty; on a copy, since
+    # callers pass the config's STATION.ssid_list
+    ssids = [str(s) for s in ssid_list]
+    if str(ssid) not in ssids:
+        ssids.append(str(ssid))
 
-    for ssid in ssid_list:
+    for ssid in ssids:
         call_with_ssid = callsign + b"-" + (str(ssid)).encode("utf-8")
         callsign_crc = get_crc_24(call_with_ssid)
         callsign_crc = callsign_crc.hex()

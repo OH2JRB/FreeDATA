@@ -560,7 +560,7 @@ Most jobs catch exceptions and `print()` them.
   (CCITT-FALSE), CRC-24 (OpenPGP), CRC-32 (bitwise reflected); `add_to_heard_stations()` (row
   `[call, grid, ts, datatype, snr, offset, freq, km, miles, away_from_key]`, replaced per callsign);
   callsign codecs `callsign_to_bytes`/`bytes_to_callsign`/`encode_call`/`decode_call` (6-bit chars +
-  binary SSID in 6 bytes); `check_callsign()` (match CRC-24 across an SSID list);
+  binary SSID in 6 bytes); `check_callsign()` (match CRC-24 across an SSID list plus the callsign's own SSID, without changing the list);
   `check_session_id()`; grid codec `encode_grid`/`decode_grid` (26 bits in 4 bytes);
   `snr_to_bytes`/`snr_from_bytes` (x10, signed byte, clipped +-12.7); `safe_execute`,
   `return_key_from_object`, `bool_to_string`; HMAC token-file helpers (`get_hmac_salt`,
