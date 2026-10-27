@@ -9,13 +9,25 @@ import atexit
 import configparser
 import os
 import shutil
+import sys
 import tempfile
 
 _REPO_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_TEMPLATE = os.path.join(_REPO_DIR, "freedata_server", "config.ini.example")
 
 _TMP_DIR = tempfile.mkdtemp(prefix="freedata-tests-")
-atexit.register(shutil.rmtree, _TMP_DIR, ignore_errors=True)
+
+
+def _remove_tmp_dir():
+    # an open SQLite database cannot be deleted on Windows: close the shared
+    # engines first (a test may have left them open), if they were ever used
+    db_manager = sys.modules.get("freedata_server.message_system_db_manager")
+    if db_manager is not None:
+        db_manager.dispose_engines()
+    shutil.rmtree(_TMP_DIR, ignore_errors=True)
+
+
+atexit.register(_remove_tmp_dir)
 
 os.environ.setdefault("FREEDATA_DATABASE", os.path.join(_TMP_DIR, "freedata-messages.db"))
 

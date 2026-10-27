@@ -74,7 +74,10 @@ A full run takes about a minute. Both commands exit non-zero when a test fails.
 Every test module imports it **before** any `freedata_server` import and passes
 `testenv.config_path()` to `AppContext` / `CONFIG`. Without it, tests would rewrite the tracked
 `config.ini.example` and write messages into the user's real database in the FreeDATA app directory
-(`%APPDATA%\FreeDATA` on Windows). The temporary directory is removed when the process exits.
+(`%APPDATA%\FreeDATA` on Windows). The temporary directory is removed when the process exits, after
+the shared database engines are closed (`dispose_engines`): Windows cannot delete an open SQLite file.
+A test that opens a database itself with `sqlite3` has to close the connection
+(`contextlib.closing`); the connection's own `with` block only commits.
 
 `test_server.py` passes the same config to the server subprocess through `FREEDATA_CONFIG`, and the
 subprocess inherits `FREEDATA_DATABASE`. It starts the server with `sys.executable`, so it uses the
