@@ -6,6 +6,8 @@ per-domain broadcast GET with and without the trailing slash."""
 import ast
 import asyncio
 import inspect
+import json
+import queue
 import types
 import unittest
 from unittest import mock
@@ -17,6 +19,7 @@ import testenv  # noqa: F401  isolates config + message DB, must precede freedat
 from freedata_server import command_norm, helpers
 from freedata_server.api import config, devices, freedata, general, modem, radio
 from freedata_server.api.command_helpers import enqueue_tx_command
+from freedata_server.state_manager import StateManager
 
 ROUTER_MODULES = (general, config, devices, radio, modem, freedata)
 
@@ -125,6 +128,24 @@ class TestOpenApiErrors(unittest.TestCase):
                         codes = [k.value for k in keyword.value.keys if isinstance(k, ast.Constant)]
                         if 503 in codes:
                             self.assertIn("503", ast.get_source_segment(source, node), node.name)
+
+
+class TestModemStateRoute(unittest.TestCase):
+    def test_state_returned_not_pushed(self):
+        # GET /modem/state answers its caller only; it used to put the same
+        # full state on state_queue, so every /states client got it too
+        states = queue.Queue()
+        ctx = types.SimpleNamespace(state_manager=StateManager(states))
+        response = asyncio.run(modem.get_modem_state(ctx))
+        body = json.loads(response.body)
+        self.assertEqual(body["type"], "state")
+        self.assertIn("is_modem_running", body)
+        self.assertTrue(states.empty())
+
+    def test_validate_helper_removed(self):
+        from freedata_server.api import common
+
+        self.assertFalse(hasattr(common, "validate"))
 
 
 class TestBroadcastDomainRoute(unittest.TestCase):

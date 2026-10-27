@@ -31,8 +31,12 @@ const chat = useChatStore(pinia);
 const encryption = useEncryptionStore(pinia);
 
 export async function loadAllData() {
-  let stateData = await getModemState();
-  console.log(stateData);
+  // the full state comes back to this client only (the server no longer
+  // pushes it to every /states client): apply it like a pushed state
+  const stateData = await getModemState();
+  if (stateData) {
+    stateDispatcher(JSON.stringify(stateData));
+  }
   getSysInfo().then((res) => {
     if (res) {
       stateStore.api_version = res.api_version;

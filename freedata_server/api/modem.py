@@ -132,7 +132,8 @@ async def get_modem_state(ctx: AppContext = Depends(get_ctx)):
     Returns:
         dict: A JSON object containing modem state information.
     """
-    state = ctx.state_manager.sendState()
+    # only to this caller: the /states WebSocket stream sends its own changes
+    state = ctx.state_manager.get_state_event(False)
     if state is None:
         api_abort("Modem state not available", 404)
     return api_response(state)
