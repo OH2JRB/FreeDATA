@@ -74,6 +74,15 @@ class FrameHandler:
                 self.details["frame"]["destination_crc"],
                 self.ctx.config_manager.config["STATION"]["ssid_list"],
             )
+            # data too large for a P2P payload frame goes in an ARQ session with
+            # the connection's id, opened to the callsign the connection was
+            # made to, which may be a MYCALL callsign of the socket interface
+            if (
+                not valid
+                and ft == "ARQ_SESSION_OPEN"
+                and self.details["frame"]["session_id"] in self.ctx.state_manager.p2p_connection_sessions
+            ):
+                valid = self.is_socket_interface_callsign(self.details["frame"]["destination_crc"])
 
         # Check for session id on IRS side
         elif ft in ["ARQ_SESSION_INFO", "ARQ_BURST_FRAME", "ARQ_STOP"]:
@@ -99,26 +108,14 @@ class FrameHandler:
             # This will allow the client to respond to any call sent in the "MYCALL" command
 
             self.details["frame"]["destination_crc"] = helpers.get_crc_24(self.details["frame"]["destination"])
-            if self.ctx.socket_interface_manager and self.ctx.socket_interface_manager.socket_interface_callsigns:
-                print("checking callsings....")
-                print(self.ctx.socket_interface_manager.socket_interface_callsigns)
-                for callsign in self.ctx.socket_interface_manager.socket_interface_callsigns:
-                    print("check:", callsign)
-                    valid, mycallsign = helpers.check_callsign(
-                        callsign,
-                        self.details["frame"]["destination_crc"].hex(),
-                        self.ctx.config_manager.config["STATION"]["ssid_list"],
-                    )
-                    if valid is True:
-                        break
+            if self.socket_interface_callsigns():
+                valid = self.is_socket_interface_callsign(self.details["frame"]["destination_crc"].hex())
             else:
-                print("no socket interface manager")
                 valid, mycallsign = helpers.check_callsign(
                     call_with_ssid,
                     self.details["frame"]["destination_crc"].hex(),
                     self.ctx.config_manager.config["STATION"]["ssid_list"],
                 )
-            print("check done .... ")
 
         # check for p2p connection
         elif ft in [
@@ -140,6 +137,22 @@ class FrameHandler:
         if not valid:
             self.logger.info(f"[Frame handler] {ft} received but not for us.")
         return valid
+
+    def socket_interface_callsigns(self):
+        """The callsigns set with the socket interface's MYCALL command, if any."""
+        if self.ctx.socket_interface_manager:
+            return self.ctx.socket_interface_manager.socket_interface_callsigns or []
+        return []
+
+    def is_socket_interface_callsign(self, destination_crc):
+        """True if destination_crc (hex) belongs to a MYCALL callsign, with any SSID of ssid_list."""
+        for callsign in self.socket_interface_callsigns():
+            valid, _ = helpers.check_callsign(
+                callsign, destination_crc, self.ctx.config_manager.config["STATION"]["ssid_list"]
+            )
+            if valid:
+                return True
+        return False
 
     def should_respond(self):
         """Checks if the frame handler should respond to the received frame.

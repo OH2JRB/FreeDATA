@@ -307,6 +307,9 @@ Helpers:
 
 * `is_frame_for_me()` decides whether a frame is addressed to us:
   * `ARQ_SESSION_OPEN`, `ARQ_SESSION_OPEN_ACK`, `PING`, `PING_ACK`: `helpers.check_callsign(mycall-myssid, destination_crc, STATION.ssid_list)`.
+    An `ARQ_SESSION_OPEN` whose `session_id` is a P2P connection's is also accepted for the
+    `socket_interface_callsigns` (set by `MYCALL`): it carries larger data inside that connection, addressed
+    to the callsign the connection was made to.
   * `ARQ_SESSION_INFO`, `ARQ_BURST_FRAME`, `ARQ_STOP`: `session_id` in `state_manager.arq_irs_sessions`.
   * `ARQ_SESSION_INFO_ACK`, `ARQ_BURST_ACK`, `ARQ_STOP_ACK`: `session_id` in `state_manager.arq_iss_sessions`.
   * `NORM_DATA`: always true.

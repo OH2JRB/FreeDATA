@@ -15,16 +15,17 @@ from unittest import mock
 import numpy as np
 
 import testenv  # noqa: F401  isolates config + message DB, must precede freedata_server imports
+from freedata_server import helpers
 from freedata_server.command_p2p_connection import P2PConnectionCommand
 from freedata_server.context import AppContext
+from freedata_server.frame_handler import FrameHandler
 from freedata_server.p2p_connection import States
 
-# Both stations use the test config's station callsign AA1AAA. The IRS is
-# addressed with another of its SSIDs: an ARQ session inside the connection
-# is opened to that callsign, and ARQ_SESSION_OPEN is only accepted for the
-# station callsign and its SSIDs, not for other MYCALL callsigns.
+# Both stations use the test config's station callsign AA1AAA. The IRS's
+# socket client set MYCALL to another callsign, and the connection, and the
+# ARQ session that carries larger data inside it, are addressed to that.
 ISS_CALL = "AA1AAA-1"
-IRS_CALL = "AA1AAA-2"
+IRS_CALL = "BB2BBB-2"
 
 
 def make_socket_interface(callsigns=None):
@@ -175,6 +176,39 @@ class TestP2PConnection(unittest.TestCase):
         self.assertNotIn(self.iss.session_id, self.ctx_ISS.state_manager.arq_iss_sessions)
         self.assertNotIn(self.iss.session_id, self.ctx_IRS.state_manager.arq_irs_sessions)
         self.disconnect()
+
+
+class TestArqOpenForMycall(unittest.TestCase):
+    """An ARQ_SESSION_OPEN to a MYCALL callsign is accepted only for the ARQ
+    session of a P2P connection, which has the connection's id."""
+
+    def is_for_me(self, destination, session_id, mycall=(IRS_CALL,), p2p_sessions=(7,)):
+        ctx = mock.Mock()
+        ctx.config_manager.config = {"STATION": {"mycall": "AA1AAA", "myssid": 1, "ssid_list": [0, 1, 2]}}
+        ctx.socket_interface_manager = make_socket_interface(list(mycall))
+        ctx.state_manager.p2p_connection_sessions = dict.fromkeys(p2p_sessions)
+        handler = FrameHandler(ctx, "test")
+        handler.details["frame"] = {
+            "frame_type": "ARQ_SESSION_OPEN",
+            "destination_crc": helpers.get_crc_24(destination).hex(),
+            "session_id": session_id,
+        }
+        return handler.is_frame_for_me()
+
+    def test_station_callsign(self):
+        self.assertTrue(self.is_for_me("AA1AAA-2", session_id=99))
+
+    def test_mycall_in_p2p_connection(self):
+        self.assertTrue(self.is_for_me(IRS_CALL, session_id=7))
+
+    def test_mycall_without_p2p_connection(self):
+        self.assertFalse(self.is_for_me(IRS_CALL, session_id=99))
+
+    def test_other_callsign_in_p2p_connection(self):
+        self.assertFalse(self.is_for_me("CC3CCC-1", session_id=7))
+
+    def test_no_mycall_set(self):
+        self.assertFalse(self.is_for_me(IRS_CALL, session_id=7, mycall=()))
 
 
 if __name__ == "__main__":
