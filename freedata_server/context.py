@@ -4,7 +4,7 @@ from freedata_server.state_manager import StateManager
 from freedata_server.schedule_manager import ScheduleManager
 from freedata_server.config import CONFIG
 from freedata_server.service_manager import SM as ServiceManager
-from freedata_server.message_system_db_manager import DatabaseManager
+from freedata_server.message_system_db_manager import DatabaseManager, dispose_engines
 from freedata_server.message_system_db_attachments import DatabaseManagerAttachments
 from freedata_server.websocket_manager import wsm as WebsocketManager
 from freedata_server import constants
@@ -94,6 +94,7 @@ class AppContext:
         self.websocket_manager.shutdown()
         self.schedule_manager.stop()
         self.service_manager.shutdown()
+        dispose_engines()
         # self._audio.terminate()
 
 

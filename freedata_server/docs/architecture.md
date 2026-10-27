@@ -45,8 +45,8 @@ repository root). Most of the startup work happens at **module import time** of
 4. **FastAPI app** - `FastAPI(title="FreeDATA API", version=str(API_VERSION), lifespan=lifespan)`.
    - `app.state.ctx = ctx` - used by the dependency `context.get_ctx()`, which returns
      `request.app.state.ctx` (or the WebSocket equivalent).
-   - `lifespan`: nothing on startup; on exit calls `ctx.shutdown()`, logs "Shutdown complete" and
-     then calls `os._exit(0)`, so leftover threads (audio, rig, sockets) cannot keep the process alive.
+   - `lifespan`: nothing on startup; on exit calls `ctx.shutdown()` and logs "Shutdown complete".
+     It does not exit the process; `main()` returns once uvicorn has stopped (section 1.2).
    - `CORSMiddleware` with `allow_origins=["*"]`, all methods/headers, credentials allowed.
    - HTTP middleware `nocache` sets `Cache-Control: no-store, no-cache, must-revalidate, private`
      and `Pragma: no-cache` on every response and logs `[API] METHOD path -> status`.
@@ -81,6 +81,19 @@ repository root). Most of the startup work happens at **module import time** of
   and calls `webbrowser.open(url)`.
 - `uvicorn.run(app, host=host, port=port, log_config=None, log_level="info")` - `log_config=None`
   keeps the structlog/stdlib configuration from `setup_logging`.
+- Before `uvicorn.run()`, `stop_signals_raise_keyboard_interrupt()` makes SIGTERM (and SIGBREAK on
+  Windows) raise `KeyboardInterrupt` like SIGINT. After its shutdown uvicorn restores the previous
+  handlers and raises the stop signal again; `main()` catches the `KeyboardInterrupt`, so Ctrl+C
+  ends with exit code 0 instead of a traceback or the abrupt default SIGTERM/SIGBREAK exit.
+- After `uvicorn.run()` returns, `exit_if_threads_hang(timeout=3.0)`
+  ([shutdown_guard.py](../shutdown_guard.py)) joins the live non-daemon threads other than the
+  main thread, 3 s in total. If none is left, `main()` returns and the process exits normally:
+  `atexit` handlers run, logs are flushed and the exit code is 0. If a thread is still alive, it
+  logs a `[SHUTDOWN] threads still running, forcing exit` warning with the thread names, calls
+  `logging.shutdown()` and exits with `os._exit(1)`, so a hang is visible instead of silent.
+- Threads the server starts are daemon threads, except the scheduler thread, which
+  `schedule_manager.stop()` joins. The socket interface's TCP servers use `daemon_threads = True`,
+  so a connected client does not keep the process alive.
 
 ### 1.3 `AppContext.startup()` / `shutdown()`
 
@@ -99,10 +112,12 @@ repository root). Most of the startup work happens at **module import time** of
 1. For every IRS session: `transmission_aborted()`; for every ISS session:
    `abort_transmission(send_stop=False)` + `transmission_aborted()` (exceptions swallowed).
 2. `websocket_manager.shutdown()`, `schedule_manager.stop()`, `service_manager.shutdown()`.
+3. `dispose_engines()` ([message_system_db_manager.py](../message_system_db_manager.py)) closes the
+   connection pools of the shared SQLAlchemy engines; the next `get_engine()` creates them again.
 
 `shutdown()` returns normally and does **not** exit the process, so tests can create and shut down
-several contexts in one interpreter. The hard `os._exit(0)` lives in the server's `lifespan` hook
-(section 1.1) and is only used when the server itself stops.
+several contexts in one interpreter. When the server itself stops, `main()` checks for threads that
+would keep the process alive (section 1.2).
 
 ---
 
@@ -579,5 +594,3 @@ Behaviour visible in the code that may surprise maintainers:
 - `stats.py` and `explorer.py` `json.dumps()` the payload and then pass it to
   `requests.post(json=...)`, so the body is a JSON-encoded string (double encoding).
 - When `modemaddress` is empty the logged/opened GUI URL uses `0.0.0.0`.
-- The server exits with `os._exit(0)` from its `lifespan` hook, so `atexit` handlers don't run when
-  the server stops.

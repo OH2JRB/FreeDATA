@@ -44,6 +44,7 @@ class Norm(TxCommand):
             tx_thread = threading.Thread(
                 target=NormTransmissionISS(self.ctx).prepare_and_transmit_data,
                 args=(self.origin, self.domain, self.gridsquare, self.data, self.priority, self.msgtype),
+                daemon=True,
             )
             tx_thread.start()
 

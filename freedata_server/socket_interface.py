@@ -163,6 +163,8 @@ class DataSocket(socketserver.BaseRequestHandler):
 
 
 class CustomThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
+    # a connected client must not keep the process alive on exit
+    daemon_threads = True
     allow_reuse_address = True
     allow_reuse_port = True
 

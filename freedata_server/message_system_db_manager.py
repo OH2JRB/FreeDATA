@@ -25,6 +25,15 @@ def get_engine(db_url):
         return engine
 
 
+def dispose_engines():
+    """Closes the connection pools of all shared engines; get_engine() creates
+    them again on the next use."""
+    with _engines_lock:
+        for engine in _engines.values():
+            engine.dispose()
+        _engines.clear()
+
+
 class DatabaseManager:
     """Manages database connections and operations.
 
