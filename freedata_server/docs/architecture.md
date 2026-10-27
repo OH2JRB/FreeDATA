@@ -163,7 +163,7 @@ the rest of the code reads configuration through `ctx.config_manager.config`.
 | Queue | Producers | Consumer |
 |---|---|---|
 | `modem_events` | `EventManager.broadcast()` (all event helpers) | `wsm` events thread -> `events_client_list` |
-| `state_queue` | `StateManager.sendState/sendStateUpdate/set/set_radio/set_channel_slot_busy/add_activity` | `wsm` states thread -> `states_client_list` |
+| `state_queue` | `StateManager.sendStateUpdate/set/set_radio/set_channel_slot_busy/add_activity` | `wsm` states thread -> `states_client_list` |
 | `modem_fft` | `audio.calculate_fft(...)` called from `modem.py` | `wsm` fft thread -> `fft_client_list` |
 | `audio_rx_queue` | `modem.py` `enqueue_streaming_audio_chunks(...)` | `wsm` audio thread -> `audio_rx_client_list` (binary frames) |
 | `modem_service` | `AppContext.startup()` (`"start"`), `api/modem.py` (`"start"`, `"stop"`), `api/config.py` (`"restart"`), `modem.py` (`"stop"`), `SM.shutdown()` (`"stop"`, then `"shutdown"` as a wake-up) | `SM.runner` thread |
@@ -258,7 +258,6 @@ Holds mutable runtime state and pushes state snapshots to `state_queue`.
 |---|---|
 | `set(key, value)` | `setattr`, then builds a `state-change` event and enqueues it only if it differs from the last one (`newstate`). |
 | `set_radio(key, value)` | Same for `radio-change` events (`newradio`). |
-| `sendState()` | Enqueues a full `state` event and returns it. |
 | `sendStateUpdate(state)` | Raw enqueue. |
 | `get_state_event(changed)` | `{"type": "state"\|"state-change", is_modem_running, is_beacon_running, is_away_from_key, radio_status, channel_busy_slot, is_codec2_traffic, audio_dbfs, activities, is_modem_busy}` |
 | `get_radio_event(changed)` | `{"type": "radio"\|"radio-change", radio_status, radio_frequency, radio_rf_level, radio_mode, s_meter_strength, radio_swr, radio_tuner}` |

@@ -14,15 +14,3 @@ def api_abort(message, code):
 
 def api_ok(message="ok"):
     return api_response({"message": message})
-
-
-# Validates a parameter
-def validate(req, param, validator, is_required=True):
-    if param not in req:
-        if is_required:
-            api_abort(f"Required parameter '{param}' is missing.", 400)
-        else:
-            return True
-    if not validator(req[param]):
-        api_abort(f"Value of '{param}' is invalid.", 400)
-    return True

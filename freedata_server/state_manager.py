@@ -79,19 +79,6 @@ class StateManager:
         # Set rig control status regardless or rig control method
         self.radio_status = False
 
-    def sendState(self):
-        """Sends the current state to the state queue.
-
-        This method retrieves the current state using get_state_event() and
-        puts it into the state queue for processing and distribution.
-
-        Returns:
-            dict: The current state.
-        """
-        currentState = self.get_state_event(False)
-        self.statequeue.put(currentState)
-        return currentState
-
     def sendStateUpdate(self, state):
         """Sends a state update to the state queue.
 

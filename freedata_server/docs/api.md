@@ -61,7 +61,6 @@ It works for both HTTP and WebSocket routes and returns the one `AppContext` cre
 | `api_response(data, status=200)` | `JSONResponse(content=data, status_code=status)` |
 | `api_ok(message="ok")` | `api_response({"message": message})` |
 | `api_abort(message, code)` | `print(message)`, then `raise HTTPException(status_code=code, detail={"error": message})` |
-| `validate(req, param, validator, is_required=True)` | Aborts 400 if a required param is missing or `validator` returns falsy, otherwise returns `True`. **Not used by any router.** |
 
 **Error body format.** Because `api_abort` passes `detail={"error": ...}`, FastAPI's actual error body is:
 
@@ -133,7 +132,7 @@ Validation rewrites these to `"AA1AAA"` and `"JN48ea"`.
 
 | Method | Path | Body | Success response | Errors (actually raised) | Command class |
 |---|---|---|---|---|---|
-| GET | `/modem/state` | none | `state_manager.sendState()`, see below | 404 if `None` | none |
+| GET | `/modem/state` | none | `state_manager.get_state_event(False)`, see below | 404 if `None` | none |
 | POST | `/modem/cqcqcq` | none | `{"message":"ok"}` | 503 `Modem not running`; 500 `Failed to send CQ.` | `command_cq.CQCommand` |
 | POST | `/modem/beacon` | `{"enabled": bool, "away_from_key": bool}` | `{"enabled": bool, "away_from_key": bool}` | 400 `Expected booleans for 'enabled' and 'away_from_key'`; 503 `Modem not running`; 500 `Failed to send beacon.` | `command_beacon.BeaconCommand` (only when `enabled` is true and no ARQ session is active) |
 | GET | `/modem/pskreporter` | none | `{"enabled": bool, "pending_spots": int, "blocked_by_encryption": bool}` | none | none |
@@ -146,7 +145,7 @@ Validation rewrites these to `"AA1AAA"` and `"JN48ea"`.
 | POST | `/modem/send_arq_raw` | `{"dxcall": str, "type": "raw"\|"raw_lzma"\|"raw_gzip", "data": base64 str}` | `{"data", "dxcall", "type"}` echoed back | 503 `Modem not running.`; 503 `Modem Busy.` (ARQ active); 400 `Invalid 'dxcall' parameter.` / `Invalid 'type' parameter.` / `Missing 'data' parameter.`; 500 `Failed to start ARQ raw transmission.` | `command_arq_raw.ARQRawCommand` |
 | POST | `/modem/stop_transmission` | none | `{"message":"ok"}` | none (all exceptions are swallowed) | calls `state_manager.stop_transmission()` |
 
-**`GET /modem/state` response.** `sendState()` returns `get_state_event(False)` and also **puts the same dict on `state_queue`**, so each GET sends a full state frame to every `/states` WebSocket client.
+**`GET /modem/state` response.** `get_state_event(False)`, a full `state` snapshot, returned to the caller only; nothing is sent to the `/states` WebSocket clients. The GUI calls it on every (re)connect of its `/states` socket (`loadAllData`) and applies the answer with the same `stateDispatcher` that handles pushed states.
 
 ```json
 {
@@ -290,7 +289,7 @@ These are produced by `EventManager.broadcast()` ([event_manager.py](../event_ma
 
 Produced by `StateManager` ([state_manager.py](../state_manager.py)):
 
-- `{"type": "state", ...}`: a full state snapshot, sent by `sendState()` (for example from `GET /modem/state`).
+- `{"type": "state", ...}`: a full state snapshot, as `GET /modem/state` returns it (`get_state_event(False)`); the stream itself sends only the changes below.
 - `{"type": "state-change", ...}`: the same fields, sent by `set(key, value)` and `set_channel_slot_busy()` when the snapshot differs from the last one. Fields: `is_modem_running, is_beacon_running, is_away_from_key, is_pskreporter_enabled, radio_status, channel_busy, channel_busy_slot, is_codec2_traffic, audio_dbfs, activities, is_modem_busy`. `channel_busy` is `true` while the channel is busy (`not channel_busy_event.is_set()`; the event is set while the channel is free).
 - `{"type": "radio-change", radio_status, radio_frequency, radio_rf_level, radio_mode, s_meter_strength, radio_swr, radio_tuner}`, sent by `set_radio()` when the value changes. `get_radio_event` can also build `type: "radio"`.
 
@@ -355,5 +354,3 @@ The module docstring says the callsign regex "may require adjustment" for SSID 0
 ## 6. Known quirks in the API layer
 
 - `POST /modem/fec_transmit` always returns 501, because FEC transmission is not implemented.
-- `GET /modem/state` also pushes a full state frame to every `/states` WebSocket client.
-- `common.validate` is never used.
