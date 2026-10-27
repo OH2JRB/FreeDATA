@@ -13,6 +13,8 @@ import random
 import structlog
 import numpy as np
 from freedata_server import arq_session_irs
+from freedata_server.arq_data_type_handler import ARQ_SESSION_TYPES
+from freedata_server.arq_session_iss import ARQSessionISS
 
 
 class DummyCtx:
@@ -49,37 +51,33 @@ class TestARQSession(unittest.TestCase):
         cls.ctx_IRS.shutdown()
         cls.ctx_ISS.shutdown()
 
-    def channelWorker(self, ctx_a, ctx_b):
+    def channelWorker(self, ctx_a, ctx_b, seed=None):
+        # each channel loses frames from its own random sequence
+        rng = random.Random(seed)
         while self.channels_running:
             try:
                 # Station A gets the data from its transmit queue
-                transmission = ctx_a.TESTMODE_TRANSMIT_QUEUE.get(timeout=1)
-                print(f"Station A sending: {transmission[1]}", len(transmission[1]), transmission[0])
+                mode, frames = ctx_a.TESTMODE_TRANSMIT_QUEUE.get(timeout=1)
+            except queue.Empty:
+                continue
 
-                transmission[1] += bytes(2)  # 2bytes crc simulation
+            # a burst is a list of frames sent in one transmission; each is lost on its own
+            for frame in frames if isinstance(frames, list) else [frames]:
+                # a copy: the sender keeps the frame for its retries
+                frame_bytes = bytes(frame) + bytes(2)  # 2bytes crc simulation
 
-                if random.randint(0, 100) < self.loss_probability:
+                if rng.randint(0, 99) < self.loss_probability:
                     self.logger.info(f"[{threading.current_thread().name}] Frame lost...")
                     continue
 
-                # Forward data from Station A to Station B's receive queue
-                if ctx_b:
-                    ctx_b.TESTMODE_RECEIVE_QUEUE.put(transmission)
-                    self.logger.info("Data forwarded to Station B")
-
-                frame_bytes = transmission[1]
-                if len(frame_bytes) == 5:
-                    mode_name = "SIGNALLING_ACK"
-                else:
-                    mode_name = transmission[0]
+                # signalling_ack frames carry no type byte; the dispatcher knows
+                # them by the mode they were received in
+                mode_name = "SIGNALLING_ACK" if len(frame_bytes) == 5 else mode
 
                 snr = 15
                 ctx_b.service_manager.frame_dispatcher.process_data(
                     frame_bytes, None, len(frame_bytes), snr, 0, mode_name=mode_name
                 )
-
-            except queue.Empty:
-                continue
 
         self.logger.info(f"[{threading.current_thread().name}] Channel closed.")
 
@@ -91,13 +89,31 @@ class TestARQSession(unittest.TestCase):
                 self.logger.info(f"[{threading.current_thread().name}] {key} session ended.")
                 break
 
-    def establishChannels(self):
+    def establishChannels(self, seed=None):
         self.channels_running = True
-        self.channelA = threading.Thread(target=self.channelWorker, args=[self.ctx_ISS, self.ctx_IRS], name="channelA")
+        self.channelA = threading.Thread(
+            target=self.channelWorker, args=[self.ctx_ISS, self.ctx_IRS, seed], name="channelA"
+        )
         self.channelA.start()
 
-        self.channelB = threading.Thread(target=self.channelWorker, args=[self.ctx_IRS, self.ctx_ISS], name="channelB")
+        self.channelB = threading.Thread(
+            target=self.channelWorker,
+            args=[self.ctx_IRS, self.ctx_ISS, None if seed is None else seed + 1],
+            name="channelB",
+        )
         self.channelB.start()
+
+    def wait_for_finished(self, ctx, key, timeout):
+        """The first arq-transfer event of the session's end (it has "success"), or None."""
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            try:
+                ev = ctx.TESTMODE_EVENTS.get(timeout=0.5)
+            except queue.Empty:
+                continue
+            if "success" in ev.get(key, {}):
+                return ev[key]
+        return None
 
     def waitAndCloseChannels(self):
         self.waitForSession(self.ctx_ISS.TESTMODE_EVENTS, True)
@@ -105,29 +121,33 @@ class TestARQSession(unittest.TestCase):
         self.waitForSession(self.ctx_IRS.TESTMODE_EVENTS, False)
         self.channels_running = False
 
-    def DisabledtestARQSessionSmallPayload(self):
-        # set Packet Error Rate (PER) / frame loss probability
+    def testARQSessionSmallPayloadFrameLoss(self):
+        # 30 % of the frames are lost both ways: the retries, and the FSK fallback
+        # after unanswered frames, still get the data through
         self.loss_probability = 30
+        payload = np.random.bytes(600)
+        # events of earlier tests must not pass for this session's end
+        for ctx in (self.ctx_ISS, self.ctx_IRS):
+            while not ctx.TESTMODE_EVENTS.empty():
+                ctx.TESTMODE_EVENTS.get_nowait()
 
-        self.establishChannels()
-        params = {
-            "dxcall": "AA1AAA-1",
-            "data": base64.b64encode(bytes("Hello world!", encoding="utf-8")),
-            "type": "raw_lzma",
-        }
-        cmd = ARQRawCommand(self.ctx_ISS, params)
-        cmd.run()
-        self.waitAndCloseChannels()
-        print(self.ctx_ISS.TESTMODE_EVENTS.empty())
+        self.establishChannels(seed=1)
+        try:
+            params = {"dxcall": "AA1AAA-1", "data": base64.b64encode(payload), "type": "raw"}
+            ARQRawCommand(self.ctx_ISS, params).run()
+            inbound = self.wait_for_finished(self.ctx_IRS, "arq-transfer-inbound", 300)
+            outbound = self.wait_for_finished(self.ctx_ISS, "arq-transfer-outbound", 120)
+        finally:
+            self.loss_probability = 0
+            self.channels_running = False
+            self.channelA.join(5)
+            self.channelB.join(5)
 
-        while not self.ctx_ISS.TESTMODE_EVENTS.empty():
-            event = self.ctx_ISS.TESTMODE_EVENTS.get()
-            success = event.get("arq-transfer-outbound", {}).get("success", None)
-            if success is not None:
-                self.assertTrue(success, f"Test failed because of wrong success: {success}")
-
-        # self.ctx_IRS.shutdown()
-        # self.ctx_ISS.shutdown()
+        self.assertIsNotNone(inbound, "the IRS never finished the session")
+        self.assertTrue(inbound["success"], inbound)
+        self.assertEqual(base64.b64decode(inbound["data"]), payload)
+        self.assertIsNotNone(outbound, "the ISS never finished the session")
+        self.assertTrue(outbound["success"], outbound)
 
     def testARQSessionLargePayload(self):
         # set Packet Error Rate (PER) / frame loss probability
@@ -268,38 +288,55 @@ class TestARQSession(unittest.TestCase):
         finally:
             self.stop_channels(iss, irs)
 
-    def DisabledtestSessionCleanupISS(self):
-        params = {
-            "dxcall": "AA1AAA-1",
-            "data": base64.b64encode(np.random.bytes(100)),
-        }
-        cmd = ARQRawCommand(self.config, self.iss_state_manager, self.iss_event_queue, params)
-        cmd.run(self.iss_event_queue, self.iss_modem)
-        for session_id in self.iss_state_manager.arq_iss_sessions:
-            session = self.iss_state_manager.arq_iss_sessions[session_id]
-            ISS_States = session.state_enum
-            session.state = ISS_States.FAILED
-            session.session_ended = time.time() - 1000
-            if session.is_session_outdated():
-                self.logger.info(f"session [{session_id}] outdated - deleting it")
-                self.iss_state_manager.remove_arq_iss_session(session_id)
-                break
-        del cmd
+    def check_session_cleanup(self, sessions, make_session, running_state, irs):
+        """check_if_running_arq_session() removes sessions that ended long ago
+        (is_session_outdated) and still sees the running one."""
+        saved = dict(sessions)
+        sessions.clear()
+        try:
+            outdated = []
+            for state in ("FAILED", "ENDED", "ABORTED"):
+                session = make_session()
+                session.state = session.state_enum[state]
+                session.session_ended = time.time() - session.session_max_age - 10
+                outdated.append(session)
+            recent = make_session()
+            recent.state = recent.state_enum.FAILED
+            recent.session_ended = time.time()
+            for session in outdated + [recent]:
+                sessions[session.id] = session
 
-    def DisabledtestSessionCleanupIRS(self):
-        session = arq_session_irs.ARQSessionIRS(
-            self.config, self.irs_modem, "AA1AAA-1", random.randint(0, 255), self.irs_state_manager
-        )
-        self.irs_state_manager.register_arq_irs_session(session)
-        for session_id in self.irs_state_manager.arq_irs_sessions:
-            session = self.irs_state_manager.arq_irs_sessions[session_id]
-            irs_States = session.state_enum
-            session.state = irs_States.FAILED
-            session.session_ended = time.time() - 1000
-            if session.is_session_outdated():
-                self.logger.info(f"session [{session_id}] outdated - deleting it")
-                self.irs_state_manager.remove_arq_irs_session(session_id)
-                break
+            # only finished sessions: none is running, the old ones are gone
+            self.assertFalse(self.ctx_ISS.state_manager.check_if_running_arq_session(irs=irs))
+            self.assertEqual(list(sessions), [recent.id])
+
+            running = make_session()
+            running.state = running.state_enum[running_state]
+            sessions[running.id] = running
+            self.assertTrue(self.ctx_ISS.state_manager.check_if_running_arq_session(irs=irs))
+        finally:
+            sessions.clear()
+            sessions.update(saved)
+
+    def testSessionCleanupISS(self):
+        ids = iter(range(200, 256))
+        state_manager = self.ctx_ISS.state_manager
+
+        def make_session():
+            session = ARQSessionISS(self.ctx_ISS, "AA1AAA-1", bytes(100), ARQ_SESSION_TYPES.raw.value)
+            session.id = next(ids)
+            return session
+
+        self.check_session_cleanup(state_manager.arq_iss_sessions, make_session, "BURST_SENT", irs=False)
+
+    def testSessionCleanupIRS(self):
+        ids = iter(range(200, 256))
+        state_manager = self.ctx_ISS.state_manager
+
+        def make_session():
+            return arq_session_irs.ARQSessionIRS(self.ctx_ISS, "AA1AAA-1", next(ids))
+
+        self.check_session_cleanup(state_manager.arq_irs_sessions, make_session, "BURST_REPLY_SENT", irs=True)
 
 
 if __name__ == "__main__":

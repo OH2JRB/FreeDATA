@@ -384,7 +384,8 @@ class StateManager:
         """
         sessions = self.arq_irs_sessions if irs else self.arq_iss_sessions
 
-        for session_id in sessions:
+        # over a copy: the cleanup removes sessions from the dict
+        for session_id in list(sessions):
             # do a session cleanup of outdated sessions before
             if sessions[session_id].is_session_outdated():
                 print(f"session cleanup.....{session_id}")
