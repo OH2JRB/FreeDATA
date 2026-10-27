@@ -37,7 +37,7 @@ jobs:
         shell: bash
         run: |
           sudo apt-get update || true
-          sudo apt-get install octave octave-common octave-signal sox portaudio19-dev
+          sudo apt-get install --no-install-recommends portaudio19-dev
 
       - name: Install python packages
         shell: bash
