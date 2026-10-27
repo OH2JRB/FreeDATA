@@ -19,8 +19,8 @@ jobs:
           #- python-version: "3.7" EOL
           #- python-version: "3.8" EOL
           #- python-version: "3.9" EOL
-          - python-version: "3.10"
-          - python-version: "3.11"
+          #- python-version: "3.10" dropped, 3.12 is the oldest tested version
+          #- python-version: "3.11" dropped, 3.12 is the oldest tested version
           - python-version: "3.12"
           - python-version: "3.13"
 
