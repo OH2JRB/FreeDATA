@@ -69,7 +69,7 @@ class TestFskSwitch(unittest.TestCase):
 
     def run_twr(self, iss, failures, mode, retries, is_burst=False):
         event = answer_after(failures)
-        with mock.patch("freedata_server.arq_session_iss.threading.Event", return_value=event):
+        with testenv.patch_threading_event("freedata_server.arq_session_iss", event):
             iss.transmit_wait_and_retry(b"frame", 1.0, retries, mode, isARQBurst=is_burst)
         return [c.args[1] for c in iss.transmit_frame.call_args_list]
 
@@ -215,7 +215,7 @@ class TestResponseTimeout(unittest.TestCase):
     def test_transmit_wait_and_retry_uses_it(self):
         iss = make_iss()
         event = answer_after(0)
-        with mock.patch("freedata_server.arq_session_iss.threading.Event", return_value=event):
+        with testenv.patch_threading_event("freedata_server.arq_session_iss", event):
             iss.transmit_wait_and_retry(b"frame", ARQSessionISS.TIMEOUT_CONNECT_ACK, 1, FSK)
         iss.transmit_frame.assert_called_once_with(b"frame", FSK)
         self.assertAlmostEqual(event.wait.call_args.args[0], ARQSessionISS.TIMEOUT_CONNECT_ACK + FSK_ROUND_TRIP)
@@ -226,7 +226,7 @@ class TestResponseTimeout(unittest.TestCase):
         iss = make_iss(ARQSessionISS.FSK_LEVEL)
         event = answer_after(0)
         burst = [b"1", b"2", b"3", b"4"]
-        with mock.patch("freedata_server.arq_session_iss.threading.Event", return_value=event):
+        with testenv.patch_threading_event("freedata_server.arq_session_iss", event):
             iss.transmit_wait_and_retry(burst, ARQSessionISS.TIMEOUT_TRANSFER, 1, "auto", isARQBurst=True)
         iss.transmit_frame.assert_called_once_with(burst, "auto")
         self.assertAlmostEqual(event.wait.call_args.args[0], ARQSessionISS.TIMEOUT_TRANSFER + FSK_ROUND_TRIP + 5.44)
@@ -235,7 +235,7 @@ class TestResponseTimeout(unittest.TestCase):
 class TestFallback(unittest.TestCase):
     def run_twr(self, iss, failures, mode, retries, is_burst=False):
         event = answer_after(failures)
-        with mock.patch("freedata_server.arq_session_iss.threading.Event", return_value=event):
+        with testenv.patch_threading_event("freedata_server.arq_session_iss", event):
             iss.transmit_wait_and_retry(b"frame", 1.0, retries, mode, isARQBurst=is_burst)
         sent = [c.args[1] for c in iss.transmit_frame.call_args_list]
         waits = [c.args[0] for c in event.wait.call_args_list]
@@ -277,7 +277,7 @@ class TestFallback(unittest.TestCase):
         iss.fsk = True
         event = answer_after(2)
         burst = [b"1", b"2", b"3", b"4"]
-        with mock.patch("freedata_server.arq_session_iss.threading.Event", return_value=event):
+        with testenv.patch_threading_event("freedata_server.arq_session_iss", event):
             iss.transmit_wait_and_retry(burst, 1.0, ARQSessionISS.RETRIES_DATA, "auto", isARQBurst=True)
         sent = [c.args[0] for c in iss.transmit_frame.call_args_list]
         self.assertEqual(sent, [burst, b"4", b"4"])
@@ -291,7 +291,7 @@ class TestFallback(unittest.TestCase):
         iss = make_iss()
         iss.twr_generation = 2
         event = answer_after(5)
-        with mock.patch("freedata_server.arq_session_iss.threading.Event", return_value=event):
+        with testenv.patch_threading_event("freedata_server.arq_session_iss", event):
             iss.transmit_wait_and_retry(b"frame", 1.0, 5, FREEDV_MODE.signalling, generation=1)
         iss.transmit_frame.assert_not_called()
         self.assertEqual(iss.state, ISS_State.INFO_SENT)
@@ -549,6 +549,7 @@ class TestIrsPatience(unittest.TestCase):
         irs = ARQSessionIRS.__new__(ARQSessionIRS)
         irs.fsk = fsk
         irs.state = IRS_State.OPEN_ACK_SENT
+        irs.received_data = None  # read when a wait returns just before the deadline
         irs.log = mock.Mock()
         irs.transmit_frame = mock.Mock()
         irs.transmission_failed = mock.Mock()
@@ -577,7 +578,7 @@ class TestProbe(unittest.TestCase):
         iss.fsk = True
         iss.probing = True
         event = answer_after(1)
-        with mock.patch("freedata_server.arq_session_iss.threading.Event", return_value=event):
+        with testenv.patch_threading_event("freedata_server.arq_session_iss", event):
             iss.transmit_wait_and_retry([b"probe"], 1.0, 1, FREEDV_MODE.datac4, isARQBurst=True)
         self.assertFalse(iss.probing)
         self.assertTrue(iss.fsk)

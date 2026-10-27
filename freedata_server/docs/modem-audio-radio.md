@@ -232,7 +232,14 @@ Loop (every 10 ms, while the stream is active and `shutdown_flag` unset, or in T
 3. If `nbytes == bytes_per_frame`: compute SNR and scatter, then put onto `ctx.rf_modem.data_queue_received`:
 
    ```python
-   {"payload": bytes(bytes_out), "freedv": freedv, "bytes_per_frame": ..., "snr": ..., "frequency_offset": ..., "mode_name": ...}
+   {
+       "payload": bytes(bytes_out),
+       "freedv": freedv,
+       "bytes_per_frame": ...,
+       "snr": ...,
+       "frequency_offset": ...,
+       "mode_name": ...,
+   }
    ```
 
    The payload is a copy, because `bytes_out` is overwritten by the next decode. For FSK modes, a frame already decoded within the last two frame lengths of audio (by the early decoder or the replay, `fsk_is_new`) is not put on the queue again, and `restart_fsk(mode, replay=True)` follows.
