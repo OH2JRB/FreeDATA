@@ -7,8 +7,9 @@
 # but hopefully can be used as a guide if you are installing on other 
 # flavours of Linux
 #
-# Supported: Debian [12, 13], Ubuntu [22.04, 24.04, 25.10, 26.04], Fedora [42, 43, 44]
-# Untested additions for Linux Mint [21.3, 22.x]
+# Supported: Debian [13], Ubuntu [24.04, 25.10, 26.04], Fedora [42, 43, 44]
+# Untested additions for Linux Mint [22.x]
+# FreeDATA needs Python 3.12 or newer, which these releases ship
 # 
 # First option passed is the branch of FreeDATA to run.  Defaults to main.
 # Second option passed is the version of Hamlib to use.  Defaults to 4.7.2.
@@ -44,6 +45,12 @@
 #
 #
 # Changelog:
+# 2.13:	27 Oct 2026
+#	FreeDATA now needs Python 3.12 or newer
+#	Remove Debian 12 (Python 3.11), Ubuntu 22.04 and Linux Mint 21.3
+#	(Python 3.10)
+#	Stop with a message when python3 is older than 3.12
+#
 # 2.12:	25 Oct 2026
 #	Change hamlib default version to 4.7.2
 #
@@ -180,7 +187,7 @@ echo "*************************************************************************"
 case $osname in
    "Debian GNU/Linux")
 	case $osversion in
-	   "12" | "13")
+	   "13")
 		sudo apt update
 		sudo apt install --upgrade -y fonts-noto-color-emoji git build-essential cmake python3 portaudio19-dev python3-pip python3-venv wget python3-dev
 	   ;;
@@ -199,7 +206,7 @@ case $osname in
 
    "Ubuntu" | "Linux Mint")
 	case $osversion in
-	   "21.3" | "22" | "22.1" | "22.2" | "22.3" | "22.04" | "24.04" | "25.10" | "26.04" )
+	   "22" | "22.1" | "22.2" | "22.3" | "24.04" | "25.10" | "26.04" )
 		sudo apt update
 		sudo apt install --upgrade -y fonts-noto-color-emoji git build-essential cmake python3 portaudio19-dev python3-pip python3-venv wget python3-dev
 	   ;;
@@ -237,6 +244,15 @@ case $osname in
 	exit 1
    ;;
 esac
+
+# FreeDATA needs Python 3.12 or newer (requires-python in pyproject.toml)
+if ! python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 12) else 1)';
+then
+	echo "*************************************************************************"
+	echo "FreeDATA needs Python 3.12 or newer, but python3 is" `python3 --version 2>&1`
+	echo "*************************************************************************"
+	exit 1
+fi
 
 echo "*************************************************************************"
 echo "Installing nvm and node v 22 into ~/.nvm"
