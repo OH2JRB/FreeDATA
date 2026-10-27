@@ -50,6 +50,7 @@ A full run takes about a minute. Both commands exit non-zero when a test fails.
 | `test_encryption_reporting.py` | Turning encryption on (per station or with the common key) switches Explorer and PSK Reporter off, keeps them locked off (409, config forced to `False`) until all encryption is off, and the startup check | yes |
 | `test_norm_protocol.py` | Sending a NORM broadcast (smoke test, see section 5) | two |
 | `test_rigctld_connect.py` | rigctld connects in a background thread: creating the radio and polling it while not connected return at once, `disconnect()` ends the attempts, one connect at a time, connecting to a fake rigctld | no (mock context, local sockets) |
+| `test_small_fixes.py` | flrig reports connected only when flrig answers and reads frequency and mode once per poll (fake XML-RPC server); codec2 CRC16 types and CRC-16/CCITT result; P2P connection data without a known session id reaches no connection | no (mock context, local XML-RPC server) |
 | `test_rx_audio_callback.py` | RX audio callback/worker split and re-blocking to whole DSP blocks | yes (not started) |
 | `test_audio_backend.py` | Server import, device listing, audio test and modem start in a fresh interpreter where `import sounddevice` fails (no PortAudio / no sound server); loading PortAudio again once it is available | separate process |
 | `test_api_fixes.py` | `GET /freedata/messages/{id}` (object / 404, called directly), broadcast DB helpers (read-only per-domain GET with `priority`, `mark_domain_as_read`, delete `not_found`), `Norm` priority coercion, `channel_busy` in state events, `POST /config` restarting only for non-GUI changes (fake ctx with its own config copy) | yes |
@@ -126,4 +127,4 @@ an ARQ transfer shows up as `{"arq-transfer-outbound": {...}}` on the ISS and
   cleanup.
 - `test_norm_protocol.py` only checks that sending a broadcast doesn't fail. It swallows exceptions
   from `Norm.run()` and NORM emits no `arq-transfer-*` events, so its success check never runs.
-- No tests cover the socket interface, the radio backends or the REST endpoints beyond `/` and `/config`.
+- The socket interface and radio backends are only partly covered (the TCP data port target, rigctld connecting, flrig connecting and polling); serial PTT and the command port have no tests, and the REST endpoints are tested only for `/`, `/config` and a few handlers called directly (`test_api_fixes.py`).

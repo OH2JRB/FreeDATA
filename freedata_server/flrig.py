@@ -14,6 +14,8 @@ class radio:
 
         self.server = None
         self.connected = False
+        # log a failed connect once, not on every poll
+        self.connect_error_logged = False
 
         self.parameters = {
             "frequency": "---",
@@ -34,12 +36,18 @@ class radio:
     def connect(self, **kwargs):
         try:
             self.server = xmlrpc.client.ServerProxy(f"http://{self.host}:{self.port}")
+            # creating the proxy does no network I/O, so ask flrig something
+            # to find out whether it is really there
+            version = self.server.main.get_version()
             self.connected = True
-            self.logger.info("Connected to FLRig")
+            self.connect_error_logged = False
+            self.logger.info(f"Connected to FLRig {version}")
             self.ctx.state_manager.set_radio("radio_status", True)
             return True
         except Exception as e:
-            self.logger.error(f"FLRig connection failed: {e}")
+            if not self.connect_error_logged:
+                self.logger.error(f"FLRig connection failed: {e}")
+                self.connect_error_logged = True
             self.connected = False
             self.server = None
             self.ctx.state_manager.set_radio("radio_status", False)
@@ -63,8 +71,6 @@ class radio:
                     self.get_rf()
                     self.get_ptt()
                     self.get_swr()
-                    self.get_frequency()
-                    self.get_mode()
                     self.get_level()
 
                 except Exception as e:

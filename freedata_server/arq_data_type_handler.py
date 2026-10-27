@@ -575,7 +575,8 @@ class ARQDataTypeHandler:
         """Returns the P2P connection session(s) a P2P_CONNECTION ARQ transfer belongs to.
 
         The ARQ session id equals the id of the owning P2P connection session. If the
-        id is unknown, all P2P connection sessions are returned (legacy behaviour).
+        id is unknown or None, no session is returned, so data never reaches a
+        connection it does not belong to.
 
         Args:
             session_id: The ARQ / P2P connection session id, if known.
@@ -584,12 +585,10 @@ class ARQDataTypeHandler:
             list: The matching P2PConnection objects.
         """
         sessions = self.ctx.state_manager.p2p_connection_sessions
-        if session_id is not None:
-            if session_id in sessions:
-                return [sessions[session_id]]
-            self.log(f"No P2P connection session found for id {session_id}", isWarning=True)
-            return []
-        return list(sessions.values())
+        if session_id in sessions:
+            return [sessions[session_id]]
+        self.log(f"No P2P connection session found for id {session_id}", isWarning=True)
+        return []
 
     def handle_p2p_connection(self, data, statistics, session_id=None):
         decompressor = zlib.decompressobj(wbits=-zlib.MAX_WBITS)

@@ -68,7 +68,6 @@ flowchart TD
 Other TX sources that go through `enqueue_audio_out` (already at 48 kHz, no resampling):
 
 - `RF.transmit_sine()` - 30 s, 1500 Hz tone, normalized then scaled by `tx_audio_level`. Triggered by `TransmitSine` in [command_transmit_sine.py](../command_transmit_sine.py); `RF.stop_sine()` clears `audio_out_queue` and resets the transmitting state.
-- `RF.transmit_morse()` - CW ID of `STATION.mycall` (see [section 6](#6-cw-identification)).
 
 In test mode (`ctx.TESTMODE`), `transmit()` only puts `[mode, frames]` into `ctx.TESTMODE_TRANSMIT_QUEUE` and returns; `start_modem()` skips audio init, creates the `resampler` and `tx_resampler`, and starts the demodulator threads with no stream.
 
@@ -162,7 +161,7 @@ BPF prototypes come from `codec2_filter_coeff.generate_filter_coefficients(Fs, b
 | `freedv_get_bits_per_modem_frame` | bytes per frame (TX and RX) |
 | `freedv_get_n_tx_modem_samples`, `..._preamble_...`, `..._postamble_...` | modulator buffer sizing |
 | `freedv_rawdatatx`, `freedv_rawdatapreambletx`, `freedv_rawdatapostambletx` | modulator |
-| `freedv_gen_crc16` | modulator CRC (no `restype`/`argtypes` declared) |
+| `freedv_gen_crc16` | modulator CRC (`argtypes = [c_char_p, c_int]`, `restype = c_ushort`) |
 | `freedv_nin`, `freedv_rawdatarx`, `freedv_get_rx_status` | demodulator loop |
 | `freedv_set_frames_per_burst`, `freedv_set_sync` | demodulator setup / sync reset (OFDM modes only) |
 | `freedv_close` | closing FSK instances replaced by the receiver restart |
@@ -170,7 +169,7 @@ BPF prototypes come from `codec2_filter_coeff.generate_filter_coefficients(Fs, b
 | `freedv_get_modem_extended_stats` (`MODEMSTATS` struct) | frequency offset (`foff`) and scatter (`rx_symbols`) |
 | `fdmdv_48_to_8_short`, `fdmdv_8_to_48_short` | `resampler` |
 
-All wrapped functions except `freedv_gen_crc16` declare `argtypes` (the `fdmdv_*` resampler functions declare no `restype`). Instance handles and data/sample buffers are declared as `c_void_p` (so NumPy `.ctypes` objects and `ctypes` string buffers can be passed). Functions returning `void` (`freedv_set_sync`, `freedv_rawdatatx`, `freedv_set_frames_per_burst`, `freedv_get_modem_stats`, `freedv_ofdm_print_info`) have `restype = None`. `freedv_rawdatapreambletx` / `freedv_rawdatapostambletx` take two arguments (`freedv`, output buffer). `freedv_open_advanced.argtypes = [c_int, POINTER(FREEDV_ADVANCED)]` is set after the `FREEDV_ADVANCED` struct is defined.
+All wrapped functions declare `argtypes` (the `fdmdv_*` resampler functions declare no `restype`). Instance handles and data/sample buffers are declared as `c_void_p` (so NumPy `.ctypes` objects and `ctypes` string buffers can be passed). Functions returning `void` (`freedv_set_sync`, `freedv_rawdatatx`, `freedv_set_frames_per_burst`, `freedv_get_modem_stats`, `freedv_ofdm_print_info`) have `restype = None`. `freedv_rawdatapreambletx` / `freedv_rawdatapostambletx` take two arguments (`freedv`, output buffer). `freedv_open_advanced.argtypes = [c_int, POINTER(FREEDV_ADVANCED)]` is set after the `FREEDV_ADVANCED` struct is defined.
 
 `api.rx_sync_flags_to_text` maps the 4-bit rx status (`E`rrors, `B`its, `S`ync, `T`rial) to text for logging.
 
@@ -390,7 +389,7 @@ Each 800-sample 8 kHz block (before AGC/gain) is passed to `enqueue_streaming_au
 - `text_to_morse` handles letters, digits and common punctuation (case-insensitive); unknown characters are dropped.
 - `morse_to_signal` produces a 48 kHz int16 signal (half-scale sine, element gap after every element; a space adds 7+1 dot gaps).
 
-`RF.transmit_morse(repeats, repeat_delay, frames)` waits for any ongoing transmission, converts `STATION.mycall`, normalizes it and calls `enqueue_audio_out`. The three arguments are unused, and `tx_audio_level` is not applied. In the current tree the only callers are commented out ([command_beacon.py](../command_beacon.py), [command_transmit_sine.py](../command_transmit_sine.py)), although `MODEM.enable_morse_identifier` exists in the config schema.
+Nothing sends CW at the moment: the unused `RF.transmit_morse()` was removed, so `MorseCodePlayer` has no caller and `MODEM.enable_morse_identifier` (still in the config schema) has no effect.
 
 ---
 
@@ -448,7 +447,7 @@ Common backend interface: `connect`, `disconnect`, `set_ptt`, `set_frequency`, `
 
 ### flrig ([flrig.py](../flrig.py))
 
-XML-RPC via `xmlrpc.client.ServerProxy("http://FLRIG.ip:FLRIG.port")`. Starts its own poll thread in `__init__` (1 s): connects if needed, then reads frequency, mode, RF, PTT, SWR, frequency and mode again, and S-meter. Any polling exception marks it disconnected and the next loop reconnects. `stop_service()` / `close_rig()` stops and joins the thread. Uses standard `logging` instead of `structlog`.
+XML-RPC via `xmlrpc.client.ServerProxy("http://FLRIG.ip:FLRIG.port")`. Starts its own poll thread in `__init__` (1 s): connects if needed, then reads frequency, mode, RF, PTT, SWR and S-meter. `connect()` asks flrig for `main.get_version`, so it reports connected only when flrig answers; a failed connect is logged once until the next success. Any polling exception marks it disconnected and the next loop reconnects. `stop_service()` / `close_rig()` stops and joins the thread. Uses standard `logging` instead of `structlog`.
 
 ### Serial PTT ([serial_ptt.py](../serial_ptt.py))
 
@@ -466,8 +465,4 @@ Observations from reading the current source:
 
 | Location | Observation |
 |---|---|
-| [demodulator.py](../demodulator.py) `set_frames_per_burst` | Clamps the value to 1..5 and then hard-codes it to 1 (`FIXME`). Not called in this subsystem; `init_codec2_mode` sets 1 directly. |
-| [codec2.py](../codec2.py) | `freedv_gen_crc16` has no `argtypes`/`restype` declaration. |
 | [codec2.py](../codec2.py) | `datac13`/`datac14` are Enum aliases of `signalling`/`signalling_ack`; `FREEDV_MODE_USED_SLOTS` members with identical lists are aliases too. |
-| [flrig.py](../flrig.py) | `connect()` only creates a `ServerProxy` (no network I/O), so it reports connected until a poll fails; the poll loop reads frequency and mode twice per cycle. |
-| [modem.py](../modem.py) `transmit_morse` | Arguments unused, `tx_audio_level` not applied, and no active caller. |
