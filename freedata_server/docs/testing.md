@@ -49,7 +49,7 @@ A full run takes about a minute. Both commands exit non-zero when a test fails.
 | `test_encryption.py` | AES-GCM helpers and key parsing, the encrypted ARQ data type, holding sent/received messages until a key is entered, the station encryption API, database migration from version 1 | yes |
 | `test_common_key.py` | Common encryption key: station key precedence, `decrypt_any`, sending and receiving with the common key, decrypting pending messages of several stations, the common key API, `POST /config` switching the setting on | yes |
 | `test_encryption_reporting.py` | Turning encryption on (per station or with the common key) switches Explorer and PSK Reporter off, keeps them locked off (409, config forced to `False`) until all encryption is off, and the startup check | yes |
-| `test_norm_protocol.py` | Sending a NORM broadcast (smoke test, see section 6) | two |
+| `test_norm_protocol.py` | NORM broadcasts between two test-mode stations, each with its own message database: the receiver assembles the bursts, checks the CRC and stores the broadcast as `received`; a lost burst is asked for by the receiver's scheduled `check_missing_broadcast_bursts` (clock two minutes ahead) and completed by the sender's `NORM_REPAIR` | two |
 | `test_rigctld_connect.py` | rigctld connects in a background thread: creating the radio and polling it while not connected return at once, `disconnect()` ends the attempts, one connect at a time, connecting to a fake rigctld | no (mock context, local sockets) |
 | `test_small_fixes.py` | flrig reports connected only when flrig answers and reads frequency and mode once per poll (fake XML-RPC server); codec2 CRC16 types and CRC-16/CCITT result; P2P connection data without a known session id reaches no connection | no (mock context, local XML-RPC server) |
 | `test_check_callsign.py` | `helpers.check_callsign`: SSIDs from the list (ints or strings), the callsign's own SSID, callsigns without SSID, no match, and that the list passed in (the config's `ssid_list`) is not changed | no |
@@ -119,9 +119,12 @@ an ARQ transfer shows up as `{"arq-transfer-outbound": {...}}` on the ISS and
   `UnicodeEncodeError`.
 - Handlers wait before replying: CQ waits a random 0–5 s before sending QRV, and messages wait for a
   free channel. Use timeouts of about 15 s for those exchanges.
+- Two stations in one process share the message database (`FREEDATA_DATABASE`). When the test checks
+  what each station stored, give each its own database file, as `test_norm_protocol.py` does by
+  patching `DatabaseManager.get_database` per context.
+- Group chat (NORM) is off in the default config: set `EXP.enable_groupchat` in each context's config
+  after startup, since the service manager reads the config file again when it starts the modem.
 
 ## 6. Gaps
 
-- `test_norm_protocol.py` only checks that sending a broadcast doesn't fail. It swallows exceptions
-  from `Norm.run()` and NORM emits no `arq-transfer-*` events, so its success check never runs.
 - The socket interface and radio backends are only partly covered (the TCP data port target, rigctld connecting, flrig connecting and polling); serial PTT and the command port have no tests, and the REST endpoints are tested only for `/`, `/config` and a few handlers called directly (`test_api_fixes.py`).
