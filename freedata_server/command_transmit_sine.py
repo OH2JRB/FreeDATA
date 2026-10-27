@@ -18,5 +18,3 @@ class TransmitSine(TxCommand):
             modem: The modem object.
         """
         self.ctx.rf_modem.transmit_sine()
-        # Code for debugging morse stuff...
-        # modem.transmit_morse(0,0,[b''])

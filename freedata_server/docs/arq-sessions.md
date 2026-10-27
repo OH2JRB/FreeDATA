@@ -476,8 +476,7 @@ Entry points:
 * All three pass the ARQ session id through `call_handler()`. Only `p2p_connection` handlers receive it
   (as `session_id=`). The ARQ session id equals the id of the owning P2P connection, so
   `get_p2p_connection_sessions(session_id)` returns just that connection. If the id is not registered,
-  a warning is logged and no connection is notified. Only when `session_id` is `None` are all P2P
-  connections notified (legacy fallback).
+  or is `None`, a warning is logged and no connection is notified.
 
 For `raw*` types, the decompressed result of `handle_*` is returned to `on_frame_received` and discarded.
 The IRS's `arq_session_finished` event carries `received_data`, which is the bytes as received (still
@@ -743,6 +742,5 @@ sequenceDiagram
 
 ## 10. Known issues
 
-| Where | Observation |
-|---|---|
-| [arq_data_type_handler.py](../arq_data_type_handler.py) | `ARQDataTypeHandler.get_p2p_connection_sessions` falls back to all P2P sessions when `session_id` is `None`; all ARQ sessions pass their id |
+None currently known. Fixed: P2P connection data without a session id used to reach every P2P
+connection (see section 6).

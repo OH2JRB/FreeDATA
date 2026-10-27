@@ -182,6 +182,9 @@ api.freedv_rawdatapreambletx.restype = ctypes.c_int
 api.freedv_get_n_max_modem_samples.argtypes = [ctypes.c_void_p]  # type: ignore
 api.freedv_get_n_max_modem_samples.restype = ctypes.c_int
 
+api.freedv_gen_crc16.argtypes = [ctypes.c_char_p, ctypes.c_int]  # type: ignore
+api.freedv_gen_crc16.restype = ctypes.c_ushort
+
 api.freedv_set_frames_per_burst.argtypes = [ctypes.c_void_p, ctypes.c_int]  # type: ignore
 api.freedv_set_frames_per_burst.restype = None
 
@@ -515,9 +518,9 @@ def modulate_frame(freedv: ctypes.c_void_p, frame: bytes) -> bytes:
     #   Use the crc function shipped with codec2
     #   to avoid CRC algorithm incompatibilities
     # Generate CRC16
-    crc = ctypes.c_ushort(api.freedv_gen_crc16(bytes(buffer), payload_bytes_per_frame))
+    crc = api.freedv_gen_crc16(bytes(buffer), payload_bytes_per_frame)
     # Convert crc to 2-byte (16-bit) hex string
-    crc = crc.value.to_bytes(2, byteorder="big")
+    crc = crc.to_bytes(2, byteorder="big")
     # Append CRC to data buffer
     buffer += crc
     assert bytes_per_frame == len(buffer)

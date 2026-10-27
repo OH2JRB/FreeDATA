@@ -13,7 +13,6 @@ from freedata_server import codec2
 import numpy as np
 import structlog
 from freedata_server.audio_backend import get_sounddevice
-from freedata_server import cw
 from freedata_server import audio
 from freedata_server import demodulator
 from freedata_server import modulator
@@ -305,35 +304,6 @@ class RF:
         self.audio_out_queue.queue.clear()
         self.ctx.state_manager.setTransmitting(False)
         self.log.debug("[MDM] Stopped transmitting sine")
-
-    def transmit_morse(self, repeats, repeat_delay, frames):
-        """Transmits Morse code.
-
-        This method transmits the station's callsign as Morse code. It waits
-        for any ongoing transmissions to complete, sets the transmitting
-        state, generates the Morse code audio signal, normalizes it, and
-        enqueues it for output. It logs the transmission mode and on-air
-        time. The repeats, repeat_delay, and frames arguments are not
-        currently used in this method.
-
-        Args:
-            repeats: Currently unused.
-            repeat_delay: Currently unused.
-            frames: Currently unused.
-        """
-        self.ctx.state_manager.waitForTransmission()
-        self.ctx.state_manager.setTransmitting(True)
-        # if we're transmitting FreeDATA signals, reset channel busy state
-        self.log.debug("[MDM] TRANSMIT", mode="MORSE")
-        start_of_transmission = time.time()
-        txbuffer_out = cw.MorseCodePlayer().text_to_signal(self.ctx.config_manager.config["STATION"].get("mycall"))
-        txbuffer_out = audio.normalize_audio(txbuffer_out)
-        # transmit audio
-        self.enqueue_audio_out(txbuffer_out)
-
-        end_of_transmission = time.time()
-        transmission_time = end_of_transmission - start_of_transmission
-        self.log.debug("[MDM] ON AIR TIME", time=transmission_time)
 
     def transmit(self, mode, repeats: int, repeat_delay: int, frames: bytearray) -> None:
         """Transmits data using the specified mode and parameters.
