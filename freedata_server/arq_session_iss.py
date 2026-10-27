@@ -74,6 +74,13 @@ class ARQSessionISS(arq_session.ARQSession):
     # it with ARQ_STOP (abort_transmission)
     STOPPABLE_STATES = (ISS_State.INFO_SENT, ISS_State.BURST_SENT)
 
+    # an abort is final: the states a session may still go to once it is
+    # ABORTING or ABORTED (set_state). ENDED: the IRS confirmed all data meanwhile
+    STATES_AFTER_ABORT = {
+        ISS_State.ABORTING: (ISS_State.ABORTING, ISS_State.ABORTED, ISS_State.ENDED),
+        ISS_State.ABORTED: (ISS_State.ABORTED,),
+    }
+
     STATE_TRANSITION = {
         ISS_State.OPEN_SENT: {
             FRAME_TYPE.ARQ_SESSION_OPEN_ACK.value: "send_info",
@@ -110,6 +117,8 @@ class ARQSessionISS(arq_session.ARQSession):
             data (bytearray): The data to be transmitted.
             type_byte (bytes): The type byte of the data.
         """
+        # the API thread aborts while the frame thread answers the IRS (set_state)
+        self.state_lock = threading.RLock()
         super().__init__(ctx, dxcall)
         self.ctx = ctx
         self.dxcall = dxcall
@@ -384,13 +393,14 @@ class ARQSessionISS(arq_session.ARQSession):
         session_open_frame = self.frame_factory.build_arq_session_open(
             self.dxcall, self.id, maximum_bandwidth, self.protocol_version
         )
+        if not self.set_state(ISS_State.OPEN_SENT):
+            return
         self.launch_twr(
             session_open_frame,
             self.TIMEOUT_CONNECT_ACK,
             self.RETRIES_CONNECT,
             mode=FREEDV_MODE.signalling,
         )
-        self.set_state(ISS_State.OPEN_SENT)
 
     def update_speed_level(self, frame):
         """Updates the transmission speed level based on the received frame.
@@ -468,8 +478,8 @@ class ARQSessionISS(arq_session.ARQSession):
             self.id, self.total_length, self.data_crc, self.snr, self.type_byte
         )
 
-        self.launch_twr(info_frame, self.TIMEOUT_CONNECT_ACK, self.RETRIES_INFO, mode=FREEDV_MODE.signalling)
-        self.set_state(ISS_State.INFO_SENT)
+        if self.set_state(ISS_State.INFO_SENT):
+            self.launch_twr(info_frame, self.TIMEOUT_CONNECT_ACK, self.RETRIES_INFO, mode=FREEDV_MODE.signalling)
 
         return None, None
 
@@ -572,8 +582,9 @@ class ARQSessionISS(arq_session.ARQSession):
                 burst_id=self.burst_id,
             )
             burst.append(data_frame)
-        self.launch_twr(burst, self.TIMEOUT_TRANSFER, self.RETRIES_DATA, mode="auto", isARQBurst=True)
-        self.set_state(ISS_State.BURST_SENT)
+        # the user may have stopped the session meanwhile (abort_transmission)
+        if self.set_state(ISS_State.BURST_SENT):
+            self.launch_twr(burst, self.TIMEOUT_TRANSFER, self.RETRIES_DATA, mode="auto", isARQBurst=True)
         return None, None
 
     def wait_for_answer_on_air(self, since) -> bool:
@@ -633,8 +644,8 @@ class ARQSessionISS(arq_session.ARQSession):
         self.probing = True
         self.log("Probing with a datac4 burst whether OFDM gets through again")
         probe = self.frame_factory.build_arq_burst_frame(mode, self.id, offset, payload, level, burst_id=self.burst_id)
-        self.launch_twr([probe], self.TIMEOUT_TRANSFER, 1, mode=mode, isARQBurst=True)
-        self.set_state(ISS_State.BURST_SENT)
+        if self.set_state(ISS_State.BURST_SENT):
+            self.launch_twr([probe], self.TIMEOUT_TRANSFER, 1, mode=mode, isARQBurst=True)
         return None, None
 
     def adapt_fsk_burst(self, ack):
@@ -695,8 +706,9 @@ class ARQSessionISS(arq_session.ARQSession):
             Tuple[None, None]: Returns None for both data and type_byte.
         """
         # final function for sucessfully ended transmissions
+        if not self.set_state(ISS_State.ENDED):
+            return None, None
         self.session_ended = time.time()
-        self.set_state(ISS_State.ENDED)
         self.log(
             f"All data transfered! flag_final={irs_frame['flag']['FINAL']}, flag_checksum={irs_frame['flag']['CHECKSUM']}"
         )
@@ -735,8 +747,9 @@ class ARQSessionISS(arq_session.ARQSession):
             Tuple[None, None]: Returns None for both data and type_byte.
         """
         # final function for failed transmissions
+        if not self.set_state(ISS_State.FAILED):
+            return None, None
         self.session_ended = time.time()
-        self.set_state(ISS_State.FAILED)
         self.log("Transmission failed!")
         session_stats = self.calculate_session_statistics(self.confirmed_bytes, self.total_length)
         self.ctx.event_manager.send_arq_session_finished(
@@ -753,6 +766,28 @@ class ARQSessionISS(arq_session.ARQSession):
             dxcall=self.dxcall,
         )
         return None, None
+
+    def set_state(self, state):
+        """Sets the session state, unless an abort ended the session meanwhile.
+
+        abort_transmission runs on the API thread, while the frame thread
+        answers the IRS: without this check an answer to an ACK that came just
+        before the abort would set BURST_SENT again, and no ARQ_STOP would be
+        sent (STATES_AFTER_ABORT).
+
+        Args:
+            state: The new state of the session.
+
+        Returns:
+            bool: False if the state was kept.
+        """
+        with self.state_lock:
+            allowed = self.STATES_AFTER_ABORT.get(self.state)
+            if allowed is not None and state not in allowed:
+                self.log(f"Keeping state {self.state.name}, not changing to {state.name}", isWarning=True)
+                return False
+            super().set_state(state)
+            return True
 
     def abort_transmission(self, send_stop=False, irs_frame=None):
         """Starts the ARQ transmission abort sequence.
@@ -775,8 +810,10 @@ class ARQSessionISS(arq_session.ARQSession):
             bool: True if an ARQ_STOP is being sent.
         """
         self.log("aborting transmission...")
-        send_stop = send_stop and self.state in self.STOPPABLE_STATES
-        self.set_state(ISS_State.ABORTING)
+        with self.state_lock:
+            send_stop = send_stop and self.state in self.STOPPABLE_STATES
+            if not self.set_state(ISS_State.ABORTING):
+                return False
 
         self.ctx.event_manager.send_arq_session_finished(
             True,
