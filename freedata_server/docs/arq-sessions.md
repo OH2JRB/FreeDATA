@@ -156,6 +156,15 @@ stateDiagram-v2
     ENDED --> [*]
 ```
 
+An abort is final. `abort_transmission()` runs on the API thread while the frame thread may be answering
+an ACK, so `set_state()` holds `state_lock` and, once the session is `ABORTING`, only allows `ABORTED`, or
+`ENDED` when the IRS confirms all data meanwhile; once `ABORTED`, nothing else (`STATES_AFTER_ABORT`).
+A refused change is logged ("Keeping state ...") and the caller stops: `start()`, `send_info()`,
+`send_data()` and `send_probe()` set their state before `launch_twr`, and launch nothing when it is refused;
+`transmission_ended()` and `transmission_failed()` return without their events. Without this, a burst
+answering an ACK that came just before the stop set `BURST_SENT` over `ABORTING`: no `ARQ_STOP` was sent,
+and the session stayed in `BURST_SENT` with ARQ busy.
+
 `ARQ_STOP` path: `send_stop()` builds `ARQ_STOP(id)` and starts `transmit_stop_and_wait()` in a daemon
 thread (it does not use `launch_twr`, whose loop stops as soon as the state is `ABORTING`), so the caller
 is not held up. That thread first waits `TIMEOUT_STOP_ACK` (4.5 s), against a collision with a frame of
@@ -225,6 +234,14 @@ Actions:
 | `send_stop_ack` | `ARQ_STOP_ACK` in `signalling` (`data_fsk4_50` on FSK; in `signalling_ack` it would be read as an `ARQ_BURST_ACK`), waits 55 s, `setARQ(False)`, event `arq_session_finished(success=False)`; if `STATION.enable_stats`, pushes statistics in a daemon thread (`push_statistics`) | `ABORTED` |
 | `transmission_failed` | Clears `received_data` and `received_bytes`, event `arq_session_finished` (outbound `False`), statistics push if enabled, `setARQ(False)` | `FAILED` |
 | `abort_transmission()` | Sets `abort = True` only. Later INFO/BURST ACKs carry the `ABORT` flag, and the ISS aborts on receiving it | unchanged |
+
+`state_manager.stop_transmission()` calls `transmission_aborted()` on the API thread. It holds
+`burst_ack_lock`, the lock under which `send_burst_ack()` and `answer_undecodable_burst()` check the state
+before setting `BURST_REPLY_SENT`, so a burst ACK cannot set its state over `ABORTED` (the session would
+otherwise wait 90 s for the ISS and then fail). `send_stop_ack()` sets `ABORTED`, the timeout in
+`transmit_and_wait()` its `FAILED`, and `send_open_ack`/`send_info_ack` their states
+(`set_state_unless_aborted`) under the same lock. The IRS has no general "abort is final" rule like the
+ISS: the frame handler sets an `ABORTED` session back to `NEW` when the ISS re-opens it (section 3.3).
 
 `ENDED` + `ARQ_BURST_FRAME` runs `receive_data` again. The `delivered_crc` guard resends the final ACK
 without returning the data, so the data-type handler does not run a second time for the same data.

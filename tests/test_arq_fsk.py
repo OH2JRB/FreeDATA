@@ -554,6 +554,7 @@ class TestIrsPatience(unittest.TestCase):
         irs.transmit_frame = mock.Mock()
         irs.transmission_failed = mock.Mock()
         irs.event_frame_received = threading.Event()
+        irs.burst_ack_lock = threading.RLock()
         irs.ctx = None
         return irs
 

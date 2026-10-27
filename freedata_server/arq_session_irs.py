@@ -221,9 +221,11 @@ class ARQSessionIRS(arq_session.ARQSession):
         deadline = since + (timeout * self.FSK_TIMEOUT_FACTOR if self.fsk else timeout)
         while not self.event_frame_received.wait(self.DETECTION_INTERVAL):
             if time.monotonic() >= deadline:
-                if self.state not in [IRS_State.ABORTED, IRS_State.FAILED]:
-                    self.log("Timeout waiting for ISS. Session failed.")
-                    self.transmission_failed()
+                # under the lock: the API thread may abort the session meanwhile
+                with self.burst_ack_lock:
+                    if self.state not in [IRS_State.ABORTED, IRS_State.FAILED]:
+                        self.log("Timeout waiting for ISS. Session failed.")
+                        self.transmission_failed()
                 return
             if self.burst_heard_not_decoded(since):
                 if fsk_modes_enabled(self.ctx):
@@ -264,6 +266,9 @@ class ARQSessionIRS(arq_session.ARQSession):
         Its burst id is the one after the last burst decoded, the one that came.
         """
         with self.burst_ack_lock:
+            # the session may have been aborted since burst_heard_not_decoded()
+            if self.state not in [IRS_State.INFO_ACK_SENT, IRS_State.BURST_REPLY_SENT]:
+                return
             self.log("A burst came but could not be decoded: falling back to FSK", isWarning=True)
             self.fall_back_to_fsk()
             self.burst_id = (self.burst_id + 1) % 256
@@ -321,7 +326,7 @@ class ARQSessionIRS(arq_session.ARQSession):
             self.signalling_frames(ack_frame), self.TIMEOUT_CONNECT, mode=self.get_signalling_mode()
         )
         if not self.abort:
-            self.set_state(IRS_State.OPEN_ACK_SENT)
+            self.set_state_unless_aborted(IRS_State.OPEN_ACK_SENT)
         return None, None
 
     def send_info_ack(self, info_frame):
@@ -363,8 +368,14 @@ class ARQSessionIRS(arq_session.ARQSession):
             self.signalling_frames(info_ack), self.TIMEOUT_CONNECT, mode=self.get_signalling_mode()
         )
         if not self.abort:
-            self.set_state(IRS_State.INFO_ACK_SENT)
+            self.set_state_unless_aborted(IRS_State.INFO_ACK_SENT)
         return None, None
+
+    def set_state_unless_aborted(self, state):
+        """Sets the state, unless transmission_aborted() ran meanwhile on the API thread."""
+        with self.burst_ack_lock:
+            if self.state is not IRS_State.ABORTED:
+                self.set_state(state)
 
     def process_incoming_data(self, frame):
         """Processes incoming data from a received frame.
@@ -784,7 +795,9 @@ class ARQSessionIRS(arq_session.ARQSession):
             self.TIMEOUT_CONNECT,
             mode=self.get_signalling_mode(FREEDV_MODE.signalling),
         )
-        self.set_state(IRS_State.ABORTED)
+        # under the lock: a burst ACK timer must not set BURST_REPLY_SENT again
+        with self.burst_ack_lock:
+            self.set_state(IRS_State.ABORTED)
         self.ctx.state_manager.setARQ(False)
         session_stats = self.calculate_session_statistics(self.received_bytes, self.total_length)
 
@@ -838,22 +851,25 @@ class ARQSessionIRS(arq_session.ARQSession):
         Returns:
             Tuple[None, None]: Returns None for both data and type_byte.
         """
-        if self.state not in [IRS_State.ABORTED, IRS_State.ENDED]:
-            self.log("session aborted")
-            self.session_ended = time.time()
-            self.set_state(IRS_State.ABORTED)
-            self.cancel_burst_ack()
-            # break actual retries
-            self.event_frame_received.set()
+        # under the lock of the burst ACKs: called from the API thread, it must not
+        # come between their state check and BURST_REPLY_SENT (send_burst_ack)
+        with self.burst_ack_lock:
+            if self.state not in [IRS_State.ABORTED, IRS_State.ENDED]:
+                self.log("session aborted")
+                self.session_ended = time.time()
+                self.set_state(IRS_State.ABORTED)
+                self.cancel_burst_ack()
+                # break actual retries
+                self.event_frame_received.set()
 
-            # self.ctx.rf_modem.demodulator.set_decode_mode()
-            self.ctx.event_manager.send_arq_session_finished(
-                False,
-                self.id,
-                self.dxcall,
-                False,
-                self.state.name,
-                statistics=self.calculate_session_statistics(self.received_bytes, self.total_length),
-            )
-            self.ctx.state_manager.setARQ(False)
+                # self.ctx.rf_modem.demodulator.set_decode_mode()
+                self.ctx.event_manager.send_arq_session_finished(
+                    False,
+                    self.id,
+                    self.dxcall,
+                    False,
+                    self.state.name,
+                    statistics=self.calculate_session_statistics(self.received_bytes, self.total_length),
+                )
+                self.ctx.state_manager.setARQ(False)
         return None, None

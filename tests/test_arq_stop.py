@@ -2,6 +2,7 @@
 signalling mode, since signalling_ack frames carry no frame type and are read
 as ARQ_BURST_ACKs (see freedata_server/docs/protocol-frames.md, section 3.1)."""
 
+import threading
 import types
 import unittest
 from unittest import mock
@@ -33,6 +34,7 @@ def make_irs(fsk=False):
     irs.received_bytes = 0
     irs.total_length = 100
     irs.log = mock.Mock()
+    irs.burst_ack_lock = threading.RLock()
     irs.frame_factory = make_factory()
     irs.launch_transmit_and_wait = mock.Mock()
     irs.calculate_session_statistics = mock.Mock(return_value={})
