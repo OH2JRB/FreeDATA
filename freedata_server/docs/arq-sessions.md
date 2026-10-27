@@ -99,7 +99,7 @@ daemon thread:
 | `BURST_SENT` | `ARQ_SESSION_INFO_ACK` or `ARQ_BURST_ACK` | `send_data` | `BURST_SENT` / `ENDED` / `FAILED` / `ABORTED` |
 | `FAILED`, `ABORTING`, `ABORTED` | `ARQ_STOP_ACK` | `transmission_aborted` (no-op if already `ABORTED`/`ENDED`) | `ABORTED` |
 | any waiting state (not `ABORTING`/`ABORTED`) | retries exhausted | `transmission_failed` | `FAILED` |
-| any | `abort_transmission(send_stop)` | event `arq_session_finished(success=False)`; clear `rf_modem.audio_out_queue`; break retries; wait until not transmitting; if `send_stop`, wait 4.5 s then `send_stop()`; `setARQ(False)` | `ABORTING` |
+| any | `abort_transmission(send_stop)` | event `arq_session_finished(success=False)`; clear `rf_modem.audio_out_queue`; break retries; wait until not transmitting; if `send_stop` and the state was `INFO_SENT` or `BURST_SENT` (`STOPPABLE_STATES`: the IRS has answered the open), `send_stop()` and ARQ stays busy, else `setARQ(False)`. Returns whether a stop is sent | `ABORTING` |
 | `ABORTING` | no `ARQ_STOP_ACK` after `RETRIES_STOP` stop frames (only when `send_stop`) | `transmission_aborted` | `ABORTED` |
 
 `send_data(irs_frame, fallback=None)`:
@@ -157,14 +157,19 @@ stateDiagram-v2
 ```
 
 `ARQ_STOP` path: `send_stop()` builds `ARQ_STOP(id)` and starts `transmit_stop_and_wait()` in a daemon
-thread (it does not use `launch_twr`, whose loop stops as soon as the state is `ABORTING`). That loop
-sends the stop frame in the signalling mode (`data_fsk4_50` on FSK) and waits `TIMEOUT_STOP_ACK` (4.5 s), up to `RETRIES_STOP` (5)
-times, while the state stays `ABORTING`. If the state is still `ABORTING` afterwards, it calls
-`transmission_aborted()` anyway. Currently no caller passes `send_stop=True`:
-[context.py](../context.py) and [state_manager.py](../state_manager.py) call
-`abort_transmission(send_stop=False)`, and [p2p_connection.py](../p2p_connection.py) calls
-`abort_transmission()` (default `False`). The IRS answers with `ARQ_STOP_ACK` in the signalling mode
-(`data_fsk4_50` on FSK), which ends the stop loop.
+thread (it does not use `launch_twr`, whose loop stops as soon as the state is `ABORTING`), so the caller
+is not held up. That thread first waits `TIMEOUT_STOP_ACK` (4.5 s), against a collision with a frame of
+the IRS, then sends the stop frame in the signalling mode (`data_fsk4_50` on FSK) and waits
+`TIMEOUT_STOP_ACK`, up to `RETRIES_STOP` (5) times, while the state stays `ABORTING`. If the state is still
+`ABORTING` afterwards, it calls `transmission_aborted()` anyway. The IRS answers with `ARQ_STOP_ACK` in the
+signalling mode (`data_fsk4_50` on FSK), and the ISS ends with `transmission_aborted()` (`ABORTED`,
+`setARQ(False)`).
+
+Callers: `state_manager.stop_transmission()` (the API's `POST /modem/stop_transmission`, the user's stop)
+passes `send_stop=True`. A session that sends the stop is left in the session list; it ends itself and
+the schedule manager removes it (section 2.5). A session that was not stoppable is ended with
+`transmission_aborted()` and removed at once, as before. Shutdown ([context.py](../context.py)) and
+[p2p_connection.py](../p2p_connection.py) abort without a stop frame.
 
 ### 2.5 Scheduler interaction
 
@@ -202,9 +207,9 @@ On creation, if a P2P connection with the same session id exists, the IRS links 
 | `INFO_ACK_SENT` | - | `send_info_ack` | `receive_data` | `send_stop_ack` |
 | `BURST_REPLY_SENT` | - | - | `receive_data` | `send_stop_ack` |
 | `ENDED` | - (handler resets, see 3.3) | - | `receive_data` | `send_stop_ack` |
-| `FAILED` | - (handler resets to `NEW`) | - | `receive_data` | - |
+| `FAILED` | - (handler resets to `NEW`) | - | `receive_data` | `send_stop_ack` |
 | `ABORTED` | - (handler resets to `NEW`) | - | - | `send_stop_ack` |
-| `RESUME` | `send_open_ack` | - | `receive_data` | - |
+| `RESUME` | `send_open_ack` | - | `receive_data` | `send_stop_ack` |
 
 Actions:
 
@@ -740,7 +745,6 @@ sequenceDiagram
 
 | Where | Observation |
 |---|---|
-| ISS `send_stop` | No caller currently passes `send_stop=True`, so `ARQ_STOP` is never sent in practice |
 | ARQ SNR fields | `OPEN_ACK`, `INFO` and `INFO_ACK` always carry SNR 0.1 (constant `snr_to_bytes(1)`) |
 | [p2p_connection.py](../p2p_connection.py) | `transmit_frame(mode="auto")` would call the non-existent `get_mode_by_speed_level` (all callers pass an explicit mode) |
 | [socket_interface.py](../socket_interface.py) | When the command socket has no active, registered session, data-port input still falls back to **all** P2P sessions. (The same `session_id=None` fallback exists in `ARQDataTypeHandler.get_p2p_connection_sessions`, but all ARQ sessions pass their id) |

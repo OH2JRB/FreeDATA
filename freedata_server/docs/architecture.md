@@ -256,7 +256,7 @@ Holds mutable runtime state and pushes state snapshots to `state_queue`.
 | `is_receiving_codec2_signal()` | `not channel_busy_condition_codec2.is_set()`. |
 | `register_/get_/remove_arq_iss_session`, `..._irs_session` | Dict management; `register_*` returns `False` on duplicate id; `get_*` returns `None` for unknown ids. |
 | `check_if_running_arq_session(irs=False)` | Removes outdated sessions (`is_session_outdated()`), returns `True` if any session is not in `ENDED/ABORTED/FAILED`. |
-| `stop_transmission()` | IRS: `transmission_aborted()` (kept for resume). ISS: `abort_transmission(send_stop=False)`, `transmission_aborted()`, removed. |
+| `stop_transmission()` | IRS: `transmission_aborted()` (kept for resume). ISS: `abort_transmission(send_stop=True)`; a session that sends `ARQ_STOP` ends itself and is removed by the schedule manager, any other is `transmission_aborted()` and removed. Sessions already `ABORTING`/`ABORTED` are skipped. |
 | `add_activity(data)` | Adds `timestamp` / `frequency` if missing, stores under random id, enqueues `self.newstate`. |
 | `register_/get_p2p_connection_session` | Dict management keyed by `session.session_id`; `get_*` returns `None` for unknown ids. |
 | `get_dxcall_by_session_id(id)` | Looks in ISS, IRS (`.dxcall`), then P2P (`.destination`); `None` if not found. |

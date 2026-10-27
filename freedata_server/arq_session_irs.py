@@ -96,6 +96,8 @@ class ARQSessionIRS(arq_session.ARQSession):
             FRAME_TYPE.ARQ_BURST_FRAME.value: "receive_data",
             # the ISS still trying after this side gave up (a slow FSK path): start over
             FRAME_TYPE.ARQ_SESSION_INFO.value: "send_info_ack",
+            # the ISS aborting after this side gave up
+            FRAME_TYPE.ARQ_STOP.value: "send_stop_ack",
             # FRAME_TYPE.ARQ_SESSION_OPEN.value: 'send_open_ack',
         },
         IRS_State.ABORTED: {
@@ -107,6 +109,7 @@ class ARQSessionIRS(arq_session.ARQSession):
         IRS_State.RESUME: {
             FRAME_TYPE.ARQ_SESSION_OPEN.value: "send_open_ack",
             FRAME_TYPE.ARQ_BURST_FRAME.value: "receive_data",
+            FRAME_TYPE.ARQ_STOP.value: "send_stop_ack",
         },
     }
 
