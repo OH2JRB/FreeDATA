@@ -12,7 +12,6 @@ router = APIRouter()
     responses={
         200: {"description": "API information."},
         404: {"description": "Resource not found."},
-        503: {"description": "Service unavailable."},
     },
 )
 async def index(ctx: AppContext = Depends(get_ctx)):

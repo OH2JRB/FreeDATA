@@ -121,7 +121,7 @@ router = APIRouter()
         },
         404: {
             "description": "The requested resource was not found.",
-            "content": {"application/json": {"example": {"error": "Resource not found."}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Resource not found."}}}},
         },
     },
 )
@@ -149,11 +149,11 @@ async def get_modem_state(ctx: AppContext = Depends(get_ctx)):
         },
         404: {
             "description": "The requested resource was not found.",
-            "content": {"application/json": {"example": {"error": "Resource not found."}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Resource not found."}}}},
         },
         503: {
             "description": "Modem not running.",
-            "content": {"application/json": {"example": {"error": "Modem not running."}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Modem not running."}}}},
         },
     },
 )
@@ -181,17 +181,19 @@ async def post_cq(ctx: AppContext = Depends(get_ctx)):
             "description": "Invalid input parameters.",
             "content": {
                 "application/json": {
-                    "example": {"error": "Incorrect value for 'enabled' or 'away_from_key'. Should be bool."}
+                    "example": {
+                        "detail": {"error": "Incorrect value for 'enabled' or 'away_from_key'. Should be bool."}
+                    }
                 }
             },
         },
         404: {
             "description": "The requested resource was not found.",
-            "content": {"application/json": {"example": {"error": "Resource not found."}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Resource not found."}}}},
         },
         503: {
             "description": "Modem not running.",
-            "content": {"application/json": {"example": {"error": "Modem not running."}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Modem not running."}}}},
         },
     },
 )
@@ -254,12 +256,14 @@ def _pskreporter_status(ctx: AppContext) -> dict:
         },
         400: {
             "description": "Invalid input parameters.",
-            "content": {"application/json": {"example": {"error": "Expected a boolean for 'enabled'"}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Expected a boolean for 'enabled'"}}}},
         },
         409: {
             "description": "Encryption is in use, reporting can't be switched on.",
             "content": {
-                "application/json": {"example": {"error": "PSK Reporter is not available while encryption is on"}}
+                "application/json": {
+                    "example": {"detail": {"error": "PSK Reporter is not available while encryption is on"}}
+                }
             },
         },
     },
@@ -288,15 +292,15 @@ async def post_pskreporter(payload: dict, ctx: AppContext = Depends(get_ctx)):
         },
         400: {
             "description": "Invalid input parameters.",
-            "content": {"application/json": {"example": {"error": "Invalid 'dxcall' parameter."}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Invalid 'dxcall' parameter."}}}},
         },
         404: {
             "description": "The requested resource was not found.",
-            "content": {"application/json": {"example": {"error": "Resource not found."}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Resource not found."}}}},
         },
         503: {
             "description": "Modem not running.",
-            "content": {"application/json": {"example": {"error": "Modem not running."}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Modem not running."}}}},
         },
     },
 )
@@ -328,11 +332,11 @@ async def post_ping(
         },
         404: {
             "description": "The requested resource was not found.",
-            "content": {"application/json": {"example": {"error": "Resource not found."}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Resource not found."}}}},
         },
         503: {
             "description": "Modem not running.",
-            "content": {"application/json": {"example": {"error": "Modem not running."}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Modem not running."}}}},
         },
     },
 )
@@ -360,23 +364,19 @@ async def post_send_test(
         },
         400: {
             "description": "Bad Request: The request was malformed or missing required parameters.",
-            "content": {"application/json": {"example": {"error": "Invalid parameters."}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Invalid parameters."}}}},
         },
         404: {
             "description": "The requested resource was not found.",
-            "content": {"application/json": {"example": {"error": "Resource not found."}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Resource not found."}}}},
         },
         500: {
             "description": "Internal Server Error: An unexpected error occurred on the server.",
-            "content": {"application/json": {"example": {"error": "Internal server error."}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Internal server error."}}}},
         },
         501: {
             "description": "Not Implemented: FEC transmission is currently not supported.",
-            "content": {"application/json": {"example": {"error": "FEC transmission is not implemented."}}},
-        },
-        503: {
-            "description": "Modem not running.",
-            "content": {"application/json": {"example": {"error": "Modem not running."}}},
+            "content": {"application/json": {"example": {"detail": {"error": "FEC transmission is not implemented."}}}},
         },
     },
 )
@@ -415,15 +415,15 @@ async def post_fec(
         },
         400: {
             "description": "Bad Request: The request was malformed or missing required parameters.",
-            "content": {"application/json": {"example": {"error": "Invalid parameters."}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Invalid parameters."}}}},
         },
         404: {
             "description": "The requested resource was not found.",
-            "content": {"application/json": {"example": {"error": "Resource not found."}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Resource not found."}}}},
         },
         500: {
             "description": "Internal Server Error: An unexpected error occurred on the server.",
-            "content": {"application/json": {"example": {"error": "Internal server error."}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Internal server error."}}}},
         },
     },
 )
@@ -458,11 +458,11 @@ async def post_start(ctx: AppContext = Depends(get_ctx)):
         },
         404: {
             "description": "The requested resource was not found.",
-            "content": {"application/json": {"example": {"error": "Resource not found."}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Resource not found."}}}},
         },
         503: {
             "description": "Modem not running.",
-            "content": {"application/json": {"example": {"error": "Modem not running."}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Modem not running."}}}},
         },
     },
 )
@@ -495,7 +495,7 @@ async def post_stop(ctx: AppContext = Depends(get_ctx)):
         },
         404: {
             "description": "The requested resource was not found.",
-            "content": {"application/json": {"example": {"error": "Resource not found."}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Resource not found."}}}},
         },
         503: {
             "description": "Modem not running or busy.",
@@ -504,9 +504,9 @@ async def post_stop(ctx: AppContext = Depends(get_ctx)):
                     "examples": {
                         "modem_not_running": {
                             "summary": "Modem Not Running",
-                            "value": {"error": "Modem not running."},
+                            "value": {"detail": {"error": "Modem not running."}},
                         },
-                        "modem_busy": {"summary": "Modem Busy", "value": {"error": "Modem Busy."}},
+                        "modem_busy": {"summary": "Modem Busy", "value": {"detail": {"error": "Modem Busy."}}},
                     }
                 }
             },
@@ -549,19 +549,15 @@ async def post_arq_raw(
         },
         400: {
             "description": "Bad Request: The request was malformed or missing required parameters.",
-            "content": {"application/json": {"example": {"error": "Invalid request."}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Invalid request."}}}},
         },
         404: {
             "description": "The requested resource was not found.",
-            "content": {"application/json": {"example": {"error": "Resource not found."}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Resource not found."}}}},
         },
         500: {
             "description": "Internal Server Error: An unexpected error occurred on the server.",
-            "content": {"application/json": {"example": {"error": "Internal server error."}}},
-        },
-        503: {
-            "description": "Modem not running.",
-            "content": {"application/json": {"example": {"error": "Modem not running."}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Internal server error."}}}},
         },
     },
 )

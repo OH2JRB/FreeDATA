@@ -77,7 +77,7 @@ async def get_freedata_message(message_id: str, ctx: AppContext = Depends(get_ct
         },
         404: {
             "description": "The requested resource was not found.",
-            "content": {"application/json": {"example": {"error": "Resource not found."}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Resource not found."}}}},
         },
     },
 )
@@ -99,15 +99,11 @@ async def post_freedata_message(payload: dict, ctx: AppContext = Depends(get_ctx
         },
         400: {
             "description": "Bad Request: The request was malformed or missing required parameters.",
-            "content": {"application/json": {"example": {"error": "Invalid message ID."}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Invalid message ID."}}}},
         },
         404: {
             "description": "The requested resource was not found.",
-            "content": {"application/json": {"example": {"error": "Message not found."}}},
-        },
-        503: {
-            "description": "Modem not running.",
-            "content": {"application/json": {"example": {"error": "Modem not running."}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Message not found."}}}},
         },
     },
 )
@@ -132,11 +128,11 @@ async def post_freedata_message_adif_log(message_id: str, ctx: AppContext = Depe
         },
         400: {
             "description": "Bad Request: The request was malformed or missing required parameters.",
-            "content": {"application/json": {"example": {"error": "Invalid parameters."}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Invalid parameters."}}}},
         },
         404: {
             "description": "Message not found.",
-            "content": {"application/json": {"example": {"error": "Message not found."}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Message not found."}}}},
         },
     },
 )
@@ -202,7 +198,7 @@ async def patch_freedata_message(message_id: str, payload: dict, ctx: AppContext
         },
         404: {
             "description": "The requested resource was not found.",
-            "content": {"application/json": {"example": {"error": "Resource not found."}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Resource not found."}}}},
         },
     },
 )
@@ -232,7 +228,7 @@ async def get_freedata_messages(ctx: AppContext = Depends(get_ctx)):
         },
         404: {
             "description": "Message not found.",
-            "content": {"application/json": {"example": {"message": "Message not found", "status": "failure"}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Message not found"}}}},
         },
     },
 )
@@ -277,11 +273,7 @@ async def delete_freedata_message(message_id: str, ctx: AppContext = Depends(get
         },
         404: {
             "description": "The requested resource was not found.",
-            "content": {"application/json": {"example": {"error": "Resource not found."}}},
-        },
-        503: {
-            "description": "Modem not running.",
-            "content": {"application/json": {"example": {"error": "Modem not running."}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Resource not found."}}}},
         },
     },
 )
@@ -311,11 +303,7 @@ async def get_message_attachments(message_id: str, ctx: AppContext = Depends(get
         },
         404: {
             "description": "The requested attachment was not found.",
-            "content": {"application/json": {"example": {"error": "Attachment not found."}}},
-        },
-        503: {
-            "description": "Modem not running.",
-            "content": {"application/json": {"example": {"error": "Modem not running."}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Attachment not found."}}}},
         },
     },
 )
@@ -370,19 +358,15 @@ async def get_message_attachment(data_sha512: str, ctx: AppContext = Depends(get
         },
         400: {
             "description": "Bad Request: The request was malformed or missing required parameters.",
-            "content": {"application/json": {"example": {"error": "Invalid request."}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Invalid request."}}}},
         },
         404: {
             "description": "The requested resource was not found.",
-            "content": {"application/json": {"example": {"error": "Resource not found."}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Resource not found."}}}},
         },
         500: {
             "description": "Internal Server Error: An unexpected error occurred on the server.",
-            "content": {"application/json": {"example": {"error": "Internal server error."}}},
-        },
-        503: {
-            "description": "Modem not running.",
-            "content": {"application/json": {"example": {"error": "Modem not running."}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Internal server error."}}}},
         },
     },
 )
@@ -434,19 +418,15 @@ async def get_all_beacons(ctx: AppContext = Depends(get_ctx)):
         },
         400: {
             "description": "Bad Request: The request was malformed or missing required parameters.",
-            "content": {"application/json": {"example": {"error": "Invalid request."}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Invalid request."}}}},
         },
         404: {
             "description": "The requested resource was not found.",
-            "content": {"application/json": {"example": {"error": "Resource not found."}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Resource not found."}}}},
         },
         500: {
             "description": "Internal Server Error: An unexpected error occurred on the server.",
-            "content": {"application/json": {"example": {"error": "Internal server error."}}},
-        },
-        503: {
-            "description": "Modem not running.",
-            "content": {"application/json": {"example": {"error": "Modem not running."}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Internal server error."}}}},
         },
     },
 )
@@ -477,19 +457,15 @@ async def get_beacons_by_callsign(callsign: str, ctx: AppContext = Depends(get_c
         },
         400: {
             "description": "Bad Request: The request was malformed or missing required parameters.",
-            "content": {"application/json": {"example": {"error": "Invalid callsign parameter."}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Invalid callsign parameter."}}}},
         },
         404: {
             "description": "The requested station was not found.",
-            "content": {"application/json": {"example": {"error": "Station not found."}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Station not found."}}}},
         },
         500: {
             "description": "Internal Server Error: An unexpected error occurred on the server.",
-            "content": {"application/json": {"example": {"error": "Internal server error."}}},
-        },
-        503: {
-            "description": "Modem not running.",
-            "content": {"application/json": {"example": {"error": "Modem not running."}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Internal server error."}}}},
         },
     },
 )
@@ -522,19 +498,15 @@ async def get_station_info(callsign: str, ctx: AppContext = Depends(get_ctx)):
         },
         400: {
             "description": "Bad Request: The request was malformed or missing required parameters.",
-            "content": {"application/json": {"example": {"error": "Invalid input data."}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Invalid input data."}}}},
         },
         404: {
             "description": "The requested station was not found.",
-            "content": {"application/json": {"example": {"error": "Station not found."}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Station not found."}}}},
         },
         500: {
             "description": "Internal Server Error: An unexpected error occurred on the server.",
-            "content": {"application/json": {"example": {"error": "Internal server error."}}},
-        },
-        503: {
-            "description": "Modem not running.",
-            "content": {"application/json": {"example": {"error": "Modem not running."}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Internal server error."}}}},
         },
     },
 )
@@ -795,6 +767,19 @@ async def get_freedata_broadcasts(ctx: AppContext = Depends(get_ctx)):  # noqa: 
     # filters = dict(ctx.request.query_params)
     result = _mgr_broadcasts(ctx).get_broadcast_domains_json()
     return api_response(result)
+
+
+# the per-domain GET without the trailing slash too. Registered after
+# /broadcasts/domains, which keeps that path (a domain named "domains" needs
+# the slash)
+router.add_api_route(
+    "/broadcasts/{domain}",
+    get_freedata_broadcasts_per_domain,
+    methods=["GET"],
+    summary="Get Broadcats per Domain",
+    tags=["FreeDATA"],
+    include_in_schema=False,
+)
 
 
 @router.delete("/broadcasts/{id}", summary="Delete Message or Broadcast by ID", tags=["FreeDATA"], responses={})

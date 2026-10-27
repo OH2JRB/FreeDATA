@@ -76,7 +76,8 @@ repository root). Most of the startup work happens at **module import time** of
 
 - `host = config["NETWORK"]["modemaddress"] or "0.0.0.0"`, `port = int(config["NETWORK"]["modemport"])`
   (default 5000).
-- If a GUI dir was found, logs `[GUI] AVAILABLE ON http://<host>:<port>/gui` and, if
+- If a GUI dir was found, logs `[GUI] AVAILABLE ON http://<host>:<port>/gui` (with
+  `helpers.browsable_host(host)`: `127.0.0.1` for `0.0.0.0`, `[::1]` for `::`) and, if
   `GUI.auto_run_browser` is true (default `True` when missing), starts a daemon thread that waits 2 s
   and calls `webbrowser.open(url)`.
 - `uvicorn.run(app, host=host, port=port, log_config=None, log_level="info")` - `log_config=None`
@@ -593,4 +594,3 @@ Behaviour visible in the code that may surprise maintainers:
   events, so a slow consumer loses old events.
 - `stats.py` and `explorer.py` `json.dumps()` the payload and then pass it to
   `requests.post(json=...)`, so the body is a JSON-encoded string (double encoding).
-- When `modemaddress` is empty the logged/opened GUI URL uses `0.0.0.0`.

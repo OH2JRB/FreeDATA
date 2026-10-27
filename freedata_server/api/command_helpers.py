@@ -15,10 +15,10 @@ async def enqueue_tx_command(ctx: AppContext, cmd_class, params: dict = None) ->
         params: A dict of parameters for the command (optional).
 
     Returns:
-        bool: True if the command was instantiated and run without raising,
-        False if an exception occurred. The return value of command.run() is
-        not used, as most commands return None (or a non-indicative value)
-        on success.
+        bool: False if the command raised, or if its run() returned False
+        (the commands that catch their own errors, such as ARQRawCommand and
+        Norm, report a failure that way); True otherwise. Most commands
+        return None on success.
     """
     params = params or {}
     try:
@@ -26,7 +26,10 @@ async def enqueue_tx_command(ctx: AppContext, cmd_class, params: dict = None) ->
         command = cmd_class(ctx, params)
         logger.info("Enqueueing transmit command", command=command.get_name())
         # Run in a thread to avoid blocking the event loop
-        await asyncio.to_thread(command.run)
+        result = await asyncio.to_thread(command.run)
+        if result is False:
+            logger.warning("Command did not start", command=command.get_name())
+            return False
         return True
     except Exception as e:
         logger.error("Command execution failed", command=getattr(cmd_class, "__name__", str(cmd_class)), error=str(e))

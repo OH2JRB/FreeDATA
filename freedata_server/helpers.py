@@ -354,6 +354,22 @@ def separate_callsign_from_ssid(callsign: bytes):
     return callsign, ssid
 
 
+def browsable_host(host: str) -> str:
+    """The host to put in a URL for a server listening on host.
+
+    A server bound to all interfaces (0.0.0.0, ::) is reached on this
+    computer as 127.0.0.1 or ::1; browsers cannot open the wildcard address
+    itself on every system (Windows).
+    """
+    if host in ("", "0.0.0.0"):
+        return "127.0.0.1"
+    if host == "::":
+        return "[::1]"
+    if ":" in host and not host.startswith("["):
+        return f"[{host}]"
+    return host
+
+
 def check_callsign(callsign: str, crc_to_check: bytes, ssid_list):
     """
     Function to check a crc against a callsign to calculate the

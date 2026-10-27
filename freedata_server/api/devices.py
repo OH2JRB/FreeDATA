@@ -50,11 +50,11 @@ router = APIRouter()
         },
         404: {
             "description": "The requested resource was not found.",
-            "content": {"application/json": {"example": {"error": "Resource not found."}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Resource not found."}}}},
         },
         503: {
             "description": "Modem not running.",
-            "content": {"application/json": {"example": {"error": "Modem not running."}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Modem not running."}}}},
         },
     },
 )
@@ -83,11 +83,11 @@ async def get_audio_devices(ctx: AppContext = Depends(get_ctx)):
         },
         404: {
             "description": "The requested resource was not found.",
-            "content": {"application/json": {"example": {"error": "Resource not found."}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Resource not found."}}}},
         },
         503: {
             "description": "Modem not running.",
-            "content": {"application/json": {"example": {"error": "Modem not running."}}},
+            "content": {"application/json": {"example": {"detail": {"error": "Modem not running."}}}},
         },
     },
 )

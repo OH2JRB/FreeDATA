@@ -69,7 +69,7 @@ It works for both HTTP and WebSocket routes and returns the one `AppContext` cre
 { "detail": { "error": "Modem not running" } }
 ```
 
-The OpenAPI `responses=` examples declared in the routers show `{"error": "..."}` without the `detail` wrapper. Those examples do not match what the server actually sends.
+The OpenAPI `responses=` examples declared in the routers show this body too.
 
 All request bodies are typed as a plain `dict`, so FastAPI does no schema validation. Each handler checks fields by hand, as described below. A body that is not a JSON object gives FastAPI's standard 422.
 
@@ -127,7 +127,7 @@ Validation rewrites these to `"AA1AAA"` and `"JN48ea"`.
 
 `POST /radio/` calls the matching `radio_manager.set_frequency`, `set_mode`, `set_rf_level(int(...))` or `set_tuner` for each key that is present. Values are not otherwise validated. `ctx.radio_manager` is only created by the service manager when the modem starts (it is `None` before that and after a stop), hence the 503.
 
-`POST /radio/tune`: a truthy `enable_tuning` checks that the modem is running, then awaits `enqueue_tx_command(ctx, TransmitSine)` and aborts 500 if it returns `False`. A falsy value calls `ctx.rf_modem.stop_sine()`. The documented "Modem Busy" 503 is never raised.
+`POST /radio/tune`: a truthy `enable_tuning` checks that the modem is running, then awaits `enqueue_tx_command(ctx, TransmitSine)` and aborts 500 if it returns `False`. A falsy value calls `ctx.rf_modem.stop_sine()`.
 
 ### 2.5 Modem ([modem.py](../api/modem.py))
 
@@ -171,7 +171,7 @@ Validation rewrites these to `"AA1AAA"` and `"JN48ea"`.
 
 **FEC.** FEC transmission is not implemented. The `FEC` / `FEC_WAKEUP` frame types are disabled in [modem_frametypes.py](../modem_frametypes.py), and there is no FEC command class (the old, non-working `command_fec.py` was removed). The handler therefore aborts with 501 straight away and does not check the modem state or the body.
 
-**500 on command failure.** Every endpoint that runs a transmit command through `enqueue_tx_command` (see §4) aborts with 500 when that call returns `False`, which happens when the command's constructor (parameter parsing) or its `run()` raised. Failures that a command catches itself still give 200. For example, `ARQRawCommand.run()` catches its own exceptions and returns `False`.
+**500 on command failure.** Every endpoint that runs a transmit command through `enqueue_tx_command` (see §4) aborts with 500 when that call returns `False`, which happens when the command's constructor (parameter parsing) or its `run()` raised, or `run()` returned `False`. `ARQRawCommand.run()` and `Norm.run()` catch their own exceptions and return `False`, so their failures give 500 as well.
 
 **ARQ raw.** `type` is checked against the three literal strings above. `ARQRawCommand` maps it through `ARQ_SESSION_TYPES[...]`, falls back to `raw`, then base64-decodes `data` ([command_arq_raw.py](../command_arq_raw.py)). Example:
 
@@ -181,7 +181,7 @@ Validation rewrites these to `"AA1AAA"` and `"JN48ea"`.
 
 ### 2.6 FreeDATA messaging, beacons, stations, broadcasts ([freedata.py](../api/freedata.py))
 
-Each request builds a new DB manager instance (`DatabaseManagerMessages`, `...Attachments`, `...Beacon`, `...Stations` or `...Broadcasts`) from `ctx`. None of these routes check whether the modem is running, even where the decorator documents a 503.
+Each request builds a new DB manager instance (`DatabaseManagerMessages`, `...Attachments`, `...Beacon`, `...Stations` or `...Broadcasts`) from `ctx`. None of these routes check whether the modem is running, and none documents a 503.
 
 #### Messages (P2P)
 
@@ -237,7 +237,7 @@ The encryption endpoints are described in [encryption.md](encryption.md#api).
 |---|---|---|---|---|
 | GET | `/freedata/broadcasts` | none | `get_all_broadcasts_json()` | none |
 | GET | `/freedata/broadcasts/domains` | none | `get_broadcast_domains_json()` | none |
-| GET | `/freedata/broadcasts/{domain}/` (**trailing slash**) | none | `get_broadcasts_per_domain_json(domain)`: `{domain: [ {id, timestamp, origin, gridsquare, msg_type, priority, payload_size, payload_data, direction, status, error_reason, received_at, nexttransmission_at, expires_at} ]}`. Read-only | none |
+| GET | `/freedata/broadcasts/{domain}/` (also without the slash, except for a domain named `domains`) | none | `get_broadcasts_per_domain_json(domain)`: `{domain: [ {id, timestamp, origin, gridsquare, msg_type, priority, payload_size, payload_data, direction, status, error_reason, received_at, nexttransmission_at, expires_at} ]}`. Read-only | none |
 | PATCH | `/freedata/broadcasts/{domain}/read` | none | `mark_domain_as_read(domain)`: `{"domain", "marked_read": <count>, "status": "success"}`. Sends a `message-db` event if anything changed | none (an unknown domain gives `marked_read: 0`) |
 | POST | `/freedata/broadcasts` | `{"origin", "domain", "data" (base64), "type", "gridsquare", "priority"?}` | `{"message": "broadcast transmitted", "status": "success"}` | 409 `Group chat is disabled (EXP.enable_groupchat), broadcast not transmitted.`; 500 `Failed to transmit broadcast.` if the command raises (for example on a missing key) |
 | PATCH | `/freedata/broadcasts/{id}` | `{"action": "retransmit"}` | `{"message_id": id, "status": "retransmit started"}` | 404 `Message not found`; 400 `Invalid action` for any other action |
@@ -248,9 +248,9 @@ The encryption endpoints are described in [encryption.md](encryption.md#api).
 - `data` is base64-decoded and **truncated to 390 bytes** (`15 * 26`);
 - `priority` is coerced to `int`; it defaults to `1` and also falls back to `1` when it is not a number or outside 0-7 (it is a 3-bit field in the burst flags);
 - `origin`, `domain`, `data`, `type` and `gridsquare` are required. A missing key raises in the constructor, so the endpoint answers 500;
-- `Norm.run()` returns `False` without transmitting when `EXP.enable_groupchat` is false. Otherwise it starts `NormTransmissionISS.prepare_and_transmit_data` in a thread. `run()` catches its own exceptions.
+- `Norm.run()` returns `False` without transmitting when `EXP.enable_groupchat` is false. Otherwise it starts `NormTransmissionISS.prepare_and_transmit_data` in a thread and returns `True`. `run()` catches its own exceptions and returns `False`.
 
-`enqueue_tx_command` ignores the return value of `run()`, so the endpoint checks `EXP.enable_groupchat` itself before building the command and answers 409 when group chat is disabled.
+The endpoint checks `EXP.enable_groupchat` itself before building the command and answers 409 when group chat is disabled; otherwise `run()` returning `False` would give a 500.
 
 The GET per domain does not change anything. Clients mark a domain read explicitly with `PATCH /freedata/broadcasts/{domain}/read` (the GUI does this when the user opens a domain), so background reloads do not clear unread counts.
 
@@ -315,7 +315,7 @@ async def enqueue_tx_command(ctx, cmd_class, params=None) -> bool:
 
 Despite the name, nothing is queued. The handler `await`s `command.run()` in a worker thread, so the HTTP response waits until `run()` returns. Parameter parsing happens in the constructor (`TxCommand.__init__` calls `set_params_from_api`), inside the same `try`. Parse errors and run errors are both caught there.
 
-`enqueue_tx_command` returns `True` when the command was constructed and `run()` returned without raising. It returns `False` if anything raised. The return value of `run()` is ignored. Every calling handler checks the result and aborts with 500 on `False` (see §2). Commands that catch their own errors inside `run()` (`ARQRawCommand`, `Norm`, and `SendMessageCommand.transmit`) still produce a success response.
+`enqueue_tx_command` returns `False` if the constructor or `run()` raised, or if `run()` returned `False`; otherwise `True` (most commands return `None` on success). Every calling handler checks the result and aborts with 500 on `False` (see §2). `ARQRawCommand` and `Norm` catch their own errors inside `run()` and return `False`. `SendMessageCommand.transmit` leaves the message queued for the scheduler to retry, so a stored message still gives a success response.
 
 Base class `TxCommand` ([command.py](../command.py)): `run()` calls `emit_event()`, logs, then `transmit()`. `transmit()` calls `build_frame()` and `ctx.rf_modem.transmit(get_tx_mode(), 1, 0, frame)`. `get_tx_mode()` returns `FREEDV_MODE.data_vhf_1` when `EXP.enable_vhf` is set, otherwise `FREEDV_MODE.signalling`.
 
@@ -354,10 +354,6 @@ The module docstring says the callsign regex "may require adjustment" for SSID 0
 
 ## 6. Known quirks in the API layer
 
-- Error bodies are `{"detail": {"error": "..."}}`, not the `{"error": "..."}` shown in the OpenAPI examples.
-- `enqueue_tx_command` only reports exceptions. Commands that catch their own errors in `run()` (`ARQRawCommand`, `Norm`, `SendMessageCommand.transmit`) still give a 200 response. (`POST /freedata/broadcasts` checks the group chat setting before running `Norm`, see 2.6.)
 - `POST /modem/fec_transmit` always returns 501, because FEC transmission is not implemented.
 - `GET /modem/state` also pushes a full state frame to every `/states` WebSocket client.
-- `/freedata/broadcasts/{domain}/` needs a trailing slash.
-- Many endpoints document 503 "Modem not running" or "Modem busy" in `responses=` but never raise it (for example `/radio/tune` busy, all `/freedata/*` routes).
 - `common.validate` is never used.
