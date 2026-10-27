@@ -742,5 +742,8 @@ sequenceDiagram
 
 ## 10. Known issues
 
-None currently known. Fixed: P2P connection data without a session id used to reach every P2P
-connection (see section 6).
+| Where | Observation |
+|---|---|
+| [frame_handler.py](../frame_handler.py) `is_frame_for_me` | A `P2P_CONNECTION_CONNECT` is accepted for any callsign set with the socket interface's `MYCALL` command, but the `ARQ_SESSION_OPEN` that carries larger data inside the connection is checked only against `STATION.mycall` and `ssid_list`. If `MYCALL` names another callsign, data too large for a payload frame never arrives: the IRS ignores the session open. |
+
+Fixed: P2P connection data without a session id used to reach every P2P connection (see section 6).
