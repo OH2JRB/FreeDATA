@@ -78,6 +78,20 @@ class TestDataFrameFactory(unittest.TestCase):
         # 128 bytes less 2 CRC, 1 type, 1 session id, 1 speed level, 4 offset, 1 burst info, 1 burst id
         self.assertEqual(available, 117)
 
+    def test_arq_session_frames_carry_the_snr(self):
+        open_ack = self.factory.build_arq_session_open_ack(1, "AA1AAA-0", 1, 7.5)
+        info = self.factory.build_arq_session_info(1, 100, bytes(4), -3.2, 0)
+        info_ack = self.factory.build_arq_session_info_ack(1, 0, 4, 1, 1)
+        self.assertEqual(self.factory.deconstruct(open_ack)["snr"], 7.5)
+        self.assertEqual(self.factory.deconstruct(info)["snr"], -3.2)
+        self.assertEqual(self.factory.deconstruct(info_ack)["snr"], 4)
+        # before the session has measured one (ARQSession.snr starts as a list)
+        self.assertEqual(
+            self.factory.deconstruct(self.factory.build_arq_session_info(1, 100, bytes(4), [], 0))["snr"], 0
+        )
+        # one byte holds -12.7 to 12.7 dB
+        self.assertEqual(self.factory.deconstruct(self.factory.build_arq_session_open_ack(1, "A", 1, 30))["snr"], 12.7)
+
 
 if __name__ == "__main__":
     unittest.main()

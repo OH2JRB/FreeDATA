@@ -84,6 +84,6 @@ fake transport, so the tests send nothing over the network.
 
 - Without rig control the dial frequency is unknown, so nothing is reported.
 - The frequency assumes USB/PKTUSB with the modem centred at 1500 Hz.
-- The switch state is not part of the `/states` WebSocket stream. The GUI reads it with
-  `GET /modem/pskreporter` when the settings component is mounted, so after a server restart an
-  open GUI can show the switch on until it is reloaded or toggled.
+- The switch is runtime only: it is off after every server restart. Its state is part of the
+  `/states` WebSocket stream (`is_pskreporter_enabled`, set by `PSKReporter.set_enabled`), so an
+  open GUI shows it off again after a restart.

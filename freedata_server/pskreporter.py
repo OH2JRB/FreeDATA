@@ -210,6 +210,11 @@ class PSKReporter:
             if not self.enabled:
                 self.pending.clear()
         log.info("[PSKREPORTER] reporting", enabled=self.enabled)
+        # in the /states stream, so an open GUI shows the switch as it is (for
+        # example off again after a server restart)
+        state_manager = getattr(self.ctx, "state_manager", None)
+        if state_manager is not None:
+            state_manager.set("is_pskreporter_enabled", self.enabled)
 
     def status(self) -> dict:
         with self.lock:

@@ -1,3 +1,5 @@
+import numbers
+
 from freedata_server.modem_frametypes import FRAME_TYPE as FR_TYPE
 from freedata_server import helpers
 from freedata_server import codec2
@@ -295,6 +297,15 @@ class DataFrameFactory:
             "flag": 1,
         }
 
+    @staticmethod
+    def session_snr_byte(snr):
+        """The SNR byte of an ARQ session frame: the SNR the session last measured,
+        0 before it has measured one (ARQSession.snr starts as an empty list).
+        The byte holds -12.7 to 12.7 dB (helpers.snr_to_bytes)."""
+        if isinstance(snr, bool) or not isinstance(snr, numbers.Real) or snr != snr:
+            snr = 0
+        return helpers.snr_to_bytes(snr)
+
     def construct(self, frametype, content, frame_length=LENGTH_SIG1_FRAME):
         frame_template = self.template_list[frametype.value]
 
@@ -559,7 +570,7 @@ class DataFrameFactory:
             "origin": helpers.callsign_to_bytes(self.myfullcall),
             "destination_crc": helpers.get_crc_24(destination),
             "version": bytes([version]),
-            "snr": helpers.snr_to_bytes(1),
+            "snr": self.session_snr_byte(snr),
             "flag": flag.to_bytes(1, "big"),
         }
         return self.construct(FR_TYPE.ARQ_SESSION_OPEN_ACK, payload)
@@ -571,7 +582,7 @@ class DataFrameFactory:
             "session_id": session_id.to_bytes(1, "big"),
             "total_length": total_length.to_bytes(4, "big"),
             "total_crc": total_crc,
-            "snr": helpers.snr_to_bytes(1),
+            "snr": self.session_snr_byte(snr),
             "flag": flag.to_bytes(1, "big"),
             "type": type.to_bytes(1, "big"),
         }
@@ -609,7 +620,7 @@ class DataFrameFactory:
             "frame_length": self.LENGTH_SIG0_FRAME,
             "session_id": session_id.to_bytes(1, "big"),
             "offset": offset.to_bytes(4, "big"),
-            "snr": helpers.snr_to_bytes(1),
+            "snr": self.session_snr_byte(snr),
             "speed_level": speed_level.to_bytes(1, "big"),
             "frames_per_burst": frames_per_burst.to_bytes(1, "big"),
             "flag": flag.to_bytes(1, "big"),

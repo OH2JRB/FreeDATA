@@ -4,6 +4,7 @@ from freedata_server.message_system_db_station import DatabaseManagerStations
 from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy import or_
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 from freedata_server import helpers
 import base64
 
@@ -242,7 +243,8 @@ class DatabaseManagerBroadcasts(DatabaseManager):
                 .first()
             )
 
-            return message
+            # a snapshot, as the session is closed below (see get_broadcast_per_id)
+            return SimpleNamespace(**self.broadcast_to_dict(message)) if message else None
 
         except Exception as e:
             session.rollback()
@@ -447,38 +449,21 @@ class DatabaseManagerBroadcasts(DatabaseManager):
             session.remove()
 
     def get_broadcast_per_id(self, id, get_object=False):
+        """The broadcast with this id as a dict, or with get_object as an object
+        with the same fields as attributes (NormTransmissionISS.retransmit_data).
+
+        Both are plain snapshots: the session is closed before they are used, so
+        an ORM object would be detached and its lazy attributes (status) would
+        fail to load.
+        """
         session = self.get_thread_scoped_session()
         try:
             msg = session.query(BroadcastMessage).filter_by(id=id).first()
             if not msg:
                 return None
 
-            if get_object:
-                return msg
-
-            return {
-                "id": msg.id,
-                "origin": msg.origin,
-                "timestamp": msg.timestamp if msg.timestamp else None,
-                "repairing_callsigns": msg.repairing_callsigns,
-                "domain": msg.domain,
-                "gridsquare": msg.gridsquare,
-                "frequency": msg.frequency,
-                "priority": msg.priority,
-                "is_read": msg.is_read,
-                "direction": msg.direction,
-                "payload_size": msg.payload_size,
-                "payload_data": msg.payload_data,
-                "msg_type": msg.msg_type,
-                "total_bursts": msg.total_bursts,
-                "checksum": msg.checksum,
-                "received_at": msg.received_at if msg.received_at else None,
-                "expires_at": msg.expires_at if msg.expires_at else None,
-                "nexttransmission_at": msg.nexttransmission_at if msg.nexttransmission_at else None,
-                "status": msg.status.name if msg.status else None,
-                "error_reason": msg.error_reason,
-                "attempts": msg.attempts,
-            }
+            data = self.broadcast_to_dict(msg)
+            return SimpleNamespace(**data) if get_object else data
 
         except Exception as e:
             self.log(f"Error fetching broadcast by id '{id}': {e}", isWarning=True)
@@ -486,6 +471,33 @@ class DatabaseManagerBroadcasts(DatabaseManager):
 
         finally:
             session.remove()
+
+    @staticmethod
+    def broadcast_to_dict(msg):
+        """The fields of a BroadcastMessage, read while its session is open."""
+        return {
+            "id": msg.id,
+            "origin": msg.origin,
+            "timestamp": msg.timestamp if msg.timestamp else None,
+            "repairing_callsigns": msg.repairing_callsigns,
+            "domain": msg.domain,
+            "gridsquare": msg.gridsquare,
+            "frequency": msg.frequency,
+            "priority": msg.priority,
+            "is_read": msg.is_read,
+            "direction": msg.direction,
+            "payload_size": msg.payload_size,
+            "payload_data": msg.payload_data,
+            "msg_type": msg.msg_type,
+            "total_bursts": msg.total_bursts,
+            "checksum": msg.checksum,
+            "received_at": msg.received_at if msg.received_at else None,
+            "expires_at": msg.expires_at if msg.expires_at else None,
+            "nexttransmission_at": msg.nexttransmission_at if msg.nexttransmission_at else None,
+            "status": msg.status.name if msg.status else None,
+            "error_reason": msg.error_reason,
+            "attempts": msg.attempts,
+        }
 
     def increment_attempts(self, message_id: str):
         session = self.get_thread_scoped_session()

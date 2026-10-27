@@ -169,13 +169,10 @@ def message_transmitted(ctx, data, statistics, encrypted=False):
     decompressed_json_string = data.decode("utf-8")
     payload_message_obj = MessageP2P.from_payload(decompressed_json_string)
     payload_message = MessageP2P.to_dict(payload_message_obj)
-    # Todo we need to optimize this - WIP
-    DatabaseManagerMessages(ctx).update_message(
-        payload_message["id"], update_data={"status": "transmitted", "encrypted": encrypted}
-    )
+    # one update: one commit and one change event for the GUI
     DatabaseManagerMessages(ctx).update_message(
         payload_message["id"],
-        update_data={"statistics": statistics},
+        update_data={"status": "transmitted", "encrypted": encrypted, "statistics": statistics},
         frequency=ctx.state_manager.radio_frequency,
     )
 
@@ -196,11 +193,9 @@ def message_failed(ctx, data, statistics):
     decompressed_json_string = data.decode("utf-8")
     payload_message_obj = MessageP2P.from_payload(decompressed_json_string)
     payload_message = MessageP2P.to_dict(payload_message_obj)
-    # Todo we need to optimize this - WIP
-    DatabaseManagerMessages(ctx).update_message(payload_message["id"], update_data={"status": "failed"})
     DatabaseManagerMessages(ctx).update_message(
         payload_message["id"],
-        update_data={"statistics": statistics},
+        update_data={"status": "failed", "statistics": statistics},
         frequency=ctx.state_manager.radio_frequency,
     )
 

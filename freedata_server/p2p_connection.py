@@ -266,10 +266,8 @@ class P2PConnection:
         """True if the frames fit in FSK frames (signalling frames, small payloads)."""
         return all(len(f) <= self.FSK_PAYLOAD_SIZE + 4 for f in frames)
 
-    def transmit_frame(self, frame: bytearray, mode="auto"):
-        if mode in ["auto"]:
-            mode = self.get_mode_by_speed_level(self.speed_level)
-
+    def transmit_frame(self, frame: bytearray, mode):
+        # P2P connections have no speed levels: every caller names the mode
         self.ctx.rf_modem.transmit(self.get_tx_mode(mode), 1, 1, frame)
 
     def transmit_wait_and_retry(self, frame_or_burst, timeout, retries, mode):
