@@ -469,10 +469,14 @@ class StateManager:
             # For now, we don't remove IRS session because of resuming transmissions.
             # self.remove_arq_irs_session(session_id)
 
-        # Stop and remove ISS sessions
+        # Stop and remove ISS sessions. A session that tells the IRS with
+        # ARQ_STOP ends itself (ABORTED), and the schedule manager removes it
         for session_id in list(self.arq_iss_sessions.keys()):
             session = self.arq_iss_sessions[session_id]
-            session.abort_transmission(send_stop=False)
+            if session.state in [session.state_enum.ABORTING, session.state_enum.ABORTED]:
+                continue
+            if session.abort_transmission(send_stop=True):
+                continue
             session.transmission_aborted()
             self.remove_arq_iss_session(session_id)
 

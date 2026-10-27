@@ -41,7 +41,7 @@ A full run takes about a minute. Both commands exit non-zero when a test fails.
 | `test_message_p2p.py` | `MessageP2P` from API params, payloads with attachments | yes |
 | `test_protocols.py` | PING → PING_ACK and CQ → QRV through the real frame dispatcher | yes |
 | `test_arq_stop.py` | The IRS sends `ARQ_STOP_ACK` in the signalling mode (`data_fsk4_50` on FSK), and the ISS reads it as a stop acknowledgement | no (mock context) |
-| `test_arq_session.py` | A full ARQ transfer (1000 random bytes) between two stations; IRS success event | two |
+| `test_arq_session.py` | A full ARQ transfer (1000 random bytes) between two stations; IRS success event; the user's stop during a transfer (the ISS sends `ARQ_STOP`, both sides end `ABORTED` through the stop acknowledgement); the IRS aborting (abort flag in its ACK) | two |
 | `test_message_protocol.py` | A P2P message sent over an ARQ session, checked on both stations; the same with encryption on | two |
 | `test_message_send.py` | Two concurrent `SendMessageCommand.transmit()` calls for the same queued message (like the API and the scheduler) start only one ARQ session (`ARQSessionISS` mocked); a queued message passed to the command (as the scheduler does) is not added to the database again | yes (mocked modem) |
 | `test_encryption.py` | AES-GCM helpers and key parsing, the encrypted ARQ data type, holding sent/received messages until a key is entered, the station encryption API, database migration from version 1 | yes |
@@ -119,8 +119,8 @@ an ARQ transfer shows up as `{"arq-transfer-outbound": {...}}` on the ISS and
   its setup uses old constructor signatures (`CONFIG(path)`, a 5-argument `DISPATCHER`,
   `SocketInterfaceHandler(modem, config, state, event)`), so it has to be rewritten before it can
   run again.
-- `test_arq_session.py` has several disabled tests (`Disabled...`): small payload with frame loss,
-  ISS/IRS abort and session cleanup.
+- `test_arq_session.py` has disabled tests (`Disabled...`): small payload with frame loss and session
+  cleanup.
 - `test_norm_protocol.py` only checks that sending a broadcast doesn't fail. It swallows exceptions
   from `Norm.run()` and NORM emits no `arq-transfer-*` events, so its success check never runs.
 - No tests cover the socket interface, the radio backends or the REST endpoints beyond `/` and `/config`.

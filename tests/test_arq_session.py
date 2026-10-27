@@ -196,44 +196,77 @@ class TestARQSession(unittest.TestCase):
         received = base64.b64decode(successes[0]["data"])
         self.assertEqual(received, payload)
 
-    def DisabledtestARQSessionAbortTransmissionISS(self):
-        # set Packet Error Rate (PER) / frame loss probability
+    def start_transfer_and_wait_for_data(self):
+        """Starts a transfer and returns its ISS and IRS sessions once data flows."""
         self.loss_probability = 0
-
         self.establishChannels()
         params = {
             "dxcall": "AA1AAA-1",
-            "data": base64.b64encode(np.random.bytes(100)),
+            "data": base64.b64encode(np.random.bytes(20000)),
         }
-        cmd = ARQRawCommand(self.ctx_ISS, params)
-        cmd.run()
+        earlier = set(self.ctx_ISS.state_manager.arq_iss_sessions)
+        ARQRawCommand(self.ctx_ISS, params).run()
+        deadline = time.time() + 60
+        while time.time() < deadline:
+            new = [s for i, s in list(self.ctx_ISS.state_manager.arq_iss_sessions.items()) if i not in earlier]
+            iss = new[0] if new else None
+            irs = self.ctx_IRS.state_manager.arq_irs_sessions.get(iss.id) if iss else None
+            if iss and irs and iss.state is iss.state_enum.BURST_SENT:
+                return iss, irs
+            time.sleep(0.05)
+        self.fail("the transfer did not start")
 
-        threading.Event().wait(np.random.randint(10, 10))
-        for id in self.ctx_ISS.state_manager.arq_iss_sessions:
-            self.ctx_ISS.state_manager.arq_iss_sessions[id].abort_transmission()
+    def wait_for_state(self, session, state, timeout):
+        deadline = time.time() + timeout
+        while session.state is not state and time.time() < deadline:
+            time.sleep(0.05)
+        return session.state
 
-        self.waitAndCloseChannels()
+    def stop_channels(self, iss, irs):
+        """Ends the abort tests: the sessions and their events must not reach the
+        tests that follow."""
+        for session in (iss, irs):
+            if session.state is not session.state_enum.ABORTED:
+                session.transmission_aborted()
+        self.channels_running = False
+        self.channelA.join(5)
+        self.channelB.join(5)
+        self.ctx_ISS.state_manager.remove_arq_iss_session(iss.id)
+        self.ctx_IRS.state_manager.remove_arq_irs_session(irs.id)
+        self.ctx_ISS.state_manager.setARQ(False)
+        self.ctx_IRS.state_manager.setARQ(False)
+        for ctx in (self.ctx_ISS, self.ctx_IRS):
+            for q in (ctx.TESTMODE_EVENTS, ctx.TESTMODE_TRANSMIT_QUEUE, ctx.TESTMODE_RECEIVE_QUEUE):
+                while not q.empty():
+                    q.get_nowait()
 
-        del cmd
+    def testARQSessionAbortTransmissionISS(self):
+        # the user stops the transfer: the ISS tells the IRS with ARQ_STOP, and
+        # the ARQ_STOP_ACK ends the abort long before the stop retries run out
+        iss, irs = self.start_transfer_and_wait_for_data()
+        try:
+            started = time.time()
+            self.ctx_ISS.state_manager.stop_transmission()
+            self.assertLess(time.time() - started, 2)  # the API is not held up
+            self.assertEqual(iss.state, iss.state_enum.ABORTING)
+            self.assertTrue(self.ctx_ISS.state_manager.getARQ())  # busy while stopping
 
-    def DisabledtestARQSessionAbortTransmissionIRS(self):
-        # set Packet Error Rate (PER) / frame loss probability
-        self.loss_probability = 0
+            self.assertEqual(self.wait_for_state(irs, irs.state_enum.ABORTED, 30), irs.state_enum.ABORTED)
+            self.assertEqual(self.wait_for_state(iss, iss.state_enum.ABORTED, 30), iss.state_enum.ABORTED)
+            retries_exhausted = iss.RETRIES_STOP * iss.TIMEOUT_STOP_ACK
+            self.assertLess(time.time() - started, retries_exhausted)
+            self.assertFalse(self.ctx_ISS.state_manager.getARQ())
+        finally:
+            self.stop_channels(iss, irs)
 
-        self.establishChannels()
-        params = {
-            "dxcall": "AA1AAA-1",
-            "data": base64.b64encode(np.random.bytes(100)),
-        }
-        cmd = ARQRawCommand(self.ctx_ISS, params)
-        cmd.run()
-
-        threading.Event().wait(np.random.randint(1, 10))
-        for id in self.ctx_IRS.state_manager.arq_irs_sessions:
-            self.ctx_IRS.state_manager.arq_irs_sessions[id].abort_transmission()
-
-        self.waitAndCloseChannels()
-        del cmd
+    def testARQSessionAbortTransmissionIRS(self):
+        # the receiving side aborts: its next ACK carries the abort flag
+        iss, irs = self.start_transfer_and_wait_for_data()
+        try:
+            irs.abort_transmission()
+            self.assertEqual(self.wait_for_state(iss, iss.state_enum.ABORTED, 60), iss.state_enum.ABORTED)
+        finally:
+            self.stop_channels(iss, irs)
 
     def DisabledtestSessionCleanupISS(self):
         params = {

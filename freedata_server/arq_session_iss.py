@@ -70,6 +70,10 @@ class ARQSessionISS(arq_session.ARQSession):
     TIMEOUT_TRANSFER = 3.5 + TIMEOUT_CHANNEL_BUSY
     TIMEOUT_STOP_ACK = 4.5 + TIMEOUT_CHANNEL_BUSY
 
+    # states in which the IRS has answered the open request, so an abort tells
+    # it with ARQ_STOP (abort_transmission)
+    STOPPABLE_STATES = (ISS_State.INFO_SENT, ISS_State.BURST_SENT)
+
     STATE_TRANSITION = {
         ISS_State.OPEN_SENT: {
             FRAME_TYPE.ARQ_SESSION_OPEN_ACK.value: "send_info",
@@ -757,11 +761,21 @@ class ARQSessionISS(arq_session.ARQSession):
         ABORTING, sends session finished events, clears the audio output queue,
         and optionally sends a stop frame after a delay.
 
+        The stop frame is only sent once the IRS has answered the open request
+        (the session is past OPEN_SENT): before that, the IRS may not know the
+        session at all. While it is sent, the session stays ABORTING and ARQ
+        busy, until the stop acknowledgement arrives or the stop retries run out
+        (transmission_aborted).
+
         Args:
             send_stop (bool, optional): Whether to send an ARQ_STOP frame. Defaults to False.
             irs_frame (optional): The received IRS frame, if any. Defaults to None.
+
+        Returns:
+            bool: True if an ARQ_STOP is being sent.
         """
         self.log("aborting transmission...")
+        send_stop = send_stop and self.state in self.STOPPABLE_STATES
         self.set_state(ISS_State.ABORTING)
 
         self.ctx.event_manager.send_arq_session_finished(
@@ -787,11 +801,10 @@ class ARQSessionISS(arq_session.ARQSession):
         self.event_frame_received.set()
 
         if send_stop:
-            # sleep some time for avoiding packet collission
-            threading.Event().wait(self.TIMEOUT_STOP_ACK)
             self.send_stop()
-
-        self.ctx.state_manager.setARQ(False)
+        else:
+            self.ctx.state_manager.setARQ(False)
+        return send_stop
 
     def send_stop(self):
         """Sends an ARQ stop frame.
@@ -799,7 +812,8 @@ class ARQSessionISS(arq_session.ARQSession):
         This method builds and sends an ARQ_STOP frame to the IRS, initiating
         the termination of the ARQ session. The frame is repeated in a
         background thread while the session is ABORTING (launch_twr can't be
-        used here, as its retry loop stops as soon as the state is ABORTING).
+        used here, as its retry loop stops as soon as the state is ABORTING),
+        so the caller (the API) is not held up.
         """
         stop_frame = self.frame_factory.build_arq_stop(self.id)
         thread_stop = threading.Thread(target=self.transmit_stop_and_wait, args=[stop_frame], daemon=True)
@@ -814,6 +828,8 @@ class ARQSessionISS(arq_session.ARQSession):
         Args:
             stop_frame: The ARQ_STOP frame to transmit.
         """
+        # wait some time for avoiding a collision with a frame of the IRS
+        threading.Event().wait(self.TIMEOUT_STOP_ACK)
         retries = self.RETRIES_STOP
         while retries > 0 and self.state is ISS_State.ABORTING:
             self.event_frame_received = threading.Event()
