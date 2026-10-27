@@ -4,6 +4,7 @@ broadcast lookups that return plain snapshots, and one update per ARQ result
 
 import os
 import sqlite3
+from contextlib import closing
 import time
 import unittest
 from unittest import mock
@@ -35,10 +36,12 @@ class TestMessageDatabaseFixes(unittest.TestCase):
         os.environ["FREEDATA_DATABASE"] = db_path
         try:
             manager = DatabaseManager(self.ctx)  # creates the tables and their indexes
-            with sqlite3.connect(db_path) as conn:
+            # closing(): a sqlite3 connection's own "with" only commits, and an
+            # open file cannot be deleted on Windows (testenv's cleanup)
+            with closing(sqlite3.connect(db_path)) as conn, conn:
                 conn.execute("DROP INDEX idx_beacon_callsign")
             manager.check_database_version()
-            with sqlite3.connect(db_path) as conn:
+            with closing(sqlite3.connect(db_path)) as conn:
                 names = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'index'")}
             self.assertIn("idx_beacon_callsign", names)
         finally:
