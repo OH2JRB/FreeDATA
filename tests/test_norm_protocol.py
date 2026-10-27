@@ -1,175 +1,199 @@
-import unittest
-import unittest.mock
-import queue
-import threading
-import random
-import structlog
+"""NORM broadcasts between two stations in test mode: the bursts of a
+broadcast reach the other station, which assembles them, checks the CRC and
+stores the broadcast as received; a lost burst is sent again as a NORM_REPAIR
+when the receiver's scheduled job asks for it with a NORM_NACK (see
+freedata_server/docs/message-system.md, broadcasts).
+
+The two stations run in one process, so each gets its own message database
+here: otherwise the receiver would only add its bursts to the sender's own
+record."""
+
 import base64
+import os
+import queue
+import shutil
+import tempfile
+import threading
+import time
+import unittest
+from datetime import datetime, timedelta
+from unittest import mock
 
 import testenv  # noqa: F401  isolates config + message DB, must precede freedata_server imports
+from freedata_server import command_norm, message_system_db_broadcasts
 from freedata_server.context import AppContext
-from freedata_server.event_manager import EventManager
-from freedata_server.state_manager import StateManager
-from freedata_server import codec2
-from freedata_server import command_norm
+from freedata_server.message_system_db_broadcasts import DatabaseManagerBroadcasts
+from freedata_server.message_system_db_manager import DatabaseManager
+from freedata_server.modem_frametypes import FRAME_TYPE
+
+ORIGIN = "AA1AAA-1"
+DOMAIN = "BB1BBB-1"
+# with 3 more bytes, 120 bytes: 5 bursts of up to 26 bytes
+DATA = b"hello world! " * 9
 
 
-class TestModem:
-    def __init__(self, event_q, state_q):
-        self.data_queue_received = queue.Queue()
-        self.demodulator = unittest.mock.Mock()
-        self.event_manager = EventManager([event_q])
-        self.logger = structlog.get_logger("Modem")
-        self.states = StateManager(state_q)
+class TwoMinutesLater(datetime):
+    """datetime two minutes ahead, for the broadcasts' "received a minute ago"."""
 
-    def getFrameTransmissionTime(self, mode):
-        samples = 0
-        c2instance = codec2.open_instance(mode.value)
-        samples += codec2.api.freedv_get_n_tx_preamble_modem_samples(c2instance)
-        samples += codec2.api.freedv_get_n_tx_modem_samples(c2instance)
-        samples += codec2.api.freedv_get_n_tx_postamble_modem_samples(c2instance)
-        time = samples / 8000
-        return time
-
-    def transmit(self, mode, repeats: int, repeat_delay: int, frames: bytearray) -> bool:
-        tx_time = self.getFrameTransmissionTime(mode) + 0.1
-        self.logger.info(f"TX {tx_time} seconds...")
-        threading.Event().wait(tx_time)
-
-        transmission = {
-            "mode": mode,
-            "bytes": frames,
-        }
-        self.data_queue_received.put(transmission)
+    @classmethod
+    def now(cls, tz=None):
+        return datetime.now(tz) + timedelta(minutes=2)
 
 
-class TestMessageProtocol(unittest.TestCase):
+def wait_for(condition, timeout):
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        result = condition()
+        if result:
+            return result
+        time.sleep(0.1)
+    return None
+
+
+class TestNormBroadcast(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.logger = structlog.get_logger("TESTS")
+        # a message database per station: DatabaseManager.get_database()
+        # normally takes the one FREEDATA_DATABASE of the process
+        cls.db_dir = tempfile.mkdtemp(prefix="freedata-norm-")
+        cls.databases = {}
+        original = DatabaseManager.get_database
 
-        # ISS
+        def get_database(manager):
+            return cls.databases.get(id(manager.ctx)) or original(manager)
 
-        cls.ctx_ISS = AppContext(testenv.config_path())
-        cls.ctx_ISS.TESTMODE = True
-        cls.ctx_ISS.startup()
+        cls.db_patch = mock.patch.object(DatabaseManager, "get_database", get_database)
+        cls.db_patch.start()
 
-        # IRS
-        cls.ctx_IRS = AppContext(testenv.config_path())
-        cls.ctx_IRS.TESTMODE = True
-        cls.ctx_IRS.startup()
+        cls.ctx_ISS = cls.start_station("iss")
+        cls.ctx_IRS = cls.start_station("irs")
 
-        # simulate a busy condition
-        cls.ctx_IRS.state_manager.channel_busy_slot = [True, False, False, False, False]
-        # Frame loss probability in %
-        cls.loss_probability = 0
+        cls.drop = None
+        cls.channels_running = True
+        cls.channels = [
+            threading.Thread(target=cls.channel_worker, args=[cls.ctx_ISS, cls.ctx_IRS], daemon=True),
+            threading.Thread(target=cls.channel_worker, args=[cls.ctx_IRS, cls.ctx_ISS], daemon=True),
+        ]
+        for channel in cls.channels:
+            channel.start()
 
-        cls.channels_running = False
+    @classmethod
+    def start_station(cls, name):
+        ctx = AppContext(testenv.config_path())
+        cls.databases[id(ctx)] = "sqlite:///" + os.path.join(cls.db_dir, f"{name}.db")
+        ctx.TESTMODE = True
+        ctx.startup()
+        # the service manager reads the config again when it starts the modem
+        if not wait_for(lambda: ctx.rf_modem is not None, 10):
+            raise RuntimeError("modem did not start")
+        time.sleep(0.5)
+        # group chat (NORM) is off by default
+        ctx.config_manager.config["EXP"]["enable_groupchat"] = True
+        return ctx
 
     @classmethod
     def tearDownClass(cls):
+        cls.channels_running = False
+        for channel in cls.channels:
+            channel.join()
         cls.ctx_IRS.shutdown()
         cls.ctx_ISS.shutdown()
+        cls.db_patch.stop()
+        # shutdown() disposed the database engines
+        shutil.rmtree(cls.db_dir, ignore_errors=True)
 
-    def channelWorker(self, ctx_a, ctx_b):
-        while self.channels_running:
+    @classmethod
+    def channel_worker(cls, ctx_a, ctx_b):
+        """Delivers every frame station A transmits to station B, unless drop(frame) says it is lost."""
+        while cls.channels_running:
             try:
-                # Station A gets the data from its transmit queue
-                transmission = ctx_a.TESTMODE_TRANSMIT_QUEUE.get(timeout=1)
-                print(f"Station A sending: {transmission[1]}", len(transmission[1]), transmission[0])
-
-                transmission[1] += bytes(2)  # 2bytes crc simulation
-
-                if random.randint(0, 100) < self.loss_probability:
-                    self.logger.info(f"[{threading.current_thread().name}] Frame lost...")
+                mode, frames = ctx_a.TESTMODE_TRANSMIT_QUEUE.get(timeout=0.5)
+            except queue.Empty:
+                continue
+            for frame in frames if isinstance(frames, list) else [frames]:
+                frame = bytes(frame) + bytes(2)  # the CRC16 the modulator appends
+                if cls.drop and cls.drop(frame):
                     continue
+                ctx_b.service_manager.frame_dispatcher.process_data(frame, None, len(frame), 15, 0, mode_name=mode)
 
-                # Forward data from Station A to Station B's receive queue
-                if ctx_b:
-                    for burst in transmission:
-                        ctx_b.TESTMODE_RECEIVE_QUEUE.put(burst)
-                        self.logger.info("Data forwarded to Station B")
+    def setUp(self):
+        type(self).drop = None
+        self.addCleanup(setattr, type(self), "drop", None)
 
-                frame_bytes = transmission[1]
-                if len(frame_bytes) == 5:
-                    mode_name = "SIGNALLING_ACK"
-                else:
-                    mode_name = transmission[0]
-
-                snr = 15
-                ctx_b.service_manager.frame_dispatcher.process_data(
-                    frame_bytes, None, len(frame_bytes), snr, 0, mode_name=mode_name
-                )
-
-            except queue.Empty:
-                continue
-
-        self.logger.info(f"[{threading.current_thread().name}] Channel closed.")
-
-    def waitForSession(self, event_queue, outbound=False):
-        key = "arq-transfer-outbound" if outbound else "arq-transfer-inbound"
-        while self.channels_running:
-            try:
-                ev = event_queue.get(timeout=2)
-                if key in ev and ("success" in ev[key] or "ABORTED" in ev[key]):
-                    self.logger.info(f"[{threading.current_thread().name}] {key} session ended.")
-                    break
-            except queue.Empty:
-                continue
-
-    def establishChannels(self):
-        self.channels_running = True
-        self.channelA = threading.Thread(target=self.channelWorker, args=[self.ctx_ISS, self.ctx_IRS], name="channelA")
-        self.channelA.start()
-
-        self.channelB = threading.Thread(target=self.channelWorker, args=[self.ctx_IRS, self.ctx_ISS], name="channelB")
-        self.channelB.start()
-        # always stop the (non-daemon) channel threads, even if the test fails
-        self.addCleanup(self.closeChannels)
-
-    def closeChannels(self):
-        self.channels_running = False
-        self.channelA.join()
-        self.channelB.join()
-
-    def waitAndCloseChannels(self):
-        self.waitForSession(self.ctx_ISS.modem_events, True)
-        self.channels_running = False
-        self.waitForSession(self.ctx_IRS.modem_events, False)
-        self.channels_running = False
-
-    def testNormBroadcast(self):
-        self.loss_probability = 0  # no loss
-        self.establishChannels()
-
+    def broadcast(self, data):
         params = {
-            "origin": "AA1AAA-1",
-            "domain": "BB1BBB-1",
+            "origin": ORIGIN,
+            "domain": DOMAIN,
             "gridsquare": "JN48ea",
             "type": "MESSAGE",
             "priority": "1",
-            #'data': str(base64.b64encode(b"hello world!"), 'utf-8')
-            "data": str(
-                base64.b64encode(
-                    b"hello world!hello world!hello world!hello world!hello world!hello world!hello world!hello world!hello world!hello world!hello world!hello world!hello world!hello world!hello world!hello world!hello world!hello world!hello world!hello world!"
-                ),
-                "utf-8",
-            ),
+            "data": base64.b64encode(data).decode("ascii"),
         }
-        try:
-            command = command_norm.Norm(self.ctx_ISS, params)
-            command.run()
-        except Exception as e:
-            print(e)
+        self.assertTrue(command_norm.Norm(self.ctx_ISS, params).run())
+        # the sender stores its broadcast before transmitting it
+        sent = wait_for(lambda: self.find(self.ctx_ISS, data), 10)
+        self.assertIsNotNone(sent, "the sender did not store the broadcast")
+        return sent
 
-        # del cmd
-        # print(self.ctx_ISS.TESTMODE_EVENTS.empty())
+    def find(self, ctx, data):
+        """The broadcast with this payload in the station's database, by its bursts."""
+        domains = DatabaseManagerBroadcasts(ctx).get_broadcasts_per_domain_json(DOMAIN)
+        for broadcast in domains.get(DOMAIN, []):
+            bursts = broadcast["payload_data"].get("bursts", {})
+            joined = b"".join(base64.b64decode(bursts[k]) for k in sorted(bursts, key=int))
+            if data.startswith(joined[: len(data)]) and joined and len(joined) <= len(data):
+                return broadcast
+        return None
 
-        while not self.ctx_ISS.TESTMODE_EVENTS.empty():
-            event = self.ctx_ISS.TESTMODE_EVENTS.get()
-            success = event.get("arq-transfer-outbound", {}).get("success", None)
-            if success is not None:
-                self.assertTrue(success, f"Test failed because of wrong success: {success}")
+    def received(self, ctx, broadcast_id):
+        broadcast = DatabaseManagerBroadcasts(ctx).get_broadcast_per_id(broadcast_id)
+        return broadcast if broadcast and broadcast["status"] == "received" else None
+
+    def test_broadcast_received(self):
+        data = DATA + b"one"
+        sent = self.broadcast(data)
+        self.assertEqual(sent["direction"], "transmit")
+
+        received = wait_for(lambda: self.received(self.ctx_IRS, sent["id"]), 30)
+        self.assertIsNotNone(received, "the receiver never assembled the broadcast")
+        self.assertEqual(base64.b64decode(received["payload_data"]["final"]), data)
+        self.assertEqual(received["direction"], "receive")
+        self.assertEqual(received["origin"], ORIGIN)
+        self.assertEqual(received["domain"], DOMAIN)
+        self.assertEqual(received["total_bursts"], 5)
+        self.assertFalse(received["is_read"])
+
+    def test_lost_burst_repaired(self):
+        data = DATA + b"two"
+        norm_data = []
+
+        def lose_second_data_burst(frame):
+            if frame[0] != FRAME_TYPE.NORM_DATA.value:
+                return False
+            norm_data.append(frame)
+            return len(norm_data) == 2
+
+        type(self).drop = lose_second_data_burst
+        sent = self.broadcast(data)
+
+        # four of five bursts arrive: the broadcast waits for the missing one
+        def bursts_held():
+            broadcast = DatabaseManagerBroadcasts(self.ctx_IRS).get_broadcast_per_id(sent["id"])
+            return broadcast and sorted(broadcast["payload_data"]["bursts"], key=int)
+
+        self.assertEqual(wait_for(lambda: bursts_held() == ["1", "3", "4", "5"], 30), True, bursts_held())
+        self.assertIsNone(self.received(self.ctx_IRS, sent["id"]))
+
+        # the receiver's scheduled job asks for burst 2 once the broadcast is a
+        # minute old (check_missing_bursts); the sender repairs it
+        with (
+            mock.patch.object(message_system_db_broadcasts, "datetime", TwoMinutesLater),
+            mock.patch.object(self.ctx_IRS.state_manager, "is_modem_running", True),
+        ):
+            self.ctx_IRS.schedule_manager.check_missing_broadcast_bursts()
+        received = wait_for(lambda: self.received(self.ctx_IRS, sent["id"]), 30)
+        self.assertIsNotNone(received, "the repair did not complete the broadcast")
+        self.assertEqual(base64.b64decode(received["payload_data"]["final"]), data)
 
 
 if __name__ == "__main__":
