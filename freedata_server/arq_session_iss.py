@@ -186,18 +186,20 @@ class ARQSessionISS(arq_session.ARQSession):
 
         # Check if the generated 8-bit integer can be used. Not 0: callers take a
         # falsy id for "no id" and would not start the session at all (1 in 256
-        # messages, those whose CRC-32 ends in a zero byte)
-        if random_int and random_int not in self.ctx.state_manager.arq_iss_sessions:
+        # messages, those whose CRC-32 ends in a zero byte). Not a reserved id
+        # (RESERVED_SESSION_IDS), which would lose every burst ACK
+        sessions = self.ctx.state_manager.arq_iss_sessions
+        if random_int and random_int not in self.RESERVED_SESSION_IDS and random_int not in sessions:
             return random_int
 
-        # If the generated ID is already used, generate a new random ID
+        # If the generated ID cannot be used, generate a new random ID
         while True:
-            random_int = random.randint(1, 255)
-            if random_int not in self.ctx.state_manager.arq_iss_sessions:
-                return random_int
-            if len(self.ctx.state_manager.arq_iss_sessions) >= 255:
+            if len(sessions) >= 255 - len(self.RESERVED_SESSION_IDS):
                 # Return False if all possible session IDs are exhausted
                 return False
+            random_int = random.randint(1, 255)
+            if random_int not in self.RESERVED_SESSION_IDS and random_int not in sessions:
+                return random_int
 
     def get_response_timeout(self, timeout, mode="auto", frames=1, answer_frames=1) -> float:
         """Returns how long to wait for the IRS's answer to a frame sent in mode.

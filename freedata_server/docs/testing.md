@@ -63,6 +63,7 @@ A full run takes about a minute. Both commands exit non-zero when a test fails.
 | `test_demodulator_fsk.py` | The demodulator's FSK receiver restart: `data_vhf_1` bursts 500 ms apart decode without duplicates, the restart after transmitting (`reset_data_sync`), the audio history; runs one decoding thread on simulator audio | no (mock context) |
 | `test_fading_channel.py` | The HF fading channel simulator in `tools/channel_sim.py` (Doppler spread, SNR, power, Doppler shift), decoding on a clean channel, one HF FSK candidate and FSK bursts with the receiver restart; the mode measurements themselves are in [fading-channels.md](fading-channels.md) | no |
 | `test_p2p_connection.py` | P2P connections between two test-mode stations: connect and disconnect, payload frames both ways (signalling and datac4, the IRS sending after a heartbeat), 300 bytes in an ARQ session inside the connection, the IRS addressed by a `MYCALL` callsign that is not the station callsign; which `ARQ_SESSION_OPEN` destinations `is_frame_for_me` accepts; the socket interface is a mock | yes (two stations, own channel threads) |
+| `test_session_ids.py` | ARQ sessions and P2P connections never get session id 35 (a burst ACK for it parses as a P2P payload ACK); a P2P connection's worker thread stops once disconnected | no (mock context) |
 
 ## 3. Test environment isolation
 

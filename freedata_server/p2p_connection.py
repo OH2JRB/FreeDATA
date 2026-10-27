@@ -9,6 +9,7 @@ import random
 from queue import Queue
 import time
 from freedata_server.arq_data_type_handler import ARQDataTypeHandler, ARQ_SESSION_TYPES
+from freedata_server.arq_session import ARQSession
 from freedata_server.arq_session_iss import ARQSessionISS
 from freedata_server import helpers
 from freedata_server.config import fsk_modes_enabled
@@ -153,6 +154,11 @@ class P2PConnection:
         def data_processing_worker():
             last_isalive = 0
             while True:
+                # a disconnected connection has nothing left to do; the thread
+                # would otherwise run for the rest of the server's life
+                if self.state is States.DISCONNECTED:
+                    self.log("Connection closed, worker stopped")
+                    return
                 now = time.time()
                 if now > self.last_data_timestamp + self.ENTIRE_CONNECTION_TIMEOUT and self.state not in [
                     States.DISCONNECTING,
@@ -194,17 +200,20 @@ class P2PConnection:
                 threading.Event().wait(0.100)
 
         # Create and start the worker thread
-        worker_thread = threading.Thread(target=data_processing_worker, daemon=True)
-        worker_thread.start()
+        self.worker_thread = threading.Thread(target=data_processing_worker, daemon=True)
+        self.worker_thread.start()
 
     def generate_id(self):
+        # not a reserved id: an ARQ session inside the connection takes the
+        # connection's id (ARQSession.RESERVED_SESSION_IDS)
+        reserved = ARQSession.RESERVED_SESSION_IDS
+        sessions = self.ctx.state_manager.p2p_connection_sessions
         while True:
-            random_int = random.randint(1, 255)
-            if random_int not in self.ctx.state_manager.p2p_connection_sessions:
-                return random_int
-
-            if len(self.ctx.state_manager.p2p_connection_sessions) >= 255:
+            if len(sessions) >= 255 - len(reserved):
                 return False
+            random_int = random.randint(1, 255)
+            if random_int not in reserved and random_int not in sessions:
+                return random_int
 
     def set_details(self, snr, frequency_offset):
         self.snr = snr

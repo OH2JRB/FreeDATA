@@ -17,6 +17,13 @@ class ARQSession:
     managing session state, statistics, and data handling.
     """
 
+    # Never a session id: an ARQ burst ACK in signalling_ack has no type byte, its
+    # first byte is the session id, and deconstruct() reads such a frame that
+    # starts with the P2P_CONNECTION_PAYLOAD_ACK value as that frame instead. A
+    # session with this id never got its burst ACKs. P2P connections avoid it
+    # too, since the ARQ session inside a connection takes the connection's id.
+    RESERVED_SESSION_IDS = (FRAME_TYPE.P2P_CONNECTION_PAYLOAD_ACK.value,)
+
     # The HF FSK mode for auroral and other strongly fading paths, where every OFDM
     # mode fails although the SNR looks good (docs/fading-channels.md). It is
     # the lowest speed level, and once a session has fallen back to it, its

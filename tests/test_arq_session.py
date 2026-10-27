@@ -275,6 +275,11 @@ class TestARQSession(unittest.TestCase):
             self.assertEqual(self.wait_for_state(iss, iss.state_enum.ABORTED, 30), iss.state_enum.ABORTED)
             retries_exhausted = iss.RETRIES_STOP * iss.TIMEOUT_STOP_ACK
             self.assertLess(time.time() - started, retries_exhausted)
+            # transmission_aborted() sets ABORTED, then sends its event and clears
+            # the ARQ flag: wait for it instead of reading it at once
+            deadline = time.time() + 2
+            while self.ctx_ISS.state_manager.getARQ() and time.time() < deadline:
+                time.sleep(0.05)
             self.assertFalse(self.ctx_ISS.state_manager.getARQ())
         finally:
             self.stop_channels(iss, irs)

@@ -64,9 +64,14 @@ the IRS answers in FSK as well, so that answer's airtime and decoding delay are 
 1. If an existing ISS session has the same `data_crc` (CRC-32 of the prepared data) and is `FAILED` or
    `ABORTED`, that session is removed and its id reused. This is the resume path. The IRS still holds its
    session under that id and reports its received byte offset in `ARQ_SESSION_INFO_ACK`.
-2. Otherwise: `int.from_bytes(crc32, "little") % 256` if unused, else random 1-255. Returns `False` when 255
-   sessions exist. It never gives `0`: callers take a falsy id for "no id", and `ARQRawCommand` would not
-   start the session (1 in 256 messages, those whose CRC-32 ends in a zero byte, before this was fixed).
+2. Otherwise: `int.from_bytes(crc32, "little") % 256` if unused, else random 1-255. Returns `False` when all
+   254 usable ids are taken. It never gives `0`: callers take a falsy id for "no id", and `ARQRawCommand`
+   would not start the session (1 in 256 messages, those whose CRC-32 ends in a zero byte, before this was
+   fixed).
+3. It never gives `35` either (`ARQSession.RESERVED_SESSION_IDS`). A burst ACK in `signalling_ack` has no
+   type byte and starts with the session id, and `deconstruct()` reads a 3-byte frame starting with `35`
+   (`P2P_CONNECTION_PAYLOAD_ACK`) as a P2P payload ACK. A session with id 35 never got its OFDM burst ACKs,
+   and a message whose CRC-32 ends in `0x23` got that id again on every resend.
 
 The constructor also calls `rf_modem.demodulator.set_decode_mode(modes_to_decode=None, is_arq_irs=False)`.
 
@@ -517,7 +522,7 @@ compressed for `raw_lzma`/`raw_gzip`).
 | `TIMEOUT_HEARTBEAT` | 10 s, 10 retries |
 | `ENTIRE_CONNECTION_TIMEOUT` | 180 s |
 | `bandwidth` | fixed 2300 (reported in `CONNECTED`) |
-| `session_id` | random 1-255 not in `p2p_connection_sessions` (the IRS side overwrites it with the received id) |
+| `session_id` | random 1-255 not in `p2p_connection_sessions` and never `35` (`ARQSession.RESERVED_SESSION_IDS`: the ARQ session inside the connection takes this id); the IRS side overwrites it with the received id |
 
 The constructor calls `rf_modem.demodulator.set_decode_mode(is_p2p_connection=True)` and starts a
 background worker thread.
@@ -535,6 +540,7 @@ no wait.
 
 | Condition | Action |
 |---|---|
+| state `DISCONNECTED` | worker exits (before, the thread ran for the rest of the server's life) |
 | No frame for 180 s and state not in `DISCONNECTING, DISCONNECTED, ARQ_SESSION, FAILED, PAYLOAD_TRANSMISSION` | `disconnect()`, worker exits |
 | `is_ISS`, state `CONNECTED`/`PAYLOAD_SENT`, > 5 s since last data, not `transmission_in_progress` | `transmit_heartbeat(has_data = tx queue not empty)`. Skipped if a codec2 signal is being received |
 | state `CONNECTED`/`PAYLOAD_SENT` and `is_Master` | wait 0.5 s, `process_data_queue()` |
