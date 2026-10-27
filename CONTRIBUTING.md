@@ -3,8 +3,9 @@
 ## Required Tools and Dependencies
 
 The backend of FreeDATA is built with python, with a couple dependencies written
-in C/C++, and the frontend is build with VueJS, so you will need Python (from
-3.10 to 3.13) to work on the backend, and node+npm to work on the frontend.
+in C/C++, and the frontend is built with Vue 3 and Vite, so you will need Python
+(from 3.10 to 3.13) to work on the backend, and Node.js 22 or newer with npm to
+work on the frontend.
 
 System dependencies required:
 
@@ -12,10 +13,14 @@ System dependencies required:
 - portaudio
 - hamlib (optional, there is a vendored version bundled with the freedata
   server, or you can build it from source)
-- nodejs + npm
+- Node.js 22 or newer, and npm (the GUI CI tests Node 22, 24 and 26; Node 20 can
+  no longer build the GUI)
 
 Example for debian trixie: `sudo apt update && sudo apt install python3
-python3-venv nodejs npm portaudio19-dev`
+python3-venv portaudio19-dev`. Debian's own `nodejs` package is older than
+Node 22, so install Node.js from [NodeSource](https://github.com/nodesource/distributions)
+or with [nvm](https://github.com/nvm-sh/nvm) instead, and check it with
+`node --version`.
 
 Example for MacOS: `brew install python pyenv-virtualenv npm node@24 portaudio`
 
@@ -35,7 +40,13 @@ To fetch the python dependencies create a virtual environment and next use pip:
     build the freedata windows executable
 
 To fetch the `npm` dependencies go inside `./freedata_gui` and run `npm
-install`. See `./freedata_gui/README.md` for additional informations.
+install`. The GUI's scripts, run inside `./freedata_gui`:
+
+- `npm run serve` starts the Vite development server with hot reload
+- `npm run build` installs the dependencies and builds the GUI into
+  `freedata_gui/dist`, which the server serves at `/gui`
+- `npm run preview` serves the built GUI for a last check
+- `npm run lint` runs ESLint, as the GUI CI does
 
 ## Third-party licenses
 
@@ -59,15 +70,20 @@ The texts of the native libraries live in `tools/licenses/`; add one there
 ## Linting and Formatting (python-only)
 
 The python sources must be formatted and checked using `ruff`. There is a CI
-workflow that block all PRs that do not pass the linter/formatter checks.
+workflow that blocks all PRs that do not pass the linter/formatter checks.
 
-- To check formatting run `ruff format --check` (lists file that needs formatting)
+Ruff is pinned to 0.17.2 (`pip install .[dev]` installs that version), because
+ruff versions format differently: with another version a file can pass locally
+and fail in CI. Check it with `ruff --version`.
+
+- To check formatting run `ruff format --check --preview` (lists files that need
+  formatting; the same check the CI runs)
 - To see what the automatic formatter will change run `ruff format --preview
 --diff` (shows diff-style changes).
 - To automatically format files run `ruff format --preview`
 
-NOTE: the `--preview` enables new auto-formatting actions and enables a feature
-usefull in the CI. In the future it will no longer be necessary
+NOTE: always pass `--preview` to `ruff format`. It enables the formatting rules
+the CI checks for; without it the formatter changes many files the CI accepts.
 
 - To run the checker/linter execute `ruff check`
 - Some errors can be automatically fixed running `ruff check --fix`, but always
@@ -76,5 +92,20 @@ usefull in the CI. In the future it will no longer be necessary
 
 ## Testing backend
 
-To run the backend tests run inside the virtual environment `python -m unittest
-discover tests`
+To run the backend tests, run this from the repository root inside the virtual
+environment (as the CI does):
+
+```
+python -m unittest discover tests
+```
+
+The whole suite takes about 5 minutes. To run one test file, name it with `-p`:
+
+```
+python -m unittest discover tests -p "test_arq_session.py"
+```
+
+Each run uses its own temporary config file and message database, so the tests
+never touch your real FreeDATA settings or messages. See
+`freedata_server/docs/testing.md` for how the tests work and how to write new
+ones.
