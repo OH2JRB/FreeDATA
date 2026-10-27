@@ -18,12 +18,16 @@ class SendMessageCommand(TxCommand):
 
         This method creates a MessageP2P object from the API parameters,
         and adds the message to the database with the status 'queued'.
+        A message that is already in the database (the scheduler passes the
+        queued message it found) is not added again.
 
         Args:
             apiParams (dict): A dictionary containing the API parameters.
         """
         origin = f"{self.ctx.config_manager.config['STATION']['mycall']}-{self.ctx.config_manager.config['STATION']['myssid']}"
         self.message = MessageP2P.from_api_params(origin, apiParams)
+        if "id" in apiParams and DatabaseManagerMessages(self.ctx).get_message_by_id(self.message.id):
+            return
 
         # an encrypted station without a key: hold the message until the key is entered
         status = "queued"

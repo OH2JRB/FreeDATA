@@ -40,9 +40,10 @@ A full run takes about a minute. Both commands exit non-zero when a test fails.
 | `test_message_database.py` | Adding, deleting and updating messages, attachments, attempt counters | yes |
 | `test_message_p2p.py` | `MessageP2P` from API params, payloads with attachments | yes |
 | `test_protocols.py` | PING → PING_ACK and CQ → QRV through the real frame dispatcher | yes |
+| `test_arq_stop.py` | The IRS sends `ARQ_STOP_ACK` in the signalling mode (`data_fsk4_50` on FSK), and the ISS reads it as a stop acknowledgement | no (mock context) |
 | `test_arq_session.py` | A full ARQ transfer (1000 random bytes) between two stations; IRS success event | two |
 | `test_message_protocol.py` | A P2P message sent over an ARQ session, checked on both stations; the same with encryption on | two |
-| `test_message_send.py` | Two concurrent `SendMessageCommand.transmit()` calls for the same queued message (like the API and the scheduler) start only one ARQ session (`ARQSessionISS` mocked) | yes (mocked modem) |
+| `test_message_send.py` | Two concurrent `SendMessageCommand.transmit()` calls for the same queued message (like the API and the scheduler) start only one ARQ session (`ARQSessionISS` mocked); a queued message passed to the command (as the scheduler does) is not added to the database again | yes (mocked modem) |
 | `test_encryption.py` | AES-GCM helpers and key parsing, the encrypted ARQ data type, holding sent/received messages until a key is entered, the station encryption API, database migration from version 1 | yes |
 | `test_common_key.py` | Common encryption key: station key precedence, `decrypt_any`, sending and receiving with the common key, decrypting pending messages of several stations, the common key API, `POST /config` switching the setting on | yes |
 | `test_encryption_reporting.py` | Turning encryption on (per station or with the common key) switches Explorer and PSK Reporter off, keeps them locked off (409, config forced to `False`) until all encryption is off, and the startup check | yes |

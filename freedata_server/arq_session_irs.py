@@ -774,10 +774,12 @@ class ARQSessionIRS(arq_session.ARQSession):
             Tuple[None, None]: Returns None for both data and type_byte as this method doesn't handle data.
         """
         stop_ack = self.frame_factory.build_arq_stop_ack(self.id)
+        # in signalling, not signalling_ack: its 3-byte frames carry no frame
+        # type and are read as ARQ_BURST_ACKs (DataFrameFactory.deconstruct)
         self.launch_transmit_and_wait(
             self.signalling_frames(stop_ack),
             self.TIMEOUT_CONNECT,
-            mode=self.get_signalling_mode(FREEDV_MODE.signalling_ack),
+            mode=self.get_signalling_mode(FREEDV_MODE.signalling),
         )
         self.set_state(IRS_State.ABORTED)
         self.ctx.state_manager.setARQ(False)

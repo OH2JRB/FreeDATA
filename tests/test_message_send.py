@@ -52,6 +52,21 @@ class TestSingleMessageSend(unittest.TestCase):
         sent = DatabaseManagerMessages(self.ctx).get_message_by_id(command.message.id)
         self.assertEqual(sent["status"], "transmitting")
 
+    def test_queued_message_not_added_again(self):
+        # the scheduler passes the queued message it found to the command
+        command = command_message_send.SendMessageCommand(self.ctx, {"destination": "AA1AAA-5", "body": "queued"})
+        queued = DatabaseManagerMessages(self.ctx).get_message_by_id(command.message.id)
+        with unittest.mock.patch.object(DatabaseManagerMessages, "add_message") as add_message:
+            command = command_message_send.SendMessageCommand(self.ctx, queued)
+        add_message.assert_not_called()
+        self.assertEqual(command.message.id, queued["id"])
+
+    def test_new_message_with_id_added(self):
+        # an API client may choose the message ID itself
+        params = {"destination": "AA1AAA-5", "body": "own id", "id": "AA1AAA-0_AA1AAA-5_2026-10-27T10:00:00"}
+        command_message_send.SendMessageCommand(self.ctx, params)
+        self.assertEqual(DatabaseManagerMessages(self.ctx).get_message_by_id(params["id"])["body"], "own id")
+
 
 class TestEncryptedSendOnAmateurBand(unittest.TestCase):
     """Encrypted messages must not be sent while the radio is on an amateur band."""

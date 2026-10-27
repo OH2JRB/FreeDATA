@@ -27,7 +27,7 @@ by the code that sends the frame. `signalling` has value 19 (alias `datac13`) an
 | Name | Value | Purpose | Sent by | TX mode | Handler class |
 |---|---:|---|---|---|---|
 | `ARQ_STOP` | 10 | ISS asks IRS to stop the ARQ session | `ARQSessionISS.send_stop` (repeated by `transmit_stop_and_wait`) | `signalling` | `ARQFrameHandler` |
-| `ARQ_STOP_ACK` | 11 | IRS confirms stop | `ARQSessionIRS.send_stop_ack` | `signalling_ack` | `ARQFrameHandler` |
+| `ARQ_STOP_ACK` | 11 | IRS confirms stop | `ARQSessionIRS.send_stop_ack` | `signalling` | `ARQFrameHandler` |
 | `ARQ_SESSION_OPEN` | 12 | ISS opens an ARQ session | `ARQSessionISS.start` | `signalling` | `ARQFrameHandler` |
 | `ARQ_SESSION_OPEN_ACK` | 13 | IRS accepts/rejects the open | `ARQSessionIRS.send_open_ack` | `signalling` | `ARQFrameHandler` |
 | `ARQ_SESSION_INFO` | 14 | ISS announces total length, CRC32 and data type | `ARQSessionISS.send_info` | `signalling` | `ARQFrameHandler` |
@@ -252,8 +252,9 @@ air every `data_fsk4_50` payload is whitened with PRBS9 (`codec2.whiten`, see
 
 Consequences:
 
-* `ARQ_STOP_ACK` is sent in `signalling_ack` mode (`ARQSessionIRS.send_stop_ack`) with its type byte `11`.
-  On reception it is parsed as an `ARQ_BURST_ACK` with `session_id = 11`.
+* A frame with a type byte sent in `signalling_ack` mode would be parsed as an `ARQ_BURST_ACK` whose
+  `session_id` is its type, so `ARQ_STOP_ACK` (type `11`) goes in `signalling` (`ARQSessionIRS.send_stop_ack`).
+  FreeDATA versions before this change sent it in `signalling_ack`; their stop acknowledgements still get lost.
 * An `ARQ_BURST_ACK` whose `session_id` is `35` is parsed as a `P2P_CONNECTION_PAYLOAD_ACK`.
 
 Other `deconstruct()` behaviour:

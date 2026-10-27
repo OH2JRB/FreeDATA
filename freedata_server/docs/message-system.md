@@ -347,7 +347,7 @@ stateDiagram-v2
 | `check_missing_broadcast_bursts` | 20 s | Broadcast NACK handling (section 7) |
 | `check_queued_messages` | 20 s | Broadcast (re)transmission (section 7) |
 
-When the scheduler constructs `SendMessageCommand` with an existing queued message dict, `set_params_from_api` calls `add_message` again with the same `id`; this hits the `IntegrityError` path (warning, no new row).
+When the scheduler constructs `SendMessageCommand` with an existing queued message dict, `set_params_from_api` finds its `id` in the database and does not add it again.
 
 ### Retries
 
@@ -601,6 +601,5 @@ Observed in the current code.
 
 1. **Per-call engines** - every manager instantiation creates a new engine and runs `create_all`; messages/broadcast managers create additional nested managers (and engines).
 2. **Detached ORM objects** - broadcast `get_first_queued_message` and `get_broadcast_per_id(get_object=True)` return ORM objects after `session.remove()` (detached instances).
-3. **Scheduler re-inserts the queued message** - when the scheduler constructs `SendMessageCommand` with an existing queued message dict, `set_params_from_api` calls `add_message` again with the same `id`; this hits the `IntegrityError` path (warning, no new row).
-4. **Two updates per ARQ callback** - `message_transmitted` / `message_failed` each perform two separate `update_message` calls (status, then statistics), producing two commits and two change events (marked `# Todo ... WIP`).
-5. **No index migration** - indexes are only created together with their table; an existing database does not get indexes that were added to the models later.
+3. **Two updates per ARQ callback** - `message_transmitted` / `message_failed` each perform two separate `update_message` calls (status, then statistics), producing two commits and two change events (marked `# Todo ... WIP`).
+4. **No index migration** - indexes are only created together with their table; an existing database does not get indexes that were added to the models later.
