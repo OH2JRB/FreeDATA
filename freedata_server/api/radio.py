@@ -1,8 +1,11 @@
+import asyncio
+
 from fastapi import APIRouter, Depends
 from freedata_server.api.common import api_response, api_abort
 from freedata_server.api.command_helpers import enqueue_tx_command
 from freedata_server import command_transmit_sine
 from freedata_server.context import AppContext, get_ctx
+from freedata_server.rigctld import RadioClockError
 
 router = APIRouter()
 
@@ -152,3 +155,61 @@ async def post_radio_tune(
     else:
         ctx.rf_modem.stop_sine()
     return api_response(params)
+
+
+# status code per RadioClockError.reason
+CLOCK_ERROR_STATUS = {"not_connected": 409, "unsupported_backend": 409, "not_supported": 422}
+
+
+@router.post(
+    "/clock",
+    summary="Set the Radio Clock to the Server's Local Time",
+    tags=["Radio"],
+    responses={
+        200: {
+            "description": "Clock set; the time sent and what the radio reports back.",
+            "content": {
+                "application/json": {
+                    "example": {"set_to": "2026-10-28T14:05:30+0200", "radio_clock": "2026-10-28T14:05:30.000+02:00"}
+                }
+            },
+        },
+        409: {
+            "description": "The radio is not connected, or not controlled through rigctld.",
+            "content": {"application/json": {"example": {"detail": {"error": "Radio not connected"}}}},
+        },
+        422: {
+            "description": "The radio's Hamlib backend cannot set its clock.",
+            "content": {
+                "application/json": {"example": {"detail": {"error": "The radio does not support setting its clock"}}}
+            },
+        },
+        500: {
+            "description": "rigctld reported an error.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": {"error": "rigctld did not set the clock (reply: 'RPRT -1')"}}
+                }
+            },
+        },
+        503: {
+            "description": "Radio manager not running.",
+            "content": {"application/json": {"example": {"detail": {"error": "Radio manager not running"}}}},
+        },
+    },
+)
+async def post_radio_clock(ctx: AppContext = Depends(get_ctx)):
+    """
+    Set the radio's date and clock to the server's local time and UTC offset,
+    with Hamlib's set_clock through rigctld. Runs only when a user asks for
+    it; nothing sets the clock on its own.
+    """
+    radio_manager = ctx.radio_manager
+    if not radio_manager:
+        api_abort("Radio manager not running", 503)
+    try:
+        # rigctld blocks on its socket: off the event loop
+        result = await asyncio.to_thread(radio_manager.set_clock)
+    except RadioClockError as err:
+        api_abort(str(err), CLOCK_ERROR_STATUS.get(err.reason, 500))
+    return api_response(result)

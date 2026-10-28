@@ -2,6 +2,7 @@ import socket
 import structlog
 from freedata_server import helpers
 import threading
+from datetime import datetime
 from enum import IntEnum
 
 
@@ -10,6 +11,17 @@ class PTTMode(IntEnum):
     TX = 1
     TX_MIC = 2
     TX_DATA = 3
+
+
+class RadioClockError(Exception):
+    """Setting the radio's clock failed. reason is "not_connected",
+    "not_supported" (the radio's Hamlib backend has no clock to set),
+    "unsupported_backend" (the radio is not controlled through rigctld) or
+    "failed"."""
+
+    def __init__(self, reason, message):
+        super().__init__(message)
+        self.reason = reason
 
 
 class radio:
@@ -208,7 +220,7 @@ class radio:
             "vfo": "---",
         }
 
-    def send_command(self, command):
+    def send_command(self, command, raw=False):
         """Sends a command to the rigctld server.
 
         This method sends a command to the rigctld server and waits for a
@@ -218,11 +230,13 @@ class radio:
 
         Args:
             command (str): The command to send to rigctld.
+            raw (bool): Return the response as it is, RPRT lines included,
+                so a set command's result code can be read.
 
         Returns:
             str or None: The response from rigctld, or None if an error
-            occurred, the response contains 'RPRT', or the response
-            contains 'None'.
+            occurred, the response contains 'RPRT' (unless raw), or the
+            response contains 'None' (unless raw).
 
         Raises:
             TimeoutError: If a timeout occurs while waiting for a response.
@@ -245,6 +259,9 @@ class radio:
                 response = self.connection.recv(1024)
                 self.await_response.set()  # Signal that the response has been received
                 stripped_result = response.decode("utf-8").strip()
+                if raw:
+                    return stripped_result
+
                 if "RPRT" in stripped_result:
                     return None
 
@@ -264,6 +281,61 @@ class radio:
             finally:
                 self.await_response.set()  # Ensure await_response is always set in case of exceptions
         return ""
+
+    # Hamlib's RIG_ENAVAIL: the radio's backend cannot do this (no clock)
+    HAMLIB_FEATURE_NOT_AVAILABLE = -11
+
+    @staticmethod
+    def clock_string(now):
+        """now (an aware datetime) as Hamlib's set_clock takes it:
+        YYYY-MM-DDTHH:MM:SS+HHMM. The offset goes as hours and minutes, which
+        Hamlib reads as one number (+0200 -> 200, -0330 -> -330)."""
+        minutes = int(now.utcoffset().total_seconds() // 60)
+        sign = "+" if minutes >= 0 else "-"
+        minutes = abs(minutes)
+        return f"{now:%Y-%m-%dT%H:%M:%S}{sign}{minutes // 60:02d}{minutes % 60:02d}"
+
+    @staticmethod
+    def rprt_code(reply):
+        """The result code of a "RPRT <code>" reply, or None."""
+        for line in (reply or "").splitlines():
+            parts = line.split()
+            if len(parts) == 2 and parts[0] == "RPRT":
+                try:
+                    return int(parts[1])
+                except ValueError:
+                    return None
+        return None
+
+    def set_clock(self, now=None):
+        """Sets the radio's clock to now, by default the server's local time
+        and UTC offset, with rigctld's set_clock, then reads it back.
+
+        Only called on the user's request (POST /radio/clock).
+
+        Returns:
+            dict: "set_to", the time sent, and "radio_clock", what the radio
+            reports back (None if it cannot be read).
+
+        Raises:
+            RadioClockError: not connected, the radio has no clock to set, or
+            rigctld reported an error.
+        """
+        if not self.connected:
+            raise RadioClockError("not_connected", "Radio not connected")
+        now = now or datetime.now().astimezone()
+        time_string = self.clock_string(now)
+        reply = self.send_command(f"\\set_clock {time_string}", raw=True)
+        code = self.rprt_code(reply)
+        if code == self.HAMLIB_FEATURE_NOT_AVAILABLE:
+            raise RadioClockError("not_supported", "The radio does not support setting its clock")
+        if code != 0:
+            raise RadioClockError("failed", f"rigctld did not set the clock (reply: {reply!r})")
+
+        readback = self.send_command("\\get_clock", raw=True)
+        radio_clock = readback if readback and "RPRT" not in readback else None
+        self.log.info("[RIGCTLD] Radio clock set", set_to=time_string, radio_clock=radio_clock)
+        return {"set_to": time_string, "radio_clock": radio_clock}
 
     def insert_vfo(self, command):
         """Inserts the VFO into rigctld commands if supported.

@@ -8,7 +8,10 @@ import {
   setRadioParametersMode,
   setRadioParametersRFLevel,
   setRadioParametersTuner,
+  setRadioClock,
 } from "../../js/api";
+import { displayToast, escapeHtml } from "../../js/popupHandler";
+import i18next from "../../js/i18n";
 setActivePinia(pinia);
 
 import { useStateStore } from "../../store/stateStore.js";
@@ -29,6 +32,24 @@ function setRadioParameterRFLevel() {
 function setRadioParameterTuner() {
   console.log(state.tuner);
   setRadioParametersTuner(state.tuner);
+}
+
+// only on the user's request, after confirming; an error is shown by apiPost
+async function setRadioClockNow() {
+  if (!window.confirm(i18next.t("grid.components.setradioclock_confirm"))) {
+    return;
+  }
+  const result = await setRadioClock();
+  if (result) {
+    displayToast(
+      "success",
+      "bi-clock",
+      `<strong>${escapeHtml(i18next.t("grid.components.setradioclock_done"))}</strong>
+       <div>${escapeHtml(i18next.t("grid.components.setradioclock_sent"))}: ${escapeHtml(result.set_to)}</div>
+       <div>${escapeHtml(i18next.t("grid.components.setradioclock_readback"))}: ${escapeHtml(result.radio_clock ?? "-")}</div>`,
+      8000,
+    );
+  }
 }
 </script>
 
@@ -179,6 +200,18 @@ function setRadioParameterTuner() {
             class="form-check-label"
             for="flexSwitchTuner"
           >{{ $t('grid.components.tuner') }}</label>
+        </div>
+
+        <div class="ms-2">
+          <button
+            class="btn btn-sm btn-outline-secondary"
+            type="button"
+            :disabled="state.hamlib_status === 'disconnected'"
+            :title="$t('grid.components.setradioclock_help')"
+            @click="setRadioClockNow"
+          >
+            <i class="bi bi-clock" />&nbsp;{{ $t('grid.components.setradioclock') }}
+          </button>
         </div>
       </div>
     </div>
