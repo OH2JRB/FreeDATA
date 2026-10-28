@@ -620,10 +620,10 @@ class SessionOnFadingPath:
     def setUpClass(cls):
         cls.ctx_ISS = AppContext(testenv.config_path())
         cls.ctx_ISS.TESTMODE = True
-        cls.ctx_ISS.startup()
+        testenv.start(cls.ctx_ISS)
         cls.ctx_IRS = AppContext(testenv.config_path())
         cls.ctx_IRS.TESTMODE = True
-        cls.ctx_IRS.startup()
+        testenv.start(cls.ctx_IRS)
 
     @classmethod
     def tearDownClass(cls):

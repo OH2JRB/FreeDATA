@@ -18,7 +18,7 @@ class TestProtocols(unittest.TestCase):
         # TESTMODE: no audio devices needed, and events are mirrored to TESTMODE_EVENTS,
         # which - unlike event_manager.queues[0] - is not drained by the websocket worker
         cls.ctx.TESTMODE = True
-        cls.ctx.startup()
+        testenv.start(cls.ctx)
 
         frame_handler.TESTMODE = True
 

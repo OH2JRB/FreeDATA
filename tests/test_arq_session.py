@@ -31,12 +31,12 @@ class TestARQSession(unittest.TestCase):
 
         cls.ctx_ISS = AppContext(testenv.config_path())
         cls.ctx_ISS.TESTMODE = True
-        cls.ctx_ISS.startup()
+        testenv.start(cls.ctx_ISS)
 
         # IRS
         cls.ctx_IRS = AppContext(testenv.config_path())
         cls.ctx_IRS.TESTMODE = True
-        cls.ctx_IRS.startup()
+        testenv.start(cls.ctx_IRS)
 
         # simulate a busy condition
         cls.ctx_IRS.state_manager.channel_busy_slot = [True, False, False, False, False]

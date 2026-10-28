@@ -82,7 +82,7 @@ class TestNormBroadcast(unittest.TestCase):
         ctx = AppContext(testenv.config_path())
         cls.databases[id(ctx)] = "sqlite:///" + os.path.join(cls.db_dir, f"{name}.db")
         ctx.TESTMODE = True
-        ctx.startup()
+        testenv.start(ctx)
         # the service manager reads the config again when it starts the modem
         if not wait_for(lambda: ctx.rf_modem is not None, 10):
             raise RuntimeError("modem did not start")
