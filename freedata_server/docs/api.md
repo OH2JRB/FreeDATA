@@ -268,7 +268,7 @@ Each route calls `websocket.accept()` and then `ctx.websocket_manager.handle_con
 | `/fft` | `fft_client_list` | `ctx.modem_fft` (`transmit_sock_data_worker`) | text, JSON |
 | `/audio_rx` | `audio_rx_client_list` | `ctx.audio_rx_queue` (`transmit_sock_audio_worker`) | **binary**, `ndarray.tobytes()` |
 
-The worker threads block on `queue.get(timeout=1)` and send to a copy of the client set with `asyncio.run(client.send_text(...))` (or `send_bytes`). A client that fails a send is dropped. Falsy events are skipped. The audio worker only sends items that are `np.ndarray`.
+The worker threads block on `queue.get(timeout=1)`. With no client connected they only take the item off the queue (no JSON or bytes conversion). Otherwise `send_to_clients()` schedules `client.send_text(...)` (or `send_bytes`) for each client of a copy of the set on the server's event loop, which `handle_connection` records (`asyncio.run_coroutine_threadsafe`), and waits for it. A client whose send fails or takes over `SEND_TIMEOUT` (5 s) is dropped. Falsy events are skipped. The audio worker only sends items that are `np.ndarray`. Each send used to start a new event loop (`asyncio.run`), about 0.44 ms per message and client against about 0.04 ms now.
 
 ### 3.1 `/events` messages
 
