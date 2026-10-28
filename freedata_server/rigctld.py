@@ -296,7 +296,9 @@ class radio:
         try:
             if state:
                 try:
-                    ptt_mode = int(PTTMode[self.ptt_mode])
+                    # the member, not int(): its .name is logged below, and an
+                    # error there would mark rigctld disconnected after keying
+                    ptt_mode = PTTMode[self.ptt_mode]
                 except Exception:
                     self.log.warning("[RIGCTLD] Invalid or unset ptt_mode, falling back to TX (1)")
                     ptt_mode = PTTMode.TX

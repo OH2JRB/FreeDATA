@@ -442,7 +442,7 @@ Common backend interface: `connect`, `disconnect`, `set_ptt`, `set_frequency`, `
 - `get_parameters()` while not connected calls `start_connecting()`: a new connect thread, unless one is running, so the radio manager's poll loop is never held up.
 - `send_command()`: one command at a time (guarded by `await_response` Event, 1 s wait), sends `cmd\n`, one `recv(1024)`. Responses containing `RPRT` or `None` become `None`. Socket timeout/errors mark the backend disconnected; the next `get_parameters()` starts reconnecting in the background. When not connected it returns `""`.
 - VFO: if `\chk_vfo` returned `1`, `insert_vfo()` inserts the current VFO after the command letter (e.g. `F VFOA 14074000`).
-- PTT modes (`PTTMode`): `RX=0`, `TX=1`, `TX_MIC=2`, `TX_DATA=3`; `RADIO.ptt_mode` names the key mode, falling back to `TX` if invalid. Un-key always sends `T 0`.
+- PTT modes (`PTTMode`): `RX=0`, `TX=1`, `TX_MIC=2`, `TX_DATA=3`; `RADIO.ptt_mode` names the key mode, falling back to `TX` if invalid. Un-key always sends `T 0`. An error while keying (an `OSError` from the socket) marks rigctld disconnected; a valid mode used to do that too, through a logging bug (`'int' object has no attribute 'name'`).
 - `get_parameters()` reads VFO, frequency, mode+bandwidth, ALC, strength, RF power (x100 as %), tuner, SWR. Failed reads set the field to `"err"`.
 
 ### flrig ([flrig.py](../flrig.py))
