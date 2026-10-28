@@ -36,3 +36,5 @@ DOCUMENTATION_URL = "https://wiki.freedata.app"
 STATS_API_URL = "https://api.freedata.app/stats.php"
 EXPLORER_API_URL = "https://api.freedata.app/explorer.php"
 MESSAGE_SYSTEM_DATABASE_VERSION = 2
+# process exit code when the server cannot start because libcodec2 does not load
+EXIT_CODEC2_NOT_LOADED = 3

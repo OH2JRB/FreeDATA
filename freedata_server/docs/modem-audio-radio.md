@@ -91,8 +91,12 @@ The module loads the shared library at import time:
    | `win32` / `win64` | `**/*libcodec2*.dll` |
    | other | none |
 
-3. Each match is tried with `ctypes.CDLL()`; the first that loads wins (`OSError` is silently skipped).
-4. If none loads, it logs critical and calls `sys.exit(1)`.
+3. Each match is tried with `ctypes.CDLL()`; the first that loads wins. The `OSError` of each one that
+   does not load is kept.
+4. If none loads, it writes `[FATAL] Libcodec2 not loaded - exiting with code 3` to stderr, with each
+   file and its error (or the folder searched when nothing matched), and calls
+   `sys.exit(constants.EXIT_CODEC2_NOT_LOADED)`, exit code 3. This happens while `server.py` imports,
+   before logging is set up, so the message is on stderr, not in the log file.
 
 Bundled binaries in `lib/codec2/`:
 
