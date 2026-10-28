@@ -97,6 +97,7 @@
             "newmessage_help": "Send a new message to a remote station",
             "startnewchat_help": "Start or continue a conversation with another station", 
             "heardstations": "Heard Stations",
+            "oldprotocol_help": "Radio protocol 1 (older FreeDATA): messages and files to this station will fail",
             "time": "Time",
             "freq": "Freq",
             "dxcall": "DXCall",

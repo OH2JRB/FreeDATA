@@ -673,7 +673,14 @@ function build_HSL() {
           stateStore.heard_stations[ii].timestamp <
           stateStore.activities[i][1].timestamp
         ) {
-          stateStore.heard_stations[ii] = stateStore.activities[i][1];
+          // most frames do not say which radio protocol the station speaks:
+          // keep the version an earlier frame told
+          const known = stateStore.heard_stations[ii].protocol_version;
+          stateStore.heard_stations[ii] = {
+            ...stateStore.activities[i][1],
+            protocol_version:
+              stateStore.activities[i][1].protocol_version ?? known,
+          };
         }
       }
     }

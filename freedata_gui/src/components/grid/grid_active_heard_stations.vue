@@ -168,6 +168,8 @@ function transmitPing(callsign) {
             <tr
               v-for="item in state.heard_stations"
               :key="item.origin"
+              :class="{ 'table-danger': item.protocol_version === 1 }"
+              :title="item.protocol_version === 1 ? $t('grid.components.oldprotocol_help') : null"
               @click="pushToPing(item.origin)"
             >
               <td>
