@@ -45,6 +45,12 @@
 #
 #
 # Changelog:
+# 2.14:	28 Oct 2026
+#	Run "pip install ." after building codec2 and the GUI, so the installed
+#	package contains them. Before, the server loaded the installed copy with
+#	only the bundled x86-64 codec2 and stopped with "Libcodec2 not loaded"
+#	on ARM
+#
 # 2.13:	27 Oct 2026
 #	FreeDATA now needs Python 3.12 or newer
 #	Remove Debian 12 (Python 3.11), Ubuntu 22.04 and Linux Mint 21.3
@@ -406,11 +412,6 @@ else
 fi
 
 echo "*************************************************************************"
-echo "Installing required Python programs into the virtual environment"
-echo "*************************************************************************"
-python -m pip install .
-
-echo "*************************************************************************"
 echo "Changing into the server directory"
 echo "*************************************************************************"
 cd freedata_server/lib
@@ -467,5 +468,15 @@ npm i
 #npm i
 npm run build
 
+# Install only now: pip copies freedata_server, with the codec2 library built
+# above under lib/, and the built GUI into the virtual environment, and the
+# server imports that copy. Installed before the builds, it held only the
+# bundled x86-64 codec2, which does not load on ARM ("Libcodec2 not loaded")
+echo "*************************************************************************"
+echo "Installing FreeDATA and its Python requirements into the virtual environment"
+echo "*************************************************************************"
+cd ..
+python -m pip install .
+
 # Return to the directory we started in
-cd ../..
+cd ..
