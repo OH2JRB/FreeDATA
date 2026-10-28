@@ -121,13 +121,21 @@ Offsets include the type byte at offset 0. The "Size" column is the buffer that 
 
 | Frame | Layout (offset:size field) | Builder |
 |---|---|---|
-| `CQ` | 0:1 type, 1:6 origin, 7:4 gridsquare | `build_cq()` |
-| `QRV` | 0:1 type, 1:6 origin, 7:4 gridsquare, 11:1 snr | `build_qrv(snr)` |
-| `BEACON` | 0:1 type, 1:6 origin, 7:4 gridsquare, 11:1 flag | `build_beacon(flag_away_from_key)` |
-| `PING` | 0:1 type, 1:3 destination_crc, 4:3 origin_crc, 7:6 origin | `build_ping(destination)` |
+| `CQ` | 0:1 type, 1:6 origin, 7:4 gridsquare, 11:1 protocol_version | `build_cq()` |
+| `QRV` | 0:1 type, 1:6 origin, 7:4 gridsquare, 11:1 snr, 12:1 protocol_version | `build_qrv(snr)` |
+| `BEACON` | 0:1 type, 1:6 origin, 7:4 gridsquare, 11:1 flag, 12:1 protocol_version | `build_beacon(flag_away_from_key)` |
+| `PING` | 0:1 type, 1:3 destination_crc, 4:3 origin_crc, 7:6 origin, 13:1 protocol_version | `build_ping(destination)` |
 | `PING_ACK` | 0:1 type, 1:3 destination_crc, 4:3 origin_crc, 7:4 gridsquare, 11:1 snr | `build_ping_ack(destination, snr)` |
 
 `origin` and `gridsquare` are always the local station (`STATION.mycall-myssid`, `STATION.mygrid`).
+
+`protocol_version` in `CQ`, `QRV`, `BEACON` and `PING` is the sender's `ARQ_PROTOCOL_VERSION`. It sits in what
+used to be padding, so versions from before the field send `0` there and ignore the byte when they decode:
+adding it changed nothing for them. `FrameHandler.sender_protocol_version()` reads it (`0` as protocol 1),
+and from `ARQ_SESSION_OPEN` (`protocol_version`) and `ARQ_SESSION_OPEN_ACK` (`version`), and puts it on the
+received activity. The GUI's heard stations list keeps the last version a station's frames told and shows
+protocol 1 stations in red, since they cannot exchange ARQ sessions with protocol 2
+([protocol-overview.md](protocol-overview.md)).
 
 #### 2.3.2 ARQ frames
 
@@ -282,7 +290,7 @@ runs these steps in order:
 | 6 | Blacklist | If `STATION.enable_callsign_blacklist` is set: blocked when CRC-24 of origin equals CRC-24 of a list entry, or origin equals / starts with the entry. A blocked frame returns `False` and processing stops |
 | 7 | `log()` | `"[Frame Handler] Handling frame <type>"` |
 | 8 | `add_to_heard_stations()` | Only if `origin` is present. Computes distance to own grid via `maidenhead.distance_between_locators`, takes `away_from_key` from flags, calls `helpers.add_to_heard_stations(..., state_manager.heard_stations)` |
-| 9 | `add_to_activity_list()` | `state_manager.add_activity({direction: "received", snr, frequency_offset, activity_type, origin?, destination?, gridsquare?, session_id?, away_from_key?})` |
+| 9 | `add_to_activity_list()` | `state_manager.add_activity({direction: "received", snr, frequency_offset, activity_type, origin?, destination?, gridsquare?, session_id?, away_from_key?, protocol_version?})`; `protocol_version` from `sender_protocol_version()` (below) |
 | 10 | `emit_event()` | `event_manager.broadcast(make_event())`, see below |
 | 11 | `follow_protocol()` | Subclass hook. The base implementation does nothing |
 

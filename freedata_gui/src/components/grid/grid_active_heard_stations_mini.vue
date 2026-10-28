@@ -61,6 +61,8 @@ function pushToPing(origin) {
             <tr
               v-for="item in state.heard_stations"
               :key="item.origin"
+              :class="{ 'table-danger': item.protocol_version === 1 }"
+              :title="item.protocol_version === 1 ? $t('grid.components.oldprotocol_help') : null"
               role="row"
               aria-label="Heard Station"
               @click="pushToPing(item.origin)"

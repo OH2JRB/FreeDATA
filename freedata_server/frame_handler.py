@@ -219,7 +219,33 @@ class FrameHandler:
             if "AWAY_FROM_KEY" in frame["flag"]:
                 activity["away_from_key"] = frame["flag"]["AWAY_FROM_KEY"]
 
+        protocol_version = self.sender_protocol_version()
+        if protocol_version is not None:
+            activity["protocol_version"] = protocol_version
+
         self.ctx.state_manager.add_activity(activity)
+
+    # frames whose protocol_version byte was padding (0) before the field existed
+    PROTOCOL_VERSION_FRAMES = ("CQ", "QRV", "BEACON", "PING")
+
+    def sender_protocol_version(self):
+        """The ARQ protocol version of the station that sent the frame, or None
+        when the frame does not tell (the GUI marks protocol 1 stations, which
+        cannot exchange ARQ sessions with this one).
+
+        CQ, QRV, BEACON and PING carry it in what used to be padding, so 0 there
+        means a version from before the field: protocol 1. ARQ_SESSION_OPEN and
+        its ACK always carried it.
+        """
+        frame = self.details["frame"]
+        frame_type = frame.get("frame_type")
+        if frame_type in self.PROTOCOL_VERSION_FRAMES:
+            return frame.get("protocol_version") or 1
+        if frame_type == "ARQ_SESSION_OPEN":
+            return frame.get("protocol_version")
+        if frame_type == "ARQ_SESSION_OPEN_ACK":
+            return frame.get("version")
+        return None
 
     def add_to_heard_stations(self):
         """Adds the received frame's origin station to the heard stations list.

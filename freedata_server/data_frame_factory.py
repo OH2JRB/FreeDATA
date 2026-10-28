@@ -4,6 +4,7 @@ from freedata_server.modem_frametypes import FRAME_TYPE as FR_TYPE
 from freedata_server import helpers
 from freedata_server import codec2
 from freedata_server import maidenhead
+from freedata_server import constants
 
 
 class DataFrameFactory:
@@ -57,6 +58,9 @@ class DataFrameFactory:
             "frame_length": self.LENGTH_SIG0_FRAME,
             "origin": 6,
             "gridsquare": 4,
+            # ARQ protocol version, in what was padding: 0 from versions that
+            # predate the field (protocol 1), which ignore it when decoding
+            "protocol_version": 1,
         }
 
         # qrv frame
@@ -65,6 +69,7 @@ class DataFrameFactory:
             "origin": 6,
             "gridsquare": 4,
             "snr": 1,
+            "protocol_version": 1,  # as in CQ
         }
 
         # beacon frame
@@ -73,6 +78,7 @@ class DataFrameFactory:
             "origin": 6,
             "gridsquare": 4,
             "flag": 1,
+            "protocol_version": 1,  # as in CQ
         }
 
     def _load_ping_templates(self):
@@ -82,6 +88,7 @@ class DataFrameFactory:
             "destination_crc": 3,
             "origin_crc": 3,
             "origin": 6,
+            "protocol_version": 1,  # as in CQ
         }
 
         # ping ack
@@ -479,6 +486,7 @@ class DataFrameFactory:
             "destination_crc": helpers.get_crc_24(destination),
             "origin_crc": helpers.get_crc_24(self.myfullcall),
             "origin": helpers.callsign_to_bytes(self.myfullcall),
+            "protocol_version": constants.ARQ_PROTOCOL_VERSION.to_bytes(1, "big"),
         }
         return self.construct(FR_TYPE.PING, payload)
 
@@ -495,6 +503,7 @@ class DataFrameFactory:
         payload = {
             "origin": helpers.callsign_to_bytes(self.myfullcall),
             "gridsquare": helpers.encode_grid(self.mygrid),
+            "protocol_version": constants.ARQ_PROTOCOL_VERSION.to_bytes(1, "big"),
         }
         return self.construct(FR_TYPE.CQ, payload)
 
@@ -503,6 +512,7 @@ class DataFrameFactory:
             "origin": helpers.callsign_to_bytes(self.myfullcall),
             "gridsquare": helpers.encode_grid(self.mygrid),
             "snr": helpers.snr_to_bytes(snr),
+            "protocol_version": constants.ARQ_PROTOCOL_VERSION.to_bytes(1, "big"),
         }
         return self.construct(FR_TYPE.QRV, payload)
 
@@ -515,6 +525,7 @@ class DataFrameFactory:
             "origin": helpers.callsign_to_bytes(self.myfullcall),
             "gridsquare": helpers.encode_grid(self.mygrid),
             "flag": flag.to_bytes(1, "big"),
+            "protocol_version": constants.ARQ_PROTOCOL_VERSION.to_bytes(1, "big"),
         }
         return self.construct(FR_TYPE.BEACON, payload)
 
