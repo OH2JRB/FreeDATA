@@ -46,6 +46,24 @@ def config_path():
     return path
 
 
+def start(ctx, timeout=30):
+    """Run ctx.startup() and wait until the modem is running.
+
+    startup() only queues the modem start; the service manager's runner thread
+    creates the RF modem and the frame dispatcher a moment later. A test that
+    hands frames to service_manager.frame_dispatcher straight away can get
+    there first, so wait for is_modem_running, which is set after both exist.
+    """
+    import time
+
+    ctx.startup()
+    deadline = time.monotonic() + timeout
+    while not ctx.state_manager.is_modem_running:
+        if time.monotonic() > deadline:
+            raise TimeoutError(f"modem did not start within {timeout} s")
+        time.sleep(0.01)
+
+
 def patch_threading_event(module_name, event):
     """Patch threading.Event as seen from one module only, so it returns event.
 

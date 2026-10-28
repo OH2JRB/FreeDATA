@@ -63,7 +63,7 @@ class TestP2PConnection(unittest.TestCase):
     def start_station(cls):
         ctx = AppContext(testenv.config_path())
         ctx.TESTMODE = True
-        ctx.startup()
+        testenv.start(ctx)
         # the service manager starts the modem, then sets the socket interface
         # from the config: replace it only after that
         if not wait_for(lambda: ctx.rf_modem is not None, 10):
