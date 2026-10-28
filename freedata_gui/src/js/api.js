@@ -264,6 +264,11 @@ export async function setRadioParametersTuner(state) {
   return await apiPost("/radio", { radio_tuner: state });
 }
 
+// Sets the radio's date and clock to the server's local time (rigctld only)
+export async function setRadioClock() {
+  return await apiPost("/radio/clock");
+}
+
 export async function getRadioStatus() {
   return await apiGet("/radio");
 }

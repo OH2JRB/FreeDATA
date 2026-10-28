@@ -123,10 +123,13 @@ Validation rewrites these to `"AA1AAA"` and `"JN48ea"`.
 | GET | `/radio/` | none | `state_manager.get_radio_status()`: `{radio_status, radio_frequency, radio_mode, radio_rf_level, s_meter_strength, radio_swr, radio_tuner}` | 404 `Radio parameters not found` if `None` (the method always returns a dict) |
 | POST | `/radio/` | Any subset of `radio_frequency`, `radio_mode`, `radio_rf_level`, `radio_tuner` | The request body, echoed back | 503 `Radio manager not running` if `ctx.radio_manager` is `None`. `int(radio_rf_level)` raising gives an unhandled 500 |
 | POST | `/radio/tune` | `{"enable_tuning": bool}` | The request body, echoed back | 503 `Modem not running` (only when enabling); 500 `Failed to start tuning tone.` if the command raises |
+| POST | `/radio/clock` | none | `{"set_to": "2026-10-28T14:05:30+0200", "radio_clock": "2026-10-28T14:05:30.000+02:00"}` | 503 `Radio manager not running`; 409 radio not connected, or radio control not rigctld; 422 the radio's Hamlib backend cannot set its clock; 500 other rigctld errors |
 
 `POST /radio/` calls the matching `radio_manager.set_frequency`, `set_mode`, `set_rf_level(int(...))` or `set_tuner` for each key that is present. Values are not otherwise validated. `ctx.radio_manager` is only created by the service manager when the modem starts (it is `None` before that and after a stop), hence the 503.
 
 `POST /radio/tune`: a truthy `enable_tuning` checks that the modem is running, then awaits `enqueue_tx_command(ctx, TransmitSine)` and aborts 500 if it returns `False`. A falsy value calls `ctx.rf_modem.stop_sine()`.
+
+`POST /radio/clock` sets the radio's date and clock to the server's local time and UTC offset (`radio_manager.set_clock()`, run in a thread since rigctld blocks on its socket), only when called: nothing sets the clock on its own. The GUI's radio control widget calls it from a "Set clock" button after the user confirms. `radio_clock` is what `\get_clock` reads back, or `null`.
 
 ### 2.5 Modem ([modem.py](../api/modem.py))
 

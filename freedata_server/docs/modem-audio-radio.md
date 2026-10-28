@@ -444,6 +444,7 @@ Common backend interface: `connect`, `disconnect`, `set_ptt`, `set_frequency`, `
 - VFO: if `\chk_vfo` returned `1`, `insert_vfo()` inserts the current VFO after the command letter (e.g. `F VFOA 14074000`).
 - PTT modes (`PTTMode`): `RX=0`, `TX=1`, `TX_MIC=2`, `TX_DATA=3`; `RADIO.ptt_mode` names the key mode, falling back to `TX` if invalid. Un-key always sends `T 0`. An error while keying (an `OSError` from the socket) marks rigctld disconnected; a valid mode used to do that too, through a logging bug (`'int' object has no attribute 'name'`).
 - `get_parameters()` reads VFO, frequency, mode+bandwidth, ALC, strength, RF power (x100 as %), tuner, SWR. Failed reads set the field to `"err"`.
+- `set_clock(now=None)` (only from `POST /radio/clock`): sends `\set_clock YYYY-MM-DDTHH:MM:SS+HHMM` with the server's local time and UTC offset (`clock_string`; Hamlib reads the offset as one number, `+0200` -> 200), then `\get_clock` to read the radio's clock back. It uses `send_command(..., raw=True)`, which returns the reply with its `RPRT` line instead of `None`, to tell `RPRT 0` from an error. `RPRT -11` (Hamlib's feature not available: the radio's backend has no clock, as on most non-Icom radios) raises `RadioClockError("not_supported")`, other replies `"failed"`, a disconnected radio `"not_connected"`. `RadioManager.set_clock()` raises `"unsupported_backend"` for flrig, serial PTT and the dummy radio. Seconds may be dropped by radios that keep only hours and minutes.
 
 ### flrig ([flrig.py](../flrig.py))
 

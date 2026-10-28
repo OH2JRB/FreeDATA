@@ -57,6 +57,16 @@ class RadioManager:
         self.radio.set_mode(mode)
         self.ctx.state_manager.set_radio("radio_mode", mode)
 
+    def set_clock(self):
+        """Sets the radio's clock to the server's local time, only on the
+        user's request. Only rigctld can set it (rigctld.radio.set_clock)."""
+        if not hasattr(self.radio, "set_clock"):
+            raise rigctld.RadioClockError(
+                "unsupported_backend",
+                f"Setting the radio clock needs rigctld radio control, not {self.radiocontrol}",
+            )
+        return self.radio.set_clock()
+
     def set_rf_level(self, level):
         self.radio.set_rf_level(level)
         self.ctx.state_manager.set_radio("radio_rf_level", level)
