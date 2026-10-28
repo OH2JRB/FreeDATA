@@ -25,6 +25,13 @@ repository root). Most of the startup work happens at **module import time** of
 
 ### 1.1 Import-time steps in `server.py`
 
+Importing `server.py` imports `context.py` and through it [codec2.py](../codec2.py), which loads
+libcodec2 from `lib/codec2` (or next to a Nuitka binary). If no library loads, the process writes
+`[FATAL] Libcodec2 not loaded - exiting with code 3` and each library it tried, with the reason, or the
+folder it searched, to stderr and exits with `constants.EXIT_CODEC2_NOT_LOADED` (3) before any of
+the steps below; logging is not set up yet. Exit code 1 means the other startup failures (config
+file) or threads that hung at shutdown.
+
 1. **Resolve the config path** - `resolve_config_path()`:
    - Uses env var `FREEDATA_CONFIG` (`constants.CONFIG_ENV_VAR`) if set, otherwise
      `DEFAULT_APP_DIR/config.ini`. The path is made absolute.

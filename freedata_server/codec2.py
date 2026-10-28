@@ -10,6 +10,7 @@ import sys
 from enum import Enum
 from threading import Lock
 from freedata_server import codec2_filter_coeff
+from freedata_server.constants import EXIT_CODEC2_NOT_LOADED
 import numpy as np
 import structlog
 
@@ -125,22 +126,27 @@ elif sys.platform in ["win32", "win64"]:
 else:
     files = []
 api = None
+load_errors = []
 
 for file in files:
     try:
         api = ctypes.CDLL(file)
         log.info("[C2 ] Libcodec2 loaded", path=file)
         break
-    except OSError as _:
-        pass
-        # log.info("[C2 ] Error:  Libcodec2 found but not loaded", path=file, e=err)
+    except OSError as err:
+        load_errors.append(f"{file}: {err}")
 
-# Quit module if codec2 cant be loaded
-if api is None or "api" not in locals():
-    log.critical("[C2 ] Error:  Libcodec2 not loaded - Exiting")
-    sys.exit(1)
+# Without codec2 there is no modem: stop the server while it starts, with its
+# own exit code. The server imports this module before its logging is set up,
+# so the reason goes to stderr.
+if api is None:
+    reasons = load_errors or [f"no libcodec2 library found under {script_dir}"]
+    sys.stderr.write(
+        f"[FATAL] Libcodec2 not loaded - exiting with code {EXIT_CODEC2_NOT_LOADED}\n"
+        + "".join(f"  {reason}\n" for reason in reasons)
+    )
+    sys.exit(EXIT_CODEC2_NOT_LOADED)
 
-# log.info("[C2 ] Libcodec2 loaded...", path=file)
 # ctypes function init
 
 # api.freedv_set_tuning_range.restype = ctypes.c_int
