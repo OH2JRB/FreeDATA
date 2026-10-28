@@ -14,6 +14,9 @@ class wsm:
     shutdown of WebSocket connections and related resources.
     """
 
+    # seconds a send to one client may take before that client is dropped
+    SEND_TIMEOUT = 5
+
     def __init__(self, ctx):
         """Initializes the WebSocket manager.
 
@@ -36,6 +39,10 @@ class wsm:
         self.fft_thread = None
         self.audio_rx_thread = None
 
+        # the server's event loop, where the websockets live; the worker
+        # threads schedule their sends on it (handle_connection sets it)
+        self.loop = None
+
     async def handle_connection(self, websocket, client_list, event_queue):
         """Handles a WebSocket connection.
 
@@ -48,6 +55,7 @@ class wsm:
             client_list (set): The set of connected WebSocket clients.
             event_queue (queue.Queue): The event queue. Currently unused.
         """
+        self.loop = asyncio.get_running_loop()
         client_list.add(websocket)
         self.log.info("Client websocket connection established", ws=websocket)
         while not self.shutdown_flag.is_set():
@@ -75,14 +83,9 @@ class wsm:
         while not self.shutdown_flag.is_set():
             try:
                 event = event_queue.get(timeout=1)
-                if event:
-                    json_event = json.dumps(event)
-                    clients = client_list.copy()
-                    for client in clients:
-                        try:
-                            asyncio.run(client.send_text(json_event))
-                        except Exception:
-                            client_list.remove(client)
+                # with no client connected the event is only taken off the queue
+                if event and client_list:
+                    self.send_to_clients(client_list, "send_text", json.dumps(event))
             except Exception:
                 continue
 
@@ -101,17 +104,26 @@ class wsm:
             # loop = asyncio.get_event_loop()
             try:
                 audio = audio_queue.get(timeout=1)
-                if isinstance(audio, np.ndarray):
-                    audio = audio.tobytes()
-                    clients = client_list.copy()
-                    for client in clients:
-                        try:
-                            asyncio.run(client.send_bytes(audio))
-
-                        except Exception:
-                            client_list.remove(client)
+                if isinstance(audio, np.ndarray) and client_list:
+                    self.send_to_clients(client_list, "send_bytes", audio.tobytes())
             except Exception:
                 continue
+
+    def send_to_clients(self, client_list, method, payload):
+        """Sends payload to every client in client_list with the websocket's
+        method ("send_text" or "send_bytes"), on the server's event loop.
+
+        A websocket belongs to the loop that accepted it. Each send used to run
+        in a new loop of its own (asyncio.run), which cost about 0.5 ms per
+        message and client, several times the FFT it carried. A client whose
+        send fails or takes longer than SEND_TIMEOUT is dropped.
+        """
+        for client in client_list.copy():
+            try:
+                future = asyncio.run_coroutine_threadsafe(getattr(client, method)(payload), self.loop)
+                future.result(self.SEND_TIMEOUT)
+            except Exception:
+                client_list.discard(client)
 
     def startWorkerThreads(self, app):
         """Starts worker threads for handling WebSocket data transmission.
