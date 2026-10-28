@@ -78,7 +78,7 @@ jobs:
             --include-data-dir=data=data `
             --include-data-files=../LICENSE=LICENSE.txt `
             --include-data-files=../THIRD-PARTY-LICENSES.txt=THIRD-PARTY-LICENSES.txt `
-            --nofollow-import-to=sqlalchemy.dialects.mysql,sqlalchemy.dialects.mariadb,sqlalchemy.dialects.postgresql,sqlalchemy.dialects.oracle,sqlalchemy.dialects.mssql `
+            --nofollow-import-to=sqlalchemy.dialects.mysql,sqlalchemy.dialects.mariadb,sqlalchemy.dialects.postgresql,sqlalchemy.dialects.oracle,sqlalchemy.dialects.mssql,sqlalchemy.dialects.sqlite.provision,sqlalchemy.testing `
             --include-package=sqlalchemy.dialects.sqlite `
             --standalone server.py `
             --output-filename=freedata-server `
