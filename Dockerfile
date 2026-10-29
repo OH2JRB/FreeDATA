@@ -1,92 +1,97 @@
 ################################################################################
+# FreeDATA server with the web GUI, built from this repository's own source.
+# codec2 and Hamlib are built for the image's architecture (amd64 or arm64).
+################################################################################
+
+################################################################################
 # Build frontend
 ################################################################################
-FROM node:20-alpine AS frontend
+FROM node:22-alpine AS frontend
 
 WORKDIR /src
 
+COPY freedata_gui/package.json freedata_gui/package-lock.json ./
+
+RUN npm ci
+
 COPY freedata_gui ./
 
-RUN npm install && npm run build
+RUN npm run build
 
 ################################################################################
 # Build server
 ################################################################################
-FROM python:3.11-slim-bookworm AS server
+FROM python:3.13-slim-trixie AS server
 
-ARG HAMLIB_VERSION=4.5.5
-ENV HAMLIB_VERSION=${HAMLIB_VERSION}
+ARG HAMLIB_VERSION=4.7.2
 
 RUN apt-get update && \
-  apt-get install --upgrade -y fonts-noto-color-emoji git build-essential cmake portaudio19-dev python3-colorama wget && \
-  mkdir -p /app/FreeDATA
+  apt-get install -y --no-install-recommends build-essential cmake git portaudio19-dev && \
+  rm -rf /var/lib/apt/lists/*
 
+# Hamlib (rigctld)
 WORKDIR /src
 
 ADD https://github.com/Hamlib/Hamlib/releases/download/${HAMLIB_VERSION}/hamlib-${HAMLIB_VERSION}.tar.gz ./hamlib.tar.gz
 
-RUN tar -xplf hamlib.tar.gz
+RUN tar -xf hamlib.tar.gz && \
+  cd hamlib-${HAMLIB_VERSION} && \
+  ./configure --prefix=/app/FreeDATA-hamlib --disable-static && \
+  make -j"$(nproc)" && \
+  make install
 
-WORKDIR /src/hamlib-${HAMLIB_VERSION}
+# codec2
+RUN git clone --depth 1 https://github.com/drowe67/codec2.git /src/codec2 && \
+  cmake -S /src/codec2 -B /src/codec2/build_linux && \
+  make -C /src/codec2/build_linux codec2 -j"$(nproc)"
 
-RUN ./configure --prefix=/app/FreeDATA-hamlib && \
-		make && \
-		make install
-
+# FreeDATA, installed into a virtual environment after codec2 and the GUI are
+# in place, so the installed package holds both
 WORKDIR /app/FreeDATA
 
-ADD https://github.com/DJ2LS/FreeDATA.git#v0.16.10-alpha ./
+COPY . ./
 
-RUN python3 -m venv /app/FreeDATA/venv
-ENV PATH="/app/FreeDATA/venv/bin:$PATH"
+COPY --from=frontend /src/dist ./freedata_gui/dist
 
-RUN pip install --no-cache-dir --upgrade pip .
+# replace the bundled x86-64 library with the one built for this architecture
+RUN cp -L /src/codec2/build_linux/src/libcodec2.so freedata_server/lib/codec2/libcodec2.so
 
-WORKDIR /app/FreeDATA/freedata_server/lib
-
-ADD https://github.com/drowe67/codec2.git ./codec2
-
-WORKDIR /app/FreeDATA/freedata_server/lib/codec2
-
-RUN mkdir build_linux
-
-WORKDIR /app/FreeDATA/freedata_server/lib/codec2/build_linux
-
-RUN cmake .. && make codec2 -j4
+RUN python3 -m venv /app/venv && \
+  /app/venv/bin/pip install --no-cache-dir --upgrade pip && \
+  /app/venv/bin/pip install --no-cache-dir .
 
 ################################################################################
 # Final image
 ################################################################################
-FROM python:3.11-slim-bookworm
+FROM python:3.13-slim-trixie
 
-ENV PATH="/app/FreeDATA-hamlib/bin:/app/FreeDATA/venv/bin:$PATH"
+ENV PATH="/app/FreeDATA-hamlib/bin:/app/venv/bin:$PATH"
 
 ENV FREEDATA_CONFIG=/data/config.ini
 ENV FREEDATA_DATABASE=/data/freedata-messages.db
 ENV HOME=/home/freedata
 
-WORKDIR /app
-
-COPY --from=server /app ./
-COPY --from=frontend /src/dist/ ./FreeDATA/freedata_gui/dist/
-COPY entrypoint.sh /entrypoint.sh
-
-RUN mkdir -p /data && \
-  cp FreeDATA/freedata_server/config.ini.example /data/config.ini && \
-  apt-get update && \
-  apt-get install --upgrade -y \
-    portaudio19-dev \
+RUN apt-get update && \
+  apt-get install -y --no-install-recommends \
+    libportaudio2 \
     alsa-utils \
-    libasound2 \
     libasound2-plugins \
     pulseaudio \
-	pulseaudio-utils && \
+    pulseaudio-utils && \
   rm -rf /var/lib/apt/lists/*
 
-RUN useradd --create-home --home-dir $HOME freedata \
-	&& usermod -aG audio,pulse,pulse-access freedata \
-	&& chown -R freedata:freedata $HOME
+COPY --from=server /app/venv /app/venv
+COPY --from=server /app/FreeDATA-hamlib /app/FreeDATA-hamlib
+COPY entrypoint.sh /entrypoint.sh
+
+RUN useradd --create-home --home-dir $HOME freedata && \
+  usermod -aG audio,pulse,pulse-access freedata && \
+  mkdir -p /data && \
+  chown freedata:freedata /data && \
+  chmod +x /entrypoint.sh
 
 USER freedata
+
+EXPOSE 5000
 
 ENTRYPOINT [ "/entrypoint.sh" ]

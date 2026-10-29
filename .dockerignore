@@ -1,0 +1,15 @@
+.git
+.github
+.venv
+venv
+build
+dist
+*.egg-info
+**/__pycache__
+freedata_gui/node_modules
+freedata_gui/dist
+freedata_gui/.claude
+freedata_server/*.build
+freedata_server/*.dist
+freedata_server/*.onefile-build
+tests
