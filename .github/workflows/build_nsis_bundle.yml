@@ -6,6 +6,10 @@ on:
 
 jobs:
   build-and-release:
+    # The fork's default workflow token is read-only; creating the draft
+    # release and uploading its files needs write access to contents
+    permissions:
+      contents: write
     runs-on: windows-latest
 
     steps:
