@@ -1,5 +1,7 @@
 name: Build and Release NSIS Installer
 on:
+  push:
+    tags: ["v*"]
   workflow_dispatch:
 
 jobs:
@@ -120,7 +122,8 @@ jobs:
         uses: softprops/action-gh-release@v3
         if: startsWith(github.ref, 'refs/tags/v')
         with:
-          draft: false
+          # a draft, like the AppImage's: published by hand once checked
+          draft: true
           files: |
             ./FreeDATA-Installer.exe
             ./freedata-server_windows.zip
