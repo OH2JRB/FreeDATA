@@ -1,9 +1,38 @@
 """Sanity checks for the bundled IARU band plan data and its lookup helpers."""
 
+import os
+import tempfile
 import unittest
 
 import testenv  # noqa: F401  isolates config + message DB, must precede freedata_server imports
 from freedata_server import bandplan
+
+
+class TestBandplanFile(unittest.TestCase):
+    def test_file_in_package_from_source(self):
+        package_dir = os.path.dirname(os.path.abspath(bandplan.__file__))
+        self.assertEqual(bandplan.BANDPLAN_FILE, os.path.join(package_dir, "data", "iaru_bandplan.json"))
+        self.assertTrue(os.path.isfile(bandplan.BANDPLAN_FILE))
+
+    def test_nuitka_build_uses_dist_dir(self):
+        # In a standalone build this module is <dist>/freedata_server/bandplan.py
+        # and --include-data-dir=data=data puts the file in <dist>/data/
+        bandplan.__compiled__ = object()
+        try:
+            base = bandplan._base_dir()
+        finally:
+            del bandplan.__compiled__
+        self.assertEqual(base, os.path.dirname(os.path.dirname(os.path.abspath(bandplan.__file__))))
+
+    def test_check_bandplan(self):
+        self.assertTrue(bandplan.check_bandplan())
+        with tempfile.TemporaryDirectory() as tmp:
+            missing = os.path.join(tmp, "data", "iaru_bandplan.json")
+            self.assertFalse(bandplan.check_bandplan(missing))
+            broken = os.path.join(tmp, "broken.json")
+            with open(broken, "w", encoding="utf-8") as fh:
+                fh.write("{")
+            self.assertFalse(bandplan.check_bandplan(broken))
 
 
 class TestBandplanData(unittest.TestCase):
