@@ -5,7 +5,7 @@ import tempfile
 import unittest
 
 import testenv  # noqa: F401  isolates config + message DB, must precede freedata_server imports
-from freedata_server import bandplan
+from freedata_server import bandplan, install_paths
 
 
 class TestBandplanFile(unittest.TestCase):
@@ -17,12 +17,13 @@ class TestBandplanFile(unittest.TestCase):
     def test_nuitka_build_uses_dist_dir(self):
         # In a standalone build this module is <dist>/freedata_server/bandplan.py
         # and --include-data-dir=data=data puts the file in <dist>/data/
-        bandplan.__compiled__ = object()
+        install_paths.__compiled__ = object()
         try:
-            base = bandplan._base_dir()
+            path = install_paths.data_dir("iaru_bandplan.json")
         finally:
-            del bandplan.__compiled__
-        self.assertEqual(base, os.path.dirname(os.path.dirname(os.path.abspath(bandplan.__file__))))
+            del install_paths.__compiled__
+        dist_dir = os.path.dirname(os.path.dirname(os.path.abspath(bandplan.__file__)))
+        self.assertEqual(path, os.path.join(dist_dir, "data", "iaru_bandplan.json"))
 
     def test_check_bandplan(self):
         self.assertTrue(bandplan.check_bandplan())

@@ -8,32 +8,14 @@ mean a frequency is legal for a given station.
 
 import functools
 import json
-import os
 
 import structlog
 
+from freedata_server import install_paths
+
 log = structlog.get_logger("bandplan")
 
-_MODULE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-
-def _base_dir():
-    """Directory that holds data/.
-
-    From source or a pip install, data/ is in this package's directory. A
-    Nuitka standalone build puts this module in <dist>/freedata_server/ but the
-    --include-data-dir=data=data files in <dist>/data/, so go up one level.
-    (__compiled__.containing_dir is the directory that holds the .dist folder,
-    one level above <dist>, so it cannot be used for files inside the build.)
-    """
-    try:
-        __compiled__  # type: ignore[name-defined]  # noqa: B018
-    except NameError:
-        return _MODULE_DIR
-    return os.path.dirname(_MODULE_DIR)
-
-
-BANDPLAN_FILE = os.path.join(_base_dir(), "data", "iaru_bandplan.json")
+BANDPLAN_FILE = install_paths.data_dir("iaru_bandplan.json")
 
 
 @functools.cache

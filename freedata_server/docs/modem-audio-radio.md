@@ -81,8 +81,12 @@ In test mode (`ctx.TESTMODE`), `transmit()` only puts `[mode, frames]` into `ctx
 
 The module loads the shared library at import time:
 
-1. Base directory `script_dir`: `__compiled__.containing_dir` when compiled with Nuitka, otherwise the directory of `codec2.py`.
-2. Recursive glob under `script_dir`, by `sys.platform`:
+1. Search directory `codec2_dir`: `install_paths.lib_dir("codec2")`, the `lib/codec2/` folder of the
+   install. From source or pip that is `freedata_server/lib/codec2/`; in a Nuitka standalone build,
+   where the modules are in `<dist>/freedata_server/` and `--include-data-dir=lib=lib` puts the files
+   in `<dist>/lib/`, it is `<dist>/lib/codec2/`. (`__compiled__.containing_dir` is not used: it is the
+   folder that holds the `.dist` folder, one level above the build.)
+2. Recursive glob under `codec2_dir`, by `sys.platform`:
 
    | Platform | Glob |
    |---|---|
@@ -441,7 +445,7 @@ Common backend interface: `connect`, `disconnect`, `set_ptt`, `set_frequency`, `
 
 - Config: `RIGCTLD.ip`, `RIGCTLD.port`, `RADIO.ptt_mode`; socket timeout 3 s.
 - On init, `start_connecting(start_bundled_service=True)` starts the `rigctld connect` daemon thread and returns. In it, `rigctld_bundle` first restarts the service (`restart_service()`: `stop_service()` + `start_service()`, skipped or undone after `disconnect()`), then `connect()` runs.
-- `rigctld_bundle`: `start_service` finds `rigctld` via `helpers.find_binary_paths(..., search_system_wide=True)` and launches it with `helpers.kill_and_execute(path, args)`. `format_rigctld_args()` builds args from `RADIO` config: `-m model_id`, `-r serial_port`, `-s serial_speed`, `-p ptt_port`, `-P ptt_type`, `-D serial_dcd`, `--set-conf dtr_state/rts_state/data_bits/stop_bits`, `--vfo` if `RIGCTLD.enable_vfo`, then `RIGCTLD.arguments` split on spaces. Values `"ignore"` or integer `0` are skipped (the string `"0"` is not).
+- `rigctld_bundle`: `start_service` finds `rigctld` via `helpers.find_binary_paths(..., search_system_wide=True)` (the bundled `lib/hamlib/bin/` of the install first, then PATH and the usual system and Hamlib folders) and launches it with `helpers.kill_and_execute(path, args)`. `format_rigctld_args()` builds args from `RADIO` config: `-m model_id`, `-r serial_port`, `-s serial_speed`, `-p ptt_port`, `-P ptt_type`, `-D serial_dcd`, `--set-conf dtr_state/rts_state/data_bits/stop_bits`, `--vfo` if `RIGCTLD.enable_vfo`, then `RIGCTLD.arguments` split on spaces. Values `"ignore"` or integer `0` are skipped (the string `"0"` is not).
 - `connect()`: up to 60 attempts (1 s apart), 2 s warm-up after connecting, then `\chk_vfo` and `v`. In bundle mode, rigctld is restarted every 10 failed attempts (5 s pause). Sets `radio_status` in state. Only one runs at a time (`connect_lock`). `disconnect()` sets `shutdown` and `stop_event`, which ends the attempts and their waits at once.
 - `get_parameters()` while not connected calls `start_connecting()`: a new connect thread, unless one is running, so the radio manager's poll loop is never held up.
 - `send_command()`: one command at a time (guarded by `await_response` Event, 1 s wait), sends `cmd\n`, one `recv(1024)`. Responses containing `RPRT` or `None` become `None`. Socket timeout/errors mark the backend disconnected; the next `get_parameters()` starts reconnecting in the background. When not connected it returns `""`.

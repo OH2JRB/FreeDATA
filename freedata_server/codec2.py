@@ -9,7 +9,7 @@ import os
 import sys
 from enum import Enum
 from threading import Lock
-from freedata_server import codec2_filter_coeff
+from freedata_server import codec2_filter_coeff, install_paths
 from freedata_server.constants import EXIT_CODEC2_NOT_LOADED
 import numpy as np
 import structlog
@@ -93,36 +93,18 @@ def freedv_get_mode_name_by_value(mode: int) -> str:
     return FREEDV_MODE(mode).name
 
 
-# Determine the base directory to search for the codec2 shared library.
-#
-# In normal (non-frozen) execution this is simply the directory containing
-# this script, and that's where "lib/codec2/*" lives relative to
-# freedata_server/codec2.py.
-#
-# When compiled by Nuitka into a standalone binary however, data files added
-# via --include-data-dir/--include-data-files (e.g. "lib=lib") are placed
-# relative to the *distribution* directory (next to the produced .exe), not
-# relative to this module's own (nested) package directory. Using
-# os.path.dirname(__file__) in that case points at "<dist>/freedata_server"
-# while the actual DLL ends up at "<dist>/lib/codec2/libcodec2.dll" - a
-# sibling directory, not a child - so the glob below never finds it.
-#
-# Nuitka exposes the correct directory via the compiled-only global
-# `__compiled__.containing_dir`, which always points at the distribution
-# directory regardless of platform or nesting. See:
-# https://nuitka.net/user-documentation/common-issue-solutions.html#standalone-finding-files
-try:
-    script_dir = __compiled__.containing_dir  # type: ignore[name-defined]
-except NameError:
-    script_dir = os.path.dirname(os.path.abspath(__file__))
+# The shared library ships in lib/codec2/ of the install (the package
+# directory from source, the build directory in a Nuitka build, see
+# install_paths.py). Search only there, so a libcodec2 elsewhere on the
+# machine, or next to the install, is never picked up.
+codec2_dir = install_paths.lib_dir("codec2")
 
-# Use script_dir to construct the paths for file search
 if sys.platform == "linux":
-    files = glob.glob(os.path.join(script_dir, "**", "*libcodec2*"), recursive=True)
+    files = glob.glob(os.path.join(codec2_dir, "**", "*libcodec2*"), recursive=True)
 elif sys.platform == "darwin":
-    files = glob.glob(os.path.join(script_dir, "**", "*libcodec2*.dylib"), recursive=True)
+    files = glob.glob(os.path.join(codec2_dir, "**", "*libcodec2*.dylib"), recursive=True)
 elif sys.platform in ["win32", "win64"]:
-    files = glob.glob(os.path.join(script_dir, "**", "*libcodec2*.dll"), recursive=True)
+    files = glob.glob(os.path.join(codec2_dir, "**", "*libcodec2*.dll"), recursive=True)
 else:
     files = []
 api = None
@@ -140,7 +122,7 @@ for file in files:
 # own exit code. The server imports this module before its logging is set up,
 # so the reason goes to stderr.
 if api is None:
-    reasons = load_errors or [f"no libcodec2 library found under {script_dir}"]
+    reasons = load_errors or [f"no libcodec2 library found under {codec2_dir}"]
     sys.stderr.write(
         f"[FATAL] Libcodec2 not loaded - exiting with code {EXIT_CODEC2_NOT_LOADED}\n"
         + "".join(f"  {reason}\n" for reason in reasons)
