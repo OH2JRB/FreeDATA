@@ -2,14 +2,14 @@ name: Build and Release Docker Image
 on:
   push:
     branches: [main]
-    tags: ["*"]
+    tags: ["v*"]
   workflow_dispatch:
 
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    name: Build image and upload artifact
+    name: Build image, smoke test it and upload artifact
     steps:
       - name: Checkout Code
         uses: actions/checkout@v7
@@ -20,12 +20,30 @@ jobs:
       # Build a single-architecture image (using linux/amd64) so we can load it locally.
       - name: Build Docker image for artifact
         run: |
-          docker buildx build --platform linux/amd64 --load -t ghcr.io/dj2ls/freedata:latest .
+          docker buildx build --platform linux/amd64 --load -t freedata:latest .
+
+      # Start the image as a user would: the server must answer on the published
+      # port, serve the GUI, load codec2, and rigctld must run
+      - name: Smoke test
+        run: |
+          docker run -d --name freedata -p 5000:5000 freedata:latest
+          ok=0
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:5000/; then ok=1; break; fi
+            sleep 2
+          done
+          echo
+          docker logs freedata
+          test "$ok" = 1
+          curl -fsS -o /dev/null http://127.0.0.1:5000/gui/
+          docker logs freedata 2>&1 | grep "Libcodec2 loaded"
+          docker exec freedata rigctld --version
+          docker stop freedata
 
       # Save the built image as a tarball.
       - name: Save Docker image to tar file
         run: |
-          docker save ghcr.io/dj2ls/freedata:latest -o freedata.tar
+          docker save freedata:latest -o freedata.tar
 
       # Upload the image tarball as an artifact.
       - name: Upload Docker image artifact
@@ -35,7 +53,7 @@ jobs:
           path: freedata.tar
 
   release:
-    if: startsWith(github.ref, 'refs/tags/')
+    if: startsWith(github.ref, 'refs/tags/v')
     needs: build
     runs-on: ubuntu-latest
     name: Build and Publish Release
@@ -45,6 +63,11 @@ jobs:
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v7
+
+      # ghcr.io names must be lower case: ghcr.io/<owner>/freedata
+      - name: Image name
+        id: image
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/freedata" >> "$GITHUB_OUTPUT"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v4
@@ -66,9 +89,10 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ghcr.io/dj2ls/freedata:latest
-            ghcr.io/dj2ls/freedata:${{ github.ref_name }}
+            ${{ steps.image.outputs.name }}:latest
+            ${{ steps.image.outputs.name }}:${{ github.ref_name }}
           labels: |
             org.opencontainers.image.title=FreeDATA
             org.opencontainers.image.description=Docker image for FreeDATA
-            org.opencontainers.image.url=https://github.com/dj2ls/freedata/pkgs/container/freedata/
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.version=${{ github.ref_name }}

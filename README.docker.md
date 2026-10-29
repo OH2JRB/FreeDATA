@@ -2,6 +2,8 @@
 
 This image was built to allow FreeDATA to be run on MacOS. These instructions are for MacOS, but should work on any platform that supports Docker.
 
+The image `ghcr.io/oh2jrb/freedata` is built from this repository for each release (`v*` tag), for `linux/amd64` and `linux/arm64`. It contains the FreeDATA server with the web GUI, codec2 built for the image's architecture, and Hamlib's `rigctld`.
+
 ## Prerequisites
 
 - An install of Docker (eg. [Docker Desktop for MacOS](https://docs.docker.com/desktop/setup/install/mac-install/)).
@@ -60,37 +62,31 @@ pacmd set-default-source 1
 
 This can be run in one of two ways. By running the docker image with a long command line or via `docker compose`. Lets start with the long command line.
 
-On first run, this will copy the sample config file into the `./freedata-data` directory. This can be edited to suit your needs via the GUI. However, to get the GUI to run you will need to update the `NETWORK` section in `config.ini` file to be:
-
-```bash
-[NETWORK]
-modemaddress = 0.0.0.0
-modemport = 5050
-```
+On first run, the container creates `config.ini` in the `./freedata-data` directory from the sample config, listening on all interfaces (`modemaddress = 0.0.0.0`) so the GUI can be reached through the published port. It can be edited to suit your needs via the GUI. The message database is kept in the same directory.
 
 Now we can start the server.
 
 ```bash
 docker run --rm -it \
-    -v ./freedata-data:/data
-    -e PULSE_SERVER=host.docker.internal
+    -v ./freedata-data:/data \
+    -e PULSE_SERVER=host.docker.internal \
     -v /$HOME/.config/pulse:/home/freedata/.config/pulse \
-    -p 5050:5050 \
+    -p 5000:5000 \
     --name freedata \
-    ghcr.io/dj2ls/freedata:latest
+    ghcr.io/oh2jrb/freedata:latest
 ```
 
-If you'd like to start a `rigctld` instance in the container (see [the wiki](https://wiki.freedata.app/en/usage/radio-control#hamlib-rigctld-commands)), the arguments can be provided with the `RIGCTL_ARGS` environment variable. In the examples below I'm passing a model for a FlexRadio at IP `192.168.0.10` listening on port `6701`:
+If you'd like to start a `rigctld` instance in the container (see [the wiki](https://wiki.freedata.app/en/usage/radio-control#hamlib-rigctld-commands)), the arguments can be provided with the `RIGCTLD_ARGS` environment variable. In the examples below I'm passing a model for a FlexRadio at IP `192.168.0.10` listening on port `6701`:
 
 ```bash
 docker run --rm -it \
-    -v ./freedata-data:/data
-    -e PULSE_SERVER=host.docker.internal
-    -e RIGCTLD_ARGS="--model=2036 --port=4532 --rig-file=192.168.0.10:6701"
+    -v ./freedata-data:/data \
+    -e PULSE_SERVER=host.docker.internal \
+    -e RIGCTLD_ARGS="--model=2036 --port=4532 --rig-file=192.168.0.10:6701" \
     -v /$HOME/.config/pulse:/home/freedata/.config/pulse \
-    -p 5050:5050 \
+    -p 5000:5000 \
     --name freedata \
-    ghcr.io/dj2ls/freedata:latest
+    ghcr.io/oh2jrb/freedata:latest
 ```
 
 A slightly more tidy method of provding the same config is via `docker compose`. Create a `docker-compose.yml` file with the following content:
@@ -99,7 +95,7 @@ A slightly more tidy method of provding the same config is via `docker compose`.
 services:
   freedata:
     container_name: freedata
-    image: ghcr.io/dj2ls/freedata:latest
+    image: ghcr.io/oh2jrb/freedata:latest
     pull_policy: always
     volumes:
       - ./freedata-data:/data
@@ -108,7 +104,7 @@ services:
       - PULSE_SERVER=host.docker.internal
       - RIGCTLD_ARGS=--model=2036 --port=4532 --rig-file=192.168.0.10:6701
     ports:
-      - 5050:5050
+      - 5000:5000
 ```
 
 This can then be run with:
@@ -123,8 +119,18 @@ And its logs viewed with:
 docker-compose logs -f
 ```
 
+### Building the image yourself
+
+From the repository's top-level directory:
+
+```bash
+docker build -t freedata .
+```
+
+Then use `freedata` instead of `ghcr.io/oh2jrb/freedata:latest` in the commands above.
+
 ## Usage
 
-Once the server is running, you can access the GUI by visiting `http://localhost:5050/gui` in your browser.
+Once the server is running, you can access the GUI by visiting `http://localhost:5000/gui` in your browser.
 
 You will need to set up your audio device and radio config.
