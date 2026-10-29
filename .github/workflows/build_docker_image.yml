@@ -23,7 +23,7 @@ jobs:
           docker buildx build --platform linux/amd64 --load -t freedata:latest .
 
       # Start the image as a user would: the server must answer on the published
-      # port, serve the GUI, load codec2, and rigctld must run
+      # port, serve the GUI, load codec2 and the band plan, and rigctld must run
       - name: Smoke test
         run: |
           docker run -d --name freedata -p 5000:5000 freedata:latest
@@ -37,6 +37,7 @@ jobs:
           test "$ok" = 1
           curl -fsS -o /dev/null http://127.0.0.1:5000/gui/
           docker logs freedata 2>&1 | grep "Libcodec2 loaded"
+          docker logs freedata 2>&1 | grep "Band plan loaded"
           docker exec freedata rigctld --version
           docker stop freedata
 

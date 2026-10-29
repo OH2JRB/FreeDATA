@@ -91,6 +91,27 @@ jobs:
             --low-memory
         shell: pwsh
 
+      # Start the built server once: it must answer, and find the files it
+      # needs inside the build (codec2 and the band plan). Config, database
+      # and logs go to the runner's temp folder, not into the installer.
+      - name: Test server
+        shell: pwsh
+        env:
+          FREEDATA_CONFIG: ${{ runner.temp }}/freedata/config.ini
+          FREEDATA_DATABASE: ${{ runner.temp }}/freedata/freedata-messages.db
+        run: |
+          $log = "${{ runner.temp }}/freedata-server.log"
+          $err = "${{ runner.temp }}/freedata-server.err.log"
+          $p = Start-Process freedata_server/server.dist/freedata-server.exe -RedirectStandardOutput $log -RedirectStandardError $err -PassThru
+          $ok = $false
+          for ($i = 0; $i -lt 60; $i++) {
+            try { Invoke-RestMethod http://127.0.0.1:5000/ -TimeoutSec 2 | Out-Null; $ok = $true; break } catch { Start-Sleep 1 }
+          }
+          Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+          Get-Content $log, $err
+          if (-not $ok) { throw "server did not answer" }
+          if (-not (Select-String -Path $log, $err -Pattern "Libcodec2 loaded" -Quiet)) { throw "codec2 not loaded" }
+          if (-not (Select-String -Path $log, $err -Pattern "Band plan loaded" -Quiet)) { throw "band plan not loaded" }
 
       - name: LIST ALL FILES
         run: ls -R

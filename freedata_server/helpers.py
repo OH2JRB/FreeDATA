@@ -19,6 +19,8 @@ import subprocess
 import psutil
 import glob
 
+from freedata_server import install_paths
+
 
 log = structlog.get_logger("helpers")
 
@@ -818,23 +820,25 @@ def get_flag(byte, flag_name, flag_dict):
 
 def find_binary_paths(binary_name="rigctld", search_system_wide=False):
     """
-    Search for a binary within the current working directory, its subdirectories, and optionally,
+    Search for a binary in the install's bundled lib/hamlib/bin directory and optionally,
     system-wide locations and the PATH environment variable.
+
+    The bundled directory is found from the install (see install_paths.py), not from the
+    current working directory, so it does not matter where the server was started from.
 
     :param binary_name: The base name of the binary to search for, without extension.
     :param search_system_wide: Boolean flag to enable or disable system-wide search.
-    :return: A list of full paths to the binary if found, otherwise an empty list.
+    :return: A list of full paths to the binary if found, bundled one first, otherwise an empty list.
     """
     binary_paths = []  # Initialize an empty list to store found paths
     # Adjust binary name for Windows
     if platform.system() == "Windows":
         binary_name += ".exe"
 
-    # Search in the current working directory and subdirectories
-    root_path = os.getcwd()
-    for dirpath, dirnames, filenames in os.walk(root_path):
-        if binary_name in filenames:
-            binary_paths.append(os.path.join(dirpath, binary_name))
+    # The binary bundled with the install (the Windows build ships Hamlib)
+    bundled_path = install_paths.lib_dir("hamlib", "bin", binary_name)
+    if os.path.isfile(bundled_path):
+        binary_paths.append(bundled_path)
 
     # If system-wide search is enabled, look in system locations and PATH
     if search_system_wide:

@@ -8,16 +8,14 @@ mean a frequency is legal for a given station.
 
 import functools
 import json
-import os
 
-# Nuitka places --include-data-dir files next to the binary, not next to this
-# module, see codec2.py for the details.
-try:
-    _BASE_DIR = __compiled__.containing_dir  # type: ignore[name-defined]
-except NameError:
-    _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+import structlog
 
-BANDPLAN_FILE = os.path.join(_BASE_DIR, "data", "iaru_bandplan.json")
+from freedata_server import install_paths
+
+log = structlog.get_logger("bandplan")
+
+BANDPLAN_FILE = install_paths.data_dir("iaru_bandplan.json")
 
 
 @functools.cache
@@ -25,6 +23,21 @@ def load_bandplan(path=BANDPLAN_FILE):
     """Return the parsed band plan file."""
     with open(path, encoding="utf-8") as fh:
         return json.load(fh)
+
+
+def check_bandplan(path=BANDPLAN_FILE):
+    """Read the band plan once at server start and log the result.
+
+    It is otherwise read only when a frequency is known, so a missing file
+    would first show as a failing radio status or message send.
+    """
+    try:
+        load_bandplan(path)
+    except (OSError, ValueError) as err:
+        log.error("[BND] Band plan not loaded, the amateur band check will fail", path=path, e=err)
+        return False
+    log.info("[BND] Band plan loaded", path=path)
+    return True
 
 
 def get_bands(region):

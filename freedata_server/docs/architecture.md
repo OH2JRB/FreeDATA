@@ -11,8 +11,8 @@ Files covered: [server.py](../server.py), [context.py](../context.py), [constant
 [service_manager.py](../service_manager.py), [radio_manager.py](../radio_manager.py),
 [websocket_manager.py](../websocket_manager.py), [log_handler.py](../log_handler.py), [stats.py](../stats.py),
 [explorer.py](../explorer.py), [adif_udp_logger.py](../adif_udp_logger.py),
-[wavelog_api_logger.py](../wavelog_api_logger.py), [helpers.py](../helpers.py), [maidenhead.py](../maidenhead.py),
-[exceptions.py](../exceptions.py), [serial_ports.py](../serial_ports.py),
+[wavelog_api_logger.py](../wavelog_api_logger.py), [helpers.py](../helpers.py), [install_paths.py](../install_paths.py),
+[maidenhead.py](../maidenhead.py), [exceptions.py](../exceptions.py), [serial_ports.py](../serial_ports.py),
 [list_ports_winreg.py](../list_ports_winreg.py), [\_\_init\_\_.py](../__init__.py) (empty).
 
 ---
@@ -572,8 +572,13 @@ Most jobs catch exceptions and `print()` them.
   `snr_to_bytes`/`snr_from_bytes` (x10, signed byte, clipped +-12.7); `safe_execute`,
   `return_key_from_object`, `bool_to_string`; HMAC token-file helpers (`get_hmac_salt`,
   `search_hmac_salt`, `delete_last_line_from_hmac_list`, `check_if_file_exists`) using `hmac/` files;
-  bit/flag helpers (`set_bit`, `get_bit`, `set_flag`, `get_flag`); `find_binary_paths()` (search cwd
-  and optionally PATH/Hamlib dirs, default `rigctld`); `kill_and_execute()` and `kill_process()` via psutil.
+  bit/flag helpers (`set_bit`, `get_bit`, `set_flag`, `get_flag`); `find_binary_paths()` (the install's
+  `lib/hamlib/bin/`, then optionally PATH/Hamlib dirs, default `rigctld`); `kill_and_execute()` and `kill_process()` via psutil.
+- **[install_paths.py](../install_paths.py)** - `base_dir()`, `lib_dir(*parts)`, `data_dir(*parts)`: where
+  the bundled `lib/` and `data/` files are. The package directory from source or pip; its parent in a
+  Nuitka standalone build (modules in `<dist>/freedata_server/`, data files in `<dist>/lib/` and
+  `<dist>/data/`). Used by codec2.py, bandplan.py and `find_binary_paths()`, so none depend on the
+  working directory.
 - **[maidenhead.py](../maidenhead.py)** - `haversine()` (km), `maidenhead_to_latlon()` (grid ->
   centre lat/lon), `latlon_to_maidenhead(lat, lon, precision=6)` (4/6/8 chars),
   `distance_between_locators()` (`{"kilometers", "miles"}`), `generate_full_maidenhead()` (pads 2- or

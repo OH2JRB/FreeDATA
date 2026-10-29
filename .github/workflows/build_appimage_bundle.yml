@@ -132,6 +132,7 @@ jobs:
           done
           kill $PID || true
           cat appimage.log
+          grep "Band plan loaded" appimage.log
           test -f "$XDG_CONFIG_HOME/FreeDATA/config.ini"
           test $ok = 1
 
