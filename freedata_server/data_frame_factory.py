@@ -354,9 +354,6 @@ class DataFrameFactory:
             frame_template = self.template_list.get(frametype)
             frame = bytes([frametype]) + frame
         else:
-            print("------------------------")
-            print(frame)
-            print(type(frame))
             # Extract frametype and get the corresponding template
             frametype = int.from_bytes(frame[:1], "big")
             frame_template = self.template_list.get(frametype)
@@ -410,7 +407,6 @@ class DataFrameFactory:
                 "payload_size",
             ]:
                 extracted_data[key] = int.from_bytes(data, "big")
-                print(key, data)
             elif key in ["snr"]:
                 extracted_data[key] = helpers.snr_from_bytes(data)
 
