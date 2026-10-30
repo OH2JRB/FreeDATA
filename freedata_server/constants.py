@@ -27,7 +27,7 @@ def _default_app_dir() -> str:
 CONFIG_ENV_VAR = "FREEDATA_CONFIG"
 DEFAULT_CONFIG_FILE = "config.ini"
 DEFAULT_APP_DIR = _default_app_dir()
-MODEM_VERSION = "0.30.0"
+MODEM_VERSION = "0.30.1"
 API_VERSION = 4
 # 2: data_fsk4_50 became speed level 0, the OFDM levels moved up by one
 ARQ_PROTOCOL_VERSION = 2
