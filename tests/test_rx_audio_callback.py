@@ -64,8 +64,6 @@ class TestRxAudioCallbackWorkerSplit(unittest.TestCase):
         worker = threading.Thread(target=rf.rx_audio_processing_worker, daemon=True)
         worker.start()
         try:
-            # status=None -> the block is enqueued (a truthy status is an
-            # over/underflow and is dropped by the callback, unchanged by this PR).
             # Feed enough captured blocks to complete at least one DSP block.
             for _ in range(rf.RX_DSP_BLOCK_48K // CAPTURE_FRAMES + 1):
                 rf.sd_input_audio_callback(_block(), CAPTURE_FRAMES, None, None)
@@ -99,6 +97,49 @@ class TestRxAudioCallbackWorkerSplit(unittest.TestCase):
 
         self.assertEqual(rf.rx_audio_dropped_blocks, 1, "a full queue must drop the block and count it")
         self.assertLess(elapsed, 0.05, "callback must not block on a full queue (real-time safety)")
+
+    def test_flagged_block_is_kept_and_counted(self):
+        """An input overflow lost audio before the block, not the block itself:
+        it is still queued, and only counted (the worker logs it)."""
+        rf = _rf()
+        warnings = []
+        rf.log = _RecordingLog(warnings)
+        rf.sd_input_audio_callback(_block(), CAPTURE_FRAMES, None, "input overflow")
+        self.assertEqual(rf.rx_audio_in_queue.qsize(), 1)
+        self.assertEqual(rf.rx_audio_status_blocks, 1)
+        self.assertEqual(rf.rx_audio_last_status, "input overflow")
+        self.assertEqual(warnings, [], "the real-time callback must not log")
+
+
+class _RecordingLog:
+    def __init__(self, warnings):
+        self.warnings = warnings
+
+    def warning(self, msg, **kw):
+        self.warnings.append(kw)
+
+
+class TestRxAudioLossLog(unittest.TestCase):
+    def test_logs_only_new_losses(self):
+        rf = _rf()
+        rf.rx_audio_device = "USB Audio CODEC (MME)"
+        warnings = []
+        rf.log = _RecordingLog(warnings)
+
+        reported = rf.log_rx_audio_loss((0, 0), 10)
+        self.assertEqual(warnings, [], "nothing lost, nothing logged")
+
+        rf.rx_audio_status_blocks = 3
+        rf.rx_audio_last_status = "input overflow"
+        rf.rx_audio_dropped_blocks = 1
+        reported = rf.log_rx_audio_loss(reported, 10)
+        self.assertEqual(reported, (3, 1))
+        self.assertEqual(warnings[0]["flagged_blocks"], 3)
+        self.assertEqual(warnings[0]["dropped_blocks"], 1)
+        self.assertEqual(warnings[0]["device"], "USB Audio CODEC (MME)")
+
+        rf.log_rx_audio_loss(reported, 10)
+        self.assertEqual(len(warnings), 1, "losses already reported are not logged again")
 
 
 class TestRxAudioReblocking(unittest.TestCase):

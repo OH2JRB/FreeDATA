@@ -106,6 +106,14 @@ class RF:
         self.rx_audio_worker_running = False
         self.rx_audio_worker_thread = None
         self.rx_audio_dropped_blocks = 0
+        # Blocks PortAudio flagged (input overflow: audio was lost before the
+        # callback ran). Counted in the callback, logged by the worker at most
+        # once per RX_AUDIO_LOSS_LOG_INTERVAL so a device that overflows often
+        # does not fill the log.
+        self.rx_audio_status_blocks = 0
+        self.rx_audio_last_status = ""
+        self.rx_audio_device = ""
+        self.RX_AUDIO_LOSS_LOG_INTERVAL = 10  # seconds
         # 48 kHz samples that have been captured but do not yet fill a whole
         # RX_DSP_BLOCK_48K; they are carried over to the next captured block so the
         # sample stream handed to the resampler stays gapless (its filter memory
@@ -202,7 +210,10 @@ class RF:
             # raises AudioUnavailableError (handled below) if PortAudio can't be loaded
             sd = get_sounddevice()
 
-            self.log.info(f"[MDM] init: receiving audio from '{in_dev_name}'")
+            in_api = sd.query_hostapis(sd.query_devices(in_dev_index)["hostapi"])["name"]
+            self.rx_audio_device = f"{in_dev_name} ({in_api})"
+
+            self.log.info(f"[MDM] init: receiving audio from '{self.rx_audio_device}'")
             self.log.info(f"[MDM] init: transmiting audio on '{out_dev_name}'")
             self.log.debug("[MDM] init: starting pyaudio callback and decoding threads")
 
@@ -445,7 +456,7 @@ class RF:
                 # Fill with zeros if the queue is empty
                 outdata.fill(0)
         except Exception as e:
-            self.log.warning("[AUDIO STATUS]", status=status, time=time, frames=frames, e=e)
+            self.log.warning("[AUDIO STATUS]", status=str(status), frames=frames, e=e)
             outdata.fill(0)
 
     def sd_input_audio_callback(self, indata: np.ndarray, frames: int, time, status) -> None:
@@ -464,11 +475,11 @@ class RF:
             status: Input stream status.
         """
         if status:
-            self.log.warning("[AUDIO STATUS]", status=status, time=time, frames=frames)
-            # FIXME on windows input overflows crashing the rx audio stream. Lets restart the server then
-            # if status.input_overflow:
-            #    self.self.ctx.modem_service.put("restart")
-            return
+            # An input overflow means audio was lost before this block; the block
+            # itself is complete, so it is still processed. Only counted here,
+            # rx_audio_processing_worker logs it.
+            self.rx_audio_status_blocks += 1
+            self.rx_audio_last_status = str(status)
         # Keep this real-time callback minimal: copy the captured block and hand
         # it to rx_audio_processing_worker. The DSP (resample, FFT, demod-buffer
         # push) runs there so a long GIL hold by another thread cannot stall this
@@ -488,7 +499,12 @@ class RF:
         worker thread, so the audio callback is never blocked by these
         operations (or by the GIL while another thread holds it).
         """
+        reported = (self.rx_audio_status_blocks, self.rx_audio_dropped_blocks)
+        last_report = time.monotonic()
         while self.rx_audio_worker_running:
+            if time.monotonic() - last_report >= self.RX_AUDIO_LOSS_LOG_INTERVAL:
+                reported = self.log_rx_audio_loss(reported, time.monotonic() - last_report)
+                last_report = time.monotonic()
             try:
                 indata = self.rx_audio_in_queue.get(timeout=0.5)
             except queue.Empty:
@@ -499,6 +515,30 @@ class RF:
                 self.process_rx_audio_block(indata)
             except Exception as e:
                 self.log.warning("[AUDIO EXCEPTION]", e=e)
+
+    def log_rx_audio_loss(self, reported, seconds):
+        """Logs RX audio lost since the last report, if any.
+
+        Args:
+            reported (tuple): (status blocks, dropped blocks) counted at the last report.
+            seconds (float): Time since the last report.
+
+        Returns:
+            tuple: The current counts, to pass to the next call.
+        """
+        current = (self.rx_audio_status_blocks, self.rx_audio_dropped_blocks)
+        status_blocks = current[0] - reported[0]
+        dropped_blocks = current[1] - reported[1]
+        if status_blocks or dropped_blocks:
+            self.log.warning(
+                "[AUDIO] RX audio lost",
+                flagged_blocks=status_blocks,
+                flag=self.rx_audio_last_status,
+                dropped_blocks=dropped_blocks,
+                seconds=round(seconds),
+                device=self.rx_audio_device,
+            )
+        return current
 
     def process_rx_audio_block(self, indata) -> None:
         """Re-blocks one captured audio block and runs the DSP chain on it.
