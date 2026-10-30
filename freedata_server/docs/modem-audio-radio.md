@@ -345,7 +345,7 @@ Failure in `init_audio` calls `stop_modem()` and returns `False`; `start_modem()
 The comments in [modem.py](../modem.py) explain the design:
 
 - `blocksize=0` is deliberate: a fixed 4800 blocksize starved/overflowed on some virtual devices (measured on `snd-aloop`). `latency=0.2` makes the PortAudio ring deep.
-- The input callback only copies the block into `rx_audio_in_queue` (`maxsize=100`). If the queue is full the block is dropped and `rx_audio_dropped_blocks` is incremented. If PortAudio reports a `status`, the block is logged and discarded.
+- The input callback only copies the block into `rx_audio_in_queue` (`maxsize=100`). If the queue is full the block is dropped and `rx_audio_dropped_blocks` is incremented. If PortAudio flags a block (`status`, such as an input overflow: audio was lost before it), the block is still queued and only counted in `rx_audio_status_blocks`. The worker logs one "[AUDIO] RX audio lost" warning at most every `RX_AUDIO_LOSS_LOG_INTERVAL` (10 s) with the flagged and dropped block counts and the input device and its host API.
 - `rx_audio_processing_worker` (daemon thread) drains the queue; `None` is the shutdown sentinel posted by `stop_modem()`.
 - `stop_modem()` closes `sd_input_stream` / `sd_output_stream` only if they exist, so it is safe in TESTMODE or after a failed audio init.
 - `process_rx_audio_block` re-blocks: captured samples are appended to `rx_audio_carry_48k`, the DSP runs once per complete 4800-sample block, and any remainder is carried to the next call. This keeps the resampler input gapless and a multiple of 6 regardless of capture size (e.g. 512/1024-sample blocks).
