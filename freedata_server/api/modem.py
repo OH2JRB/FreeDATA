@@ -1,3 +1,5 @@
+import asyncio
+
 from fastapi import APIRouter, Depends
 from freedata_server.api.common import api_response, api_abort, api_ok
 from freedata_server.api.command_helpers import enqueue_tx_command
@@ -7,6 +9,7 @@ from freedata_server import (
     command_ping,
     command_test,
     command_arq_raw,
+    stop_all,
 )
 from freedata_server import api_validations as validations
 from freedata_server.context import AppContext, get_ctx
@@ -564,10 +567,12 @@ async def post_arq_raw(
 )
 async def post_stop_transmission(ctx: AppContext = Depends(get_ctx)):
     """
-    Stop the current transmission.
+    Stop all transmissions: ARQ sessions, P2P connections, the beacon and what is
+    on air. Queued and transmitting messages and broadcasts are set to aborted
+    and go out again only when retransmitted.
     """
     try:
-        ctx.state_manager.stop_transmission()
-    except Exception:
-        pass
+        await asyncio.to_thread(stop_all.stop_all, ctx)
+    except Exception as e:
+        api_abort(f"Stop failed: {e}", 500)
     return api_ok()

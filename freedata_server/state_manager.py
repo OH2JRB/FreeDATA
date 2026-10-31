@@ -67,6 +67,10 @@ class StateManager:
 
         self.p2p_connection_sessions = {}
 
+        # counted up by every full stop (stop_all.stop_all): a transmission that
+        # started before the stop and is still waiting to go out sees it changed
+        self.stop_count = 0
+
         # self.mesh_routing_table = []
 
         self.radio_frequency = 0
@@ -445,13 +449,17 @@ class StateManager:
         if id in self.arq_irs_sessions:
             del self.arq_irs_sessions[id]
 
-    def stop_transmission(self):
+    def stop_transmission(self, stop_retries=None):
         """Stops any ongoing ARQ transmissions.
 
         This method iterates through all active ARQ Information Sending Station (ISS)
         and Information Receiving Station (IRS) sessions and aborts their transmissions.
         ISS sessions are removed after being stopped, while IRS sessions are retained
         to allow for potential resumption.
+
+        Args:
+            stop_retries (int, optional): How often an ISS sends its ARQ_STOP
+                at most; defaults to ARQSessionISS.RETRIES_STOP.
         """
         # Stop and remove IRS sessions
         for session_id in list(self.arq_irs_sessions.keys()):
@@ -466,7 +474,7 @@ class StateManager:
             session = self.arq_iss_sessions[session_id]
             if session.state in [session.state_enum.ABORTING, session.state_enum.ABORTED]:
                 continue
-            if session.abort_transmission(send_stop=True):
+            if session.abort_transmission(send_stop=True, stop_retries=stop_retries):
                 continue
             session.transmission_aborted()
             self.remove_arq_iss_session(session_id)

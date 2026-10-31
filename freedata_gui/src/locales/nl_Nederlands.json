@@ -133,6 +133,7 @@
       "msgstatustransmitting": "verzenden",
       "msgstatustransmitted": "verzonden",
       "msgstatusfailed": "mislukt",
+      "msgstatusaborted": "afgebroken",
       "msgstatusqueued": "in wachtrij"
     }
   },

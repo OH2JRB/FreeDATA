@@ -553,6 +553,50 @@ class DatabaseManagerBroadcasts(DatabaseManager):
         finally:
             session.remove()
 
+    def abort_queued_broadcasts(self) -> list:
+        """Stops the automatic repeats of every broadcast still to be sent (the Stop button).
+
+        get_first_queued_message picks a broadcast by its attempts and times, not
+        its status, so the attempts are set to MAX_ATTEMPTS as well. A
+        retransmit by hand still sends it.
+
+        Returns:
+            list: The IDs of the aborted broadcasts.
+        """
+        session = self.get_thread_scoped_session()
+        try:
+            now_ts = datetime.now(timezone.utc).timestamp()
+            queued = (
+                session
+                .query(BroadcastMessage)
+                .filter(
+                    BroadcastMessage.direction == "transmit",
+                    BroadcastMessage.attempts < self.MAX_ATTEMPTS,
+                    or_(
+                        BroadcastMessage.expires_at.is_(None),
+                        BroadcastMessage.expires_at > now_ts,
+                    ),
+                )
+                .all()
+            )
+            aborted_status = self.get_or_create_status(session, "aborted")
+            ids = [msg.id for msg in queued]
+            for msg in queued:
+                msg.attempts = self.MAX_ATTEMPTS
+                msg.status_id = aborted_status.id
+            session.commit()
+        except Exception as e:
+            session.rollback()
+            self.log(f"Error aborting queued broadcasts: {e}", isWarning=True)
+            return []
+        finally:
+            session.remove()
+
+        for message_id in ids:
+            self.log(f"Aborted broadcast {message_id}")
+            self.ctx.event_manager.freedata_message_db_change(message_id=message_id)
+        return ids
+
     def mark_domain_as_read(self, domain: str) -> int:
         """
         Marks all unread *received* messages in a domain as read.

@@ -135,6 +135,7 @@
  	        "msgstatustransmitting": "Übermittlung",
             "msgstatustransmitted": "Übermittelt",
             "msgstatusfailed": "Fehlgeschlagen",
+            "msgstatusaborted": "Abgebrochen",
             "msgstatusqueued": "Warteschlange"
         }
     },

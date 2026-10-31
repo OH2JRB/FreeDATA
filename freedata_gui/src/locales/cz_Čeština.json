@@ -123,6 +123,7 @@
             "msgstatustransmitting": "Odesílání",
             "msgstatustransmitted": "Odeslána",
             "msgstatusfailed": "Chyba při odesílání",
+            "msgstatusaborted": "Přerušeno",
             "msgstatusqueued": "Ve frontě"
         }
     },

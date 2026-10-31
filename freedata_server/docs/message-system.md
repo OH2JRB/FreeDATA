@@ -301,7 +301,8 @@ All indexes are declared via `__table_args__`, so they are attached to their tab
 | `transmitted` | `message_transmitted` (ARQ ISS success callback) |
 | `failed` | `message_failed` (ARQ ISS failure callback); `database_repair_and_cleanup` for stale `transmitting` |
 | `received` | `message_received` (ARQ IRS success callback) |
-| `failed_checksum`, `aborted`, `receiving`, `assembling` | Seeded, but not assigned to P2P messages by the files in scope |
+| `aborted` | `abort_unsent_messages` (the Stop button) for `queued` and `transmitting` messages |
+| `failed_checksum`, `receiving`, `assembling` | Seeded, but not assigned to P2P messages by the files in scope |
 
 ### State transitions
 
@@ -314,6 +315,9 @@ stateDiagram-v2
     transmitting --> failed: ARQ ISS failure (message_failed)
     transmitting --> failed: server restart (database_repair_and_cleanup)
     failed --> queued: heard beacon/CQ/ping from destination, attempt < 10 (set_message_to_queued_for_callsign)
+    queued --> aborted: Stop button (abort_unsent_messages)
+    transmitting --> aborted: Stop button (abort_unsent_messages)
+    aborted --> queued: PATCH action=retransmit
     failed --> queued: PATCH action=retransmit
     transmitted --> queued: PATCH action=retransmit
     [*] --> received: ARQ IRS success (message_received, direction=receive, is_read=False)
@@ -357,6 +361,20 @@ When the scheduler constructs `SendMessageCommand` with an existing queued messa
 - **Auto-repeat**: `FrameHandler.check_for_queued_message()` ([frame_handler.py](../frame_handler.py)) is called by the beacon, CQ and ping frame handlers. If `MESSAGES.enable_auto_repeat` is on and the frame SNR >= -2, it calls `set_message_to_queued_for_callsign(origin)`: the **first** `failed` message to that destination with `attempt < 10` gets `attempt += 1` and status `queued`.
 - **Manual**: `PATCH /messages/{id}` with `{"action": "retransmit"}` checks the message exists (404 otherwise), sets status `queued` and calls `increment_message_attempts`.
 - There is no time-based retry for P2P messages; queued messages are picked up by the 15 s scheduler job.
+
+### Stop button
+
+`POST /modem/stop_transmission` runs `stop_all(ctx)` ([stop_all.py](../stop_all.py)):
+
+1. `state_manager.stop_count += 1`, so a `SendMessageCommand.transmit` waiting for a free channel and a broadcast burst loop (`NormTransmissionISS.transmit_bursts`) send nothing more.
+2. The beacon is switched off (`is_beacon_running = False`).
+3. `rf_modem.audio_out_queue` is emptied, which ends whatever is on air; PTT drops when the output callback finds the queue empty.
+4. Every P2P connection is aborted (`abort_connection`, no disconnect frame) and its send and receive queues and `ctx.p2p_data_queue` are emptied.
+5. `state_manager.stop_transmission(stop_retries=1)` aborts the ARQ sessions; an ISS sends one `ARQ_STOP`.
+6. `abort_unsent_messages()` sets every `queued` and `transmitting` P2P message to `aborted`. Not `failed`: auto-repeat queues failed messages again when their station is heard, and a stopped message goes out again only on a manual retransmit.
+7. `abort_queued_broadcasts()` sets every transmit broadcast that has attempts left and has not expired to `aborted` with `attempts = MAX_ATTEMPTS`, since `get_first_queued_message` selects broadcasts by attempts and times, not status. A manual retransmit still sends it.
+
+Messages and broadcasts received meanwhile are not touched, and nothing is held: messages sent after the stop go out as usual.
 
 ### Delivery, ACK and receipts
 

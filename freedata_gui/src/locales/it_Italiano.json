@@ -133,6 +133,7 @@
             "msgstatustransmitting": "in trasmissione",
             "msgstatustransmitted": "trasmesso",
             "msgstatusfailed": "fallito",
+            "msgstatusaborted": "interrotto",
             "msgstatusqueued": "accodato"
         }
     },

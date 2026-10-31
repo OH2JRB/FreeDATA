@@ -177,13 +177,15 @@ and the session stayed in `BURST_SENT` with ARQ busy.
 thread (it does not use `launch_twr`, whose loop stops as soon as the state is `ABORTING`), so the caller
 is not held up. That thread first waits `TIMEOUT_STOP_ACK` (4.5 s), against a collision with a frame of
 the IRS, then sends the stop frame in the signalling mode (`data_fsk4_50` on FSK) and waits
-`TIMEOUT_STOP_ACK`, up to `RETRIES_STOP` (5) times, while the state stays `ABORTING`. If the state is still
+`TIMEOUT_STOP_ACK`, up to `RETRIES_STOP` (5) times (`stop_retries` if given), while the state stays `ABORTING`. If the state is still
 `ABORTING` afterwards, it calls `transmission_aborted()` anyway. The IRS answers with `ARQ_STOP_ACK` in the
 signalling mode (`data_fsk4_50` on FSK), and the ISS ends with `transmission_aborted()` (`ABORTED`,
 `setARQ(False)`).
 
-Callers: `state_manager.stop_transmission()` (the API's `POST /modem/stop_transmission`, the user's stop)
-passes `send_stop=True`. A session that sends the stop is left in the session list; it ends itself and
+Callers: `state_manager.stop_transmission()` passes `send_stop=True`. The user's Stop
+(`POST /modem/stop_transmission`, [stop_all.py](../stop_all.py)) calls it with `stop_retries=1`: one stop
+frame, since each attempt keeps the transmitter busy for about 30 s on FSK; if it is lost, the IRS ends on
+its own timeout. A session that sends the stop is left in the session list; it ends itself and
 the schedule manager removes it (section 2.5). A session that was not stoppable is ended with
 `transmission_aborted()` and removed at once, as before. Shutdown ([context.py](../context.py)) and
 [p2p_connection.py](../p2p_connection.py) abort without a stop frame.

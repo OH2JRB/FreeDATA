@@ -463,6 +463,42 @@ class DatabaseManagerMessages(DatabaseManager):
         finally:
             session.remove()
 
+    def abort_unsent_messages(self):
+        """Sets every queued or transmitting message to 'aborted' (the Stop button).
+
+        'aborted', not 'failed': set_message_to_queued_for_callsign queues a
+        failed message again once its station is heard (MESSAGES.enable_auto_repeat),
+        and a stopped message must only go out when it is retransmitted by hand.
+
+        Returns:
+            list: The IDs of the aborted messages.
+        """
+        session = self.get_thread_scoped_session()
+        try:
+            unsent = (
+                session
+                .query(P2PMessage)
+                .join(Status, P2PMessage.status_id == Status.id)
+                .filter(Status.name.in_(["queued", "transmitting"]))
+                .all()
+            )
+            aborted_status = self.get_or_create_status(session, "aborted")
+            ids = [message.id for message in unsent]
+            for message in unsent:
+                message.status_id = aborted_status.id
+            session.commit()
+        except Exception as e:
+            session.rollback()
+            self.log(f"Error aborting unsent messages: {e}", isWarning=True)
+            return []
+        finally:
+            session.remove()
+
+        for message_id in ids:
+            self.log(f"Aborted: {message_id}")
+            self.ctx.event_manager.freedata_message_db_change(message_id=message_id)
+        return ids
+
     def increment_message_attempts(self, message_id, session=None):
         """Increments the attempt count for a message.
 
