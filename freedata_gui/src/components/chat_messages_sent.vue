@@ -95,7 +95,7 @@
               v-else
               class="badge mr-2"
               :class="{
-                'text-bg-danger': message.status === 'failed',
+                'text-bg-danger': message.status === 'failed' || message.status === 'aborted',
                 'text-bg-primary': message.status === 'transmitting',
                 'text-bg-secondary': message.status === 'transmitted' || message.status === 'queued'
               }"
@@ -103,6 +103,8 @@
               {{
                 message.status === 'failed'
                   ? $t('grid.components.msgstatusfailed')
+                  : message.status === 'aborted'
+                    ? $t('grid.components.msgstatusaborted')
                   : message.status === 'transmitting'
                     ? $t('grid.components.msgstatustransmitting')
                     : message.status === 'transmitted'

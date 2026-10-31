@@ -797,7 +797,7 @@ class ARQSessionISS(arq_session.ARQSession):
             super().set_state(state)
             return True
 
-    def abort_transmission(self, send_stop=False, irs_frame=None):
+    def abort_transmission(self, send_stop=False, irs_frame=None, stop_retries=None):
         """Starts the ARQ transmission abort sequence.
 
         This method initiates the abort sequence, sets the session state to
@@ -813,6 +813,8 @@ class ARQSessionISS(arq_session.ARQSession):
         Args:
             send_stop (bool, optional): Whether to send an ARQ_STOP frame. Defaults to False.
             irs_frame (optional): The received IRS frame, if any. Defaults to None.
+            stop_retries (int, optional): How often the ARQ_STOP is sent at
+                most. Defaults to RETRIES_STOP.
 
         Returns:
             bool: True if an ARQ_STOP is being sent.
@@ -846,12 +848,12 @@ class ARQSessionISS(arq_session.ARQSession):
         self.event_frame_received.set()
 
         if send_stop:
-            self.send_stop()
+            self.send_stop(stop_retries)
         else:
             self.ctx.state_manager.setARQ(False)
         return send_stop
 
-    def send_stop(self):
+    def send_stop(self, retries=None):
         """Sends an ARQ stop frame.
 
         This method builds and sends an ARQ_STOP frame to the IRS, initiating
@@ -859,23 +861,29 @@ class ARQSessionISS(arq_session.ARQSession):
         background thread while the session is ABORTING (launch_twr can't be
         used here, as its retry loop stops as soon as the state is ABORTING),
         so the caller (the API) is not held up.
+
+        Args:
+            retries (int, optional): How often the frame is sent at most.
+                Defaults to RETRIES_STOP.
         """
         stop_frame = self.frame_factory.build_arq_stop(self.id)
-        thread_stop = threading.Thread(target=self.transmit_stop_and_wait, args=[stop_frame], daemon=True)
+        thread_stop = threading.Thread(target=self.transmit_stop_and_wait, args=[stop_frame, retries], daemon=True)
         thread_stop.start()
 
-    def transmit_stop_and_wait(self, stop_frame):
+    def transmit_stop_and_wait(self, stop_frame, retries=None):
         """Transmits an ARQ_STOP frame and retries until a stop acknowledgement arrives.
 
         Retries while the session is ABORTING. If no ARQ_STOP_ACK is received
-        within RETRIES_STOP attempts, the abort is finished anyway.
+        within the attempts, the abort is finished anyway.
 
         Args:
             stop_frame: The ARQ_STOP frame to transmit.
+            retries (int, optional): How often the frame is sent at most.
+                Defaults to RETRIES_STOP.
         """
         # wait some time for avoiding a collision with a frame of the IRS
         threading.Event().wait(self.TIMEOUT_STOP_ACK)
-        retries = self.RETRIES_STOP
+        retries = retries or self.RETRIES_STOP
         while retries > 0 and self.state is ISS_State.ABORTING:
             self.event_frame_received = threading.Event()
             mode = self.get_signalling_mode()

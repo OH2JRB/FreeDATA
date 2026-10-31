@@ -81,6 +81,8 @@ class SendMessageCommand(TxCommand):
             self.log("Modem not running...", isWarning=True)
             return
 
+        # a Stop while this waits for a free channel ends it (stop_all)
+        stop_count = self.ctx.state_manager.stop_count
         first_queued_message = DatabaseManagerMessages(self.ctx).get_first_queued_message()
         if not first_queued_message:
             self.log("No queued message in database.")
@@ -142,6 +144,10 @@ class SendMessageCommand(TxCommand):
                 self.ctx.event_manager.send_encryption_key_required(message.destination, "send")
                 return
 
+            # Stop was pressed while we waited: the message is aborted already
+            if self.ctx.state_manager.stop_count != stop_count:
+                self.log("Stopped while waiting for a free channel, not sending", isWarning=True)
+                return
             # another ARQ session may have started while we waited; the message stays queued
             if self.ctx.state_manager.getARQ():
                 self.log("Modem busy, waiting until ready...")

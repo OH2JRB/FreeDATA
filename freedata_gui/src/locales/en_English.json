@@ -142,6 +142,7 @@
             "msgstatustransmitting": "transmitting",
             "msgstatustransmitted": "transmitted",
             "msgstatusfailed": "failed",
+            "msgstatusaborted": "aborted",
             "msgstatusqueued": "queued"
         }
     },

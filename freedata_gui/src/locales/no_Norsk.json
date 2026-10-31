@@ -130,6 +130,7 @@
             "msgstatustransmitting": "transmitting",
             "msgstatustransmitted": "transmitted",
             "msgstatusfailed": "mislyktes",
+            "msgstatusaborted": "avbrutt",
             "msgstatusqueued": "i kø"
         }
     },

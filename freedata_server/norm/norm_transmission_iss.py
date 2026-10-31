@@ -175,6 +175,8 @@ class NormTransmissionISS(NormTransmission):
                 self.log("No bursts to transmit", isWarning=True)
                 return
 
+            # a Stop during the delay or between bursts ends the transmission (stop_all)
+            stop_count = self.ctx.state_manager.stop_count
             random_delay = np.random.randint(0, 6)
             self.log(f"Random delay before transmit: {random_delay}s")
             threading.Event().wait(random_delay)
@@ -183,6 +185,9 @@ class NormTransmissionISS(NormTransmission):
             self.ctx.state_manager.channel_busy_condition_codec2.wait(0.5)
 
             for i, burst in enumerate(bursts, 1):
+                if self.ctx.state_manager.stop_count != stop_count:
+                    self.log(f"Stopped before burst {i}/{len(bursts)}", isWarning=True)
+                    return
                 self.ctx.rf_modem.transmit(FREEDV_MODE.datac4, 1, 200, burst)
                 self.log(f"Transmitted burst {i}/{len(bursts)} (size={len(burst)})")
 

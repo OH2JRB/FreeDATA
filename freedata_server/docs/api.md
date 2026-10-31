@@ -146,7 +146,7 @@ Validation rewrites these to `"AA1AAA"` and `"JN48ea"`.
 | POST | `/modem/start` | none | `{"modem":"started"}` | 503 `Modem already running` | puts `"start"` on `modem_service` |
 | POST | `/modem/stop` | none | `{"modem":"stopped"}` | none (the running check is commented out) | puts `"stop"` on `modem_service` |
 | POST | `/modem/send_arq_raw` | `{"dxcall": str, "type": "raw"\|"raw_lzma"\|"raw_gzip", "data": base64 str}` | `{"data", "dxcall", "type"}` echoed back | 503 `Modem not running.`; 503 `Modem Busy.` (ARQ active); 400 `Invalid 'dxcall' parameter.` / `Invalid 'type' parameter.` / `Missing 'data' parameter.`; 500 `Failed to start ARQ raw transmission.` | `command_arq_raw.ARQRawCommand` |
-| POST | `/modem/stop_transmission` | none | `{"message":"ok"}` | none (all exceptions are swallowed) | calls `state_manager.stop_transmission()` |
+| POST | `/modem/stop_transmission` | none | `{"message":"ok"}` | 500 `Stop failed: ...` | `stop_all.stop_all(ctx)` in a worker thread: stops the beacon, P2P connections, ARQ sessions and what is on air, and sets queued and transmitting messages and broadcasts to `aborted` (see [message-system.md](message-system.md), "Stop button") |
 
 **`GET /modem/state` response.** `get_state_event(False)`, a full `state` snapshot, returned to the caller only; nothing is sent to the `/states` WebSocket clients. The GUI calls it on every (re)connect of its `/states` socket (`loadAllData`) and applies the answer with the same `stateDispatcher` that handles pushed states.
 
