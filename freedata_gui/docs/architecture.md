@@ -417,6 +417,7 @@ Callers still get `undefined` for any failure and cannot tell an HTTP error from
 | `startModem()` / `stopModem()` | POST `/modem/start` / `/modem/stop` | `{}` | Returns body |
 | `getModemState()` | GET `/modem/state` | | Returns body (callers only log it) |
 | `setRadioParametersFrequency(f)` | POST `/radio` | `{radio_frequency}` | Returns body |
+| `getRadioFrequencies()` | GET `/radio/frequencies` | | Returns body `{frequencies, source}` (frequency offcanvas presets) |
 | `setRadioParametersMode(m)` | POST `/radio` | `{radio_mode}` | Returns body |
 | `setRadioParametersRFLevel(l)` | POST `/radio` | `{radio_rf_level}` | Returns body |
 | `setRadioParametersTuner(s)` | POST `/radio` | `{radio_tuner}` | Returns body |

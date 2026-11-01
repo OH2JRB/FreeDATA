@@ -273,6 +273,10 @@ export async function getRadioStatus() {
   return await apiGet("/radio");
 }
 
+export async function getRadioFrequencies() {
+  return await apiGet("/radio/frequencies");
+}
+
 export async function getFreedataMessages() {
   chatStore.loading = true;
   try {

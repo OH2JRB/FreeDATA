@@ -7,7 +7,7 @@ import "../../node_modules/gridstack/dist/gridstack.min.css";
 import { GridStack } from "gridstack";
 import { useStateStore } from "../store/stateStore.js";
 const state = useStateStore(pinia);
-import { setRadioParametersFrequency } from "../js/api";
+import { setRadioParametersFrequency, getRadioFrequencies } from "../js/api";
 import { displayToast } from "../js/popupHandler";
 import { saveLocalSettingsToConfig, settingsStore } from "../store/settingsStore";
 
@@ -342,6 +342,21 @@ const gridWidgets = [
   //Next new widget ID should be 25
 ];
 
+// Frequency selection list, served from frequencies.json by the server
+const frequencyList = ref([]);
+
+async function loadFrequencyList() {
+  const response = await getRadioFrequencies();
+  if (response && Array.isArray(response.frequencies)) {
+    frequencyList.value = response.frequencies;
+  }
+}
+
+// Hz to MHz with at least three decimals: 7053000 -> "7.053", 14093500 -> "14.0935"
+function formatMHz(frequency) {
+  return (frequency / 1e6).toFixed(6).replace(/0{1,3}$/, "");
+}
+
 function updateFrequencyAndApply(frequency) {
   state.new_frequency = frequency;
   set_radio_parameter_frequency();
@@ -657,6 +672,8 @@ onMounted(() => {
   }
 
   setGridEditState();
+
+  loadFrequencyList();
 });
 
 function onAddWidget(event) {
@@ -1008,6 +1025,7 @@ onBeforeUnmount(() => {
     data-bs-backdrop="true"
     tabindex="-1"
     aria-labelledby="offcanvasFrequencyLabel"
+    v-on="{ 'show.bs.offcanvas': loadFrequencyList }"
   >
     <div class="offcanvas-header">
       <h5 class="offcanvas-title">
@@ -1061,125 +1079,19 @@ onBeforeUnmount(() => {
         <li class="list-group-item">
           <hr class="dropdown-divider">
         </li>
-        <!-- Dropdown Items -->
+        <!-- Dropdown Items: frequency list from the server (frequencies.json) -->
         <a
+          v-for="entry in frequencyList"
+          :key="entry.frequency"
           href="#"
           class="list-group-item list-group-item-action"
           data-bs-dismiss="offcanvas"
-          @click="updateFrequencyAndApply(50616000)"
+          @click="updateFrequencyAndApply(entry.frequency)"
         >
           <div class="d-flex w-100 justify-content-between">
-            <h5 class="mb-1">50.616 MHz</h5>
-            <small>EU / US</small>
-            <h6>6m</h6>
-          </div>
-        </a>
-        <a
-          href="#"
-          class="list-group-item list-group-item-action"
-          data-bs-dismiss="offcanvas"
-          @click="updateFrequencyAndApply(50308000)"
-        >
-          <div class="d-flex w-100 justify-content-between">
-            <h5 class="mb-1">50.308 MHz</h5>
-            <small>US</small>
-            <h6>6m</h6>
-          </div>
-        </a>
-        <a
-          href="#"
-          class="list-group-item list-group-item-action"
-          data-bs-dismiss="offcanvas"
-          @click="updateFrequencyAndApply(28093000)"
-        >
-          <div class="d-flex w-100 justify-content-between">
-            <h5 class="mb-1">28.093 MHz</h5>
-            <small>EU / US</small>
-            <h6>10m</h6>
-          </div>
-        </a>
-        <a
-          href="#"
-          class="list-group-item list-group-item-action"
-          data-bs-dismiss="offcanvas"
-          @click="updateFrequencyAndApply(27265000)"
-        >
-          <div class="d-flex w-100 justify-content-between">
-            <h5 class="mb-1">27.265 MHz</h5>
-            <small>Ch 26</small>
-            <h6>11m</h6>
-          </div>
-        </a>
-        <a
-          href="#"
-          class="list-group-item list-group-item-action"
-          data-bs-dismiss="offcanvas"
-          @click="updateFrequencyAndApply(27245000)"
-        >
-          <div class="d-flex w-100 justify-content-between">
-            <h5 class="mb-1">27.245 MHz</h5>
-            <small>Ch 25</small>
-            <h6>11m</h6>
-          </div>
-        </a>
-        <a
-          href="#"
-          class="list-group-item list-group-item-action"
-          data-bs-dismiss="offcanvas"
-          @click="updateFrequencyAndApply(24908000)"
-        >
-          <div class="d-flex w-100 justify-content-between">
-            <h5 class="mb-1">24.908 MHz</h5>
-            <small>EU / US</small>
-            <h6>12m</h6>
-          </div>
-        </a>
-        <a
-          href="#"
-          class="list-group-item list-group-item-action"
-          data-bs-dismiss="offcanvas"
-          @click="updateFrequencyAndApply(21093000)"
-        >
-          <div class="d-flex w-100 justify-content-between">
-            <h5 class="mb-1">21.093 MHz</h5>
-            <small>EU / US</small>
-            <h6>15m</h6>
-          </div>
-        </a>
-        <a
-          href="#"
-          class="list-group-item list-group-item-action"
-          data-bs-dismiss="offcanvas"
-          @click="updateFrequencyAndApply(18106000)"
-        >
-          <div class="d-flex w-100 justify-content-between">
-            <h5 class="mb-1">18.106 MHz</h5>
-            <small>EU / US</small>
-            <h6>17m</h6>
-          </div>
-        </a>
-        <a
-          href="#"
-          class="list-group-item list-group-item-action"
-          data-bs-dismiss="offcanvas"
-          @click="updateFrequencyAndApply(14093000)"
-        >
-          <div class="d-flex w-100 justify-content-between">
-            <h5 class="mb-1">14.093 MHz</h5>
-            <small>EU / US</small>
-            <h6>20m</h6>
-          </div>
-        </a>
-        <a
-          href="#"
-          class="list-group-item list-group-item-action"
-          data-bs-dismiss="offcanvas"
-          @click="updateFrequencyAndApply(7053000)"
-        >
-          <div class="d-flex w-100 justify-content-between">
-            <h5 class="mb-1">7.053 MHz</h5>
-            <small>EU / US</small>
-            <h6>40m</h6>
+            <h5 class="mb-1">{{ formatMHz(entry.frequency) }} MHz</h5>
+            <small>{{ entry.notes }}</small>
+            <h6>{{ entry.band }}</h6>
           </div>
         </a>
       </ul>

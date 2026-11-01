@@ -179,9 +179,17 @@ Layout format: `[[x, y, w, h, widgetId], ...]`.
 
 `dynamic_components.vue` also contains `#offcanvasFrequency`. It is opened by
 the Frequency widget and by the QRG button in Rig control. It has a free-text
-frequency input bound to `state.new_frequency` and a list of band presets
-(50.616, 50.308, 28.093, 27.265, 27.245, 24.908, 21.093, 18.106, 14.093,
-7.053 MHz). Both the input and the presets call
+frequency input bound to `state.new_frequency` and a list of frequency
+presets. The presets are not in the GUI: `loadFrequencyList()` fetches them
+with `getRadioFrequencies()` (GET `/radio/frequencies`) when the dashboard
+mounts and again each time the offcanvas opens (`show.bs.offcanvas`). Each
+entry `{frequency, notes, band}` is shown as "MHz, notes, band"
+(`formatMHz()`: at least three decimals). The server reads the list from
+frequencies.json next to its config file, or its shipped default
+(`freedata_server/data/frequencies.json`: 50.616, 50.308, 28.093, 27.265,
+27.245, 24.908, 21.093, 18.106, 14.093, 7.053 MHz); see the server's
+modem-audio-radio.md, "Frequency list". If the request fails the list stays
+as it was (empty on the first load). Both the input and the presets call
 `setRadioParametersFrequency()`, which sends POST `/radio`
 `{radio_frequency}`.
 

@@ -7,7 +7,7 @@ from freedata_server.service_manager import SM as ServiceManager
 from freedata_server.message_system_db_manager import DatabaseManager, dispose_engines
 from freedata_server.message_system_db_attachments import DatabaseManagerAttachments
 from freedata_server.websocket_manager import wsm as WebsocketManager
-from freedata_server import bandplan, constants
+from freedata_server import bandplan, constants, frequency_list
 from freedata_server.encryption import StationKeyStore
 from freedata_server.pskreporter import PSKReporter
 from fastapi import Request, WebSocket
@@ -65,6 +65,7 @@ class AppContext:
         self.config_manager.read()
 
         bandplan.check_bandplan()
+        frequency_list.check_frequency_list(self.config_manager.config_name)
 
         self.websocket_manager.startWorkerThreads(self)
 

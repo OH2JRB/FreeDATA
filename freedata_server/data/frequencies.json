@@ -1,0 +1,12 @@
+[
+  { "frequency": 50616000, "notes": "EU / US", "band": "6m" },
+  { "frequency": 50308000, "notes": "US", "band": "6m" },
+  { "frequency": 28093000, "notes": "EU / US", "band": "10m" },
+  { "frequency": 27265000, "notes": "Ch 26", "band": "11m" },
+  { "frequency": 27245000, "notes": "Ch 25", "band": "11m" },
+  { "frequency": 24908000, "notes": "EU / US", "band": "12m" },
+  { "frequency": 21093000, "notes": "EU / US", "band": "15m" },
+  { "frequency": 18106000, "notes": "EU / US", "band": "17m" },
+  { "frequency": 14093000, "notes": "EU / US", "band": "20m" },
+  { "frequency": 7053000, "notes": "EU / US", "band": "40m" }
+]
