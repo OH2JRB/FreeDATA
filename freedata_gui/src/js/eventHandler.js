@@ -2,6 +2,7 @@ import { toRaw } from "vue";
 import { displayToast, escapeHtml } from "./popupHandler";
 import {
   getFreedataMessages,
+  getFreedataQueue,
   getModemState,
   getRadioStatus,
   getSysInfo,
@@ -47,6 +48,8 @@ export async function loadAllData() {
   });
   audioStore.loadAudioDevices();
   serialStore.loadSerialDevices();
+  // the queue tab's badge
+  getFreedataQueue();
   console.log(audioStore.audioInputs);
   await getRadioStatus();
   getRemote();
@@ -138,6 +141,7 @@ export function eventDispatcher(data) {
 
       // getFreedataMessages() also updates the chat store
       getFreedataMessages();
+      getFreedataQueue();
       // waiting encrypted messages may have changed
       loadEncryptionStatus(chat.selectedCallsign);
       return;

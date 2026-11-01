@@ -41,6 +41,9 @@ export const useChatStore = defineStore("chatStore", () => {
   var arq_speed_list_timestamp = ref([]);
   var arq_speed_list_snr = ref([]);
 
+  // messages waiting to be sent, in sending order (GET /freedata/queue)
+  var queue = ref([]);
+
   return {
     selectedCallsign,
     newChatCallsign,
@@ -63,5 +66,6 @@ export const useChatStore = defineStore("chatStore", () => {
     scrollTrigger,
     triggerScrollToBottom,
     loading,
+    queue,
   };
 });

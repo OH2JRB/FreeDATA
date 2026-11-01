@@ -2,7 +2,7 @@
 import { computed } from 'vue';
 
 import { getOverallHealth } from '../js/eventHandler.js';
-import { getFreedataMessages, getFreedataDomains } from '../js/api';
+import { getFreedataMessages, getFreedataDomains, getFreedataQueue } from '../js/api';
 import { loadAllData } from '../js/eventHandler';
 
 import { setActivePinia } from 'pinia';
@@ -101,6 +101,26 @@ const isNetworkTraffic = computed(() => state.is_network_traffic);
         class="badge bg-danger position-absolute top-0 end-0 mt-1 me-1"
       >
         {{ chat.totalUnreadMessages }}
+      </span>
+    </a>
+
+    <a
+      id="list-queue-list"
+      class="list-group-item list-group-item-dark list-group-item-action border-0 rounded-3 mb-2"
+      data-bs-toggle="list"
+      href="#list-queue"
+      role="tab"
+      aria-controls="list-queue"
+      :title="$t('navbar.queue_help')"
+      :class="{ disabled: isNetworkDisconnected }"
+      @click="isNetworkDisconnected ? null : getFreedataQueue()"
+    >
+      <i class="bi bi-hourglass-split h3" />
+      <span
+        v-if="chat.queue.length > 0"
+        class="badge bg-secondary position-absolute top-0 end-0 mt-1 me-1"
+      >
+        {{ chat.queue.length }}
       </span>
     </a>
 

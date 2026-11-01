@@ -142,7 +142,10 @@ async def patch_freedata_message(message_id: str, payload: dict, ctx: AppContext
     if _mgr_msgs(ctx).get_message_by_id(message_id) is None:
         api_abort("Message not found", 404)
     if payload.get("action") == "retransmit":
-        update_result = _mgr_msgs(ctx).update_message(message_id, {"status": "queued"})
+        # a message moved to the end of the queue (send_last) goes back to its place
+        update_result = _mgr_msgs(ctx).update_message(
+            message_id, {"status": "queued", "priority": DatabaseManagerMessages.DEFAULT_PRIORITY}
+        )
         if not update_result or update_result.get("status") != "success":
             api_abort("Error updating message", 500)
         _mgr_msgs(ctx).increment_message_attempts(message_id)
@@ -239,6 +242,44 @@ async def delete_freedata_message(message_id: str, ctx: AppContext = Depends(get
             api_abort("Message not found", 404)
         api_abort(result.get("message", "Error deleting message"), 409)
     return api_response({"message": f"{message_id} deleted", "status": "success"})
+
+
+@router.get("/queue", summary="Get the Message Queue", tags=["FreeDATA"], responses={})
+async def get_freedata_queue(ctx: AppContext = Depends(get_ctx)):
+    """The messages waiting to be sent, in the order they go out: the one being
+    sent ('transmitting') first, then the queued ones."""
+    queue = await asyncio.to_thread(_mgr_msgs(ctx).get_queue)
+    return api_response({"total_messages": len(queue), "messages": queue})
+
+
+@router.delete("/queue/{message_id}", summary="Delete a Queued Message", tags=["FreeDATA"], responses={})
+async def delete_freedata_queued_message(message_id: str, ctx: AppContext = Depends(get_ctx)):
+    """Deletes a queued message. Refused (409) while it is being sent, including
+    while SendMessageCommand waits for a free channel to send it."""
+    if not ctx.state_manager.claim_message_transmit(message_id):
+        api_abort("Message is being sent", 409)
+    try:
+        result = await asyncio.to_thread(_mgr_msgs(ctx).delete_message, message_id, True)
+    finally:
+        ctx.state_manager.release_message_transmit(message_id)
+    if result.get("status") != "success":
+        if result.get("message") == "Message not found":
+            api_abort("Message not found", 404)
+        api_abort(result.get("message", "Error deleting message"), 409)
+    return api_response({"message": f"{message_id} deleted", "status": "success"})
+
+
+@router.patch("/queue/{message_id}", summary="Reorder a Queued Message", tags=["FreeDATA"], responses={})
+async def patch_freedata_queued_message(message_id: str, payload: dict, ctx: AppContext = Depends(get_ctx)):
+    """{"action": "send_last"} moves a queued message behind every other one."""
+    if payload.get("action") != "send_last":
+        api_abort("Invalid action", 400)
+    result = await asyncio.to_thread(_mgr_msgs(ctx).send_last, message_id)
+    if result.get("status") != "success":
+        if result.get("message") == "Message not found":
+            api_abort("Message not found", 404)
+        api_abort(result.get("message", "Error moving message"), 409)
+    return api_response({"message_id": message_id, "status": "queued", "position": "last"})
 
 
 @router.get(

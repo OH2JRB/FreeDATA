@@ -2,9 +2,14 @@ from freedata_server.message_system_db_manager import DatabaseManager
 from freedata_server.message_system_db_attachments import DatabaseManagerAttachments
 from freedata_server.message_system_db_model import Status, P2PMessage
 from freedata_server.message_system_db_station import DatabaseManagerStations
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from datetime import datetime, timedelta, timezone
 from freedata_server.exceptions import MessageStatusError
+
+
+def status_name_of(message):
+    return message.status.name if message.status else None
 
 
 class DatabaseManagerMessages(DatabaseManager):
@@ -15,6 +20,11 @@ class DatabaseManagerMessages(DatabaseManager):
     updating, deleting messages, handling attachments, and managing
     message statuses.
     """
+
+    # P2PMessage.priority of a new or retransmitted message (the model's default)
+    DEFAULT_PRIORITY = 10
+    # the order queued messages go out in: highest priority first, then oldest
+    QUEUE_ORDER = (P2PMessage.priority.desc(), P2PMessage.timestamp)
 
     def __init__(self, ctx):
         """Initializes DatabaseManagerMessages.
@@ -321,7 +331,7 @@ class DatabaseManagerMessages(DatabaseManager):
             self.log(f"Message with ID {message_id} not found.", isWarning=True)
             return None
 
-    def delete_message(self, message_id):
+    def delete_message(self, message_id, allow_queued=False):
         """Deletes a P2P message from the database.
 
         This method deletes a P2P message and its associated attachments
@@ -332,6 +342,9 @@ class DatabaseManagerMessages(DatabaseManager):
 
         Args:
             message_id (str): The ID of the message to delete.
+            allow_queued (bool): Also delete a queued message (the queue tab,
+                which claims it first so it is not being sent meanwhile). A
+                transmitting message is never deleted.
 
         Returns:
             dict: A dictionary indicating the status of the deletion
@@ -345,7 +358,7 @@ class DatabaseManagerMessages(DatabaseManager):
                 # Check the guard before touching attachments, so a refused delete keeps them.
                 # (Don't use to_dict() here: it would load the attachment links into this session.)
                 status_name = message.status.name if message.status else None
-                if status_name in ["transmitting", "queued"]:
+                if status_name == "transmitting" or (status_name == "queued" and not allow_queued):
                     raise MessageStatusError("Message is queued or transmitting")
 
                 # Delete attachment links associated with this message.
@@ -429,8 +442,8 @@ class DatabaseManagerMessages(DatabaseManager):
     def get_first_queued_message(self):
         """Retrieves the first queued P2P message from the database.
 
-        This method retrieves the oldest queued message from the database
-        based on its timestamp. It returns the message data as a
+        This method retrieves the next queued message to send: the highest
+        priority first (send_last lowers it), then the oldest by timestamp. It returns the message data as a
         dictionary if found, or None if no queued messages are found or
         an error occurs. It handles cases where the "queued" status is
         not found and logs appropriate messages.
@@ -446,9 +459,7 @@ class DatabaseManagerMessages(DatabaseManager):
             queued_status = session.query(Status).filter_by(name="queued").first()
             if queued_status:
                 # Query for the first (oldest) message with status "queued"
-                message = (
-                    session.query(P2PMessage).filter_by(status=queued_status).order_by(P2PMessage.timestamp).first()
-                )
+                message = session.query(P2PMessage).filter_by(status=queued_status).order_by(*self.QUEUE_ORDER).first()
                 if message:
                     self.log(f"Found queued message with ID {message.id}")
                     return message.to_dict()
@@ -462,6 +473,90 @@ class DatabaseManagerMessages(DatabaseManager):
             return None
         finally:
             session.remove()
+
+    def get_queue(self):
+        """Returns the messages waiting to be sent, in the order they go out.
+
+        The message being sent ('transmitting') comes first, then the 'queued'
+        ones in get_first_queued_message's order. Attachments are listed by
+        name and type only, without their data.
+
+        Returns:
+            list: One dict per message, with its 1-based 'position'.
+        """
+        session = self.get_thread_scoped_session()
+        try:
+            rows = []
+            for status_name in ("transmitting", "queued"):
+                rows += (
+                    session
+                    .query(P2PMessage)
+                    .join(Status, P2PMessage.status_id == Status.id)
+                    .filter(Status.name == status_name, P2PMessage.direction == "transmit")
+                    .order_by(*self.QUEUE_ORDER)
+                    .all()
+                )
+            return [
+                {
+                    "position": position,
+                    "id": message.id,
+                    "timestamp": message.timestamp.isoformat() if message.timestamp else None,
+                    "destination": message.destination_callsign,
+                    "body": message.body,
+                    "attachments": [
+                        {"name": link.attachment.name, "type": link.attachment.data_type}
+                        for link in message.message_attachments
+                    ],
+                    "status": status_name_of(message),
+                    "attempt": message.attempt,
+                    "priority": message.priority,
+                    "encrypted": bool(message.encrypted),
+                }
+                for position, message in enumerate(rows, 1)
+            ]
+        except Exception as e:
+            self.log(f"Error reading the message queue: {e}", isWarning=True)
+            return []
+        finally:
+            session.remove()
+
+    def send_last(self, message_id):
+        """Moves a queued message behind every other queued message.
+
+        Its priority is set below the lowest of the others, so it also goes
+        after messages queued later (those get DEFAULT_PRIORITY). A manual
+        retransmit gives it DEFAULT_PRIORITY again.
+
+        Returns:
+            dict: 'status' 'success' or 'failure' and a 'message'.
+        """
+        session = self.get_thread_scoped_session()
+        try:
+            message = session.query(P2PMessage).filter_by(id=message_id).first()
+            if not message:
+                return {"status": "failure", "message": "Message not found"}
+            if status_name_of(message) != "queued":
+                return {"status": "failure", "message": "Only a queued message can be moved"}
+            lowest = (
+                session
+                .query(func.min(P2PMessage.priority))
+                .join(Status, P2PMessage.status_id == Status.id)
+                .filter(Status.name == "queued", P2PMessage.id != message_id)
+                .scalar()
+            )
+            if lowest is not None:
+                message.priority = min(message.priority or self.DEFAULT_PRIORITY, lowest - 1)
+            session.commit()
+        except Exception as e:
+            session.rollback()
+            self.log(f"Error moving message {message_id} to the end of the queue: {e}", isWarning=True)
+            return {"status": "failure", "message": "error moving message"}
+        finally:
+            session.remove()
+
+        self.log(f"Moved to the end of the queue: {message_id}")
+        self.ctx.event_manager.freedata_message_db_change(message_id=message_id)
+        return {"status": "success", "message": f"Message {message_id} moved to the end of the queue"}
 
     def abort_unsent_messages(self):
         """Sets every queued or transmitting message to 'aborted' (the Stop button).
