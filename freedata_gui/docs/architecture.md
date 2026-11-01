@@ -208,6 +208,7 @@ Per-socket handlers:
 - **message**: `dispatcher(event.data)`.
 - **error**: `connectionFailed(endpoint, event)` sets `stateStore.modem_connection = "disconnected"` only for the control sockets (`states`, `events`). Errors on `/fft` or `/audio_rx` are logged and do not change the connection state.
 - **close**: logs the code and calls `connect(endpoint, dispatcher)` again after a fixed 1000 ms. No backoff, no cap; each socket reconnects independently.
+- **fft watchdog**: every 2 s the `/fft` socket checks when it last got data. If the modem runs (`state.is_modem_running`) and nothing came for 10 s (`FFT_STALL_MS`), it closes the socket, which reconnects it. This keeps the waterfall from staying frozen if the server stops sending to an open socket.
 
 `modem_connection` is a display value (navbar, startup check, `getOverallHealth()`). REST calls in `api.js` do not depend on it (see 7.1).
 

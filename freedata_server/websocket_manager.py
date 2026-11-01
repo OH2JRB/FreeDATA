@@ -63,10 +63,8 @@ class wsm:
                 await websocket.receive_text()
             except Exception as e:
                 self.log.warning("Client connection lost", e=e)
-                try:
-                    client_list.remove(websocket)
-                except Exception as err:
-                    self.log.error("Error removing client from list", e=e, err=err)
+                # send_to_clients may have dropped it already
+                client_list.discard(websocket)
                 break
 
     def transmit_sock_data_worker(self, client_list, event_queue):
@@ -116,14 +114,30 @@ class wsm:
         A websocket belongs to the loop that accepted it. Each send used to run
         in a new loop of its own (asyncio.run), which cost about 0.5 ms per
         message and client, several times the FFT it carried. A client whose
-        send fails or takes longer than SEND_TIMEOUT is dropped.
+        send fails or takes longer than SEND_TIMEOUT is dropped and its
+        websocket closed: a browser in the background or a sleeping computer
+        can hold up a send that long. Dropped but left open, the socket got no
+        more data and the browser never reconnected, so the waterfall froze.
         """
         for client in client_list.copy():
+            future = None
             try:
                 future = asyncio.run_coroutine_threadsafe(getattr(client, method)(payload), self.loop)
                 future.result(self.SEND_TIMEOUT)
-            except Exception:
+            except Exception as e:
                 client_list.discard(client)
+                if future is not None:
+                    future.cancel()
+                self.log.warning("Dropping websocket client", method=method, e=repr(e))
+                asyncio.run_coroutine_threadsafe(self.close_client(client), self.loop)
+
+    @staticmethod
+    async def close_client(client):
+        """Closes a dropped client's websocket, so the browser reconnects."""
+        try:
+            await client.close()
+        except Exception:
+            pass
 
     def startWorkerThreads(self, app):
         """Starts worker threads for handling WebSocket data transmission.
