@@ -4,7 +4,7 @@ import structlog
 from fastapi import APIRouter, Depends
 from freedata_server.api.common import api_response, api_abort
 from freedata_server.api.command_helpers import enqueue_tx_command
-from freedata_server import command_transmit_sine
+from freedata_server import command_transmit_sine, frequency_list
 from freedata_server.context import AppContext, get_ctx
 from freedata_server.rigctld import RadioClockError
 
@@ -218,3 +218,38 @@ async def post_radio_clock(ctx: AppContext = Depends(get_ctx)):
     except RadioClockError as err:
         api_abort(str(err), CLOCK_ERROR_STATUS.get(err.reason, 500))
     return api_response(result)
+
+
+@router.get(
+    "/frequencies",
+    summary="Get Frequency List",
+    tags=["Radio"],
+    responses={
+        200: {
+            "description": "Frequencies offered in the GUI's frequency selection, in Hz.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "frequencies": [{"frequency": 14093000, "notes": "EU / US", "band": "20m"}],
+                        "source": "user",
+                    }
+                }
+            },
+        },
+    },
+)
+async def get_radio_frequencies(ctx: AppContext = Depends(get_ctx)):
+    """
+    Return the frequency list: frequencies.json next to the config file if it
+    is there and valid, otherwise the default list shipped with the server.
+    `source` is "user", "default", or "none" if neither could be read.
+    """
+    config_file = ctx.config_manager.config_name
+    entries, path = frequency_list.load_frequency_list(config_file)
+    if path is None:
+        source = "none"
+    elif path == frequency_list.user_file(config_file):
+        source = "user"
+    else:
+        source = "default"
+    return api_response({"frequencies": entries, "source": source})

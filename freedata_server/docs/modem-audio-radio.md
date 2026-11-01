@@ -498,6 +498,17 @@ Opens `serial.Serial(RADIO.ptt_port)` with pyserial defaults; `ptt_port == "igno
 
 No hardware. Stores frequency, mode and RF level set by the caller; every `set_*`, `set_ptt` included, returns `None`, so the radio manager logs them as not supported.
 
+### Frequency list ([frequency_list.py](../frequency_list.py))
+
+The frequencies offered in the GUI's frequency selection come from a JSON file, served by `GET /radio/frequencies`, so they can be changed without rebuilding the GUI.
+
+- Default: `data/frequencies.json`, shipped with the server (found through `install_paths.data_dir()`, so it is in `<dist>/data/` in a Nuitka build).
+- User list: `frequencies.json` in the same directory as the config file (the per-user FreeDATA directory, or the directory of `FREEDATA_CONFIG`). If it is there, it replaces the default list completely. To start one, copy the default file there and edit it.
+- Format: a JSON array, one object per entry: `{"frequency": 14093000, "notes": "EU / US", "band": "20m"}`. `frequency` is in Hz and must be a positive integer; `notes` and `band` are optional strings (default `""`). The GUI shows the entries in file order, as "MHz, notes, band".
+- The file is read on every request (the GUI asks when the dashboard loads and each time the list is opened), so edits show up without restarting the server.
+- A user file that cannot be read or is not valid (bad JSON, not an array, a missing or non-integer frequency, ...) logs `[FRQ] Frequency list not valid, using the default` at warning, with the reason, and the default list is used. If the default cannot be read either, `[FRQ] Default frequency list not loaded, the list is empty` is logged at error and the list is empty.
+- At server start, `check_frequency_list()` logs which file is used (`[FRQ] Frequency list loaded`, with `path` and `entries`), preceded by `[FRQ] No user frequency list, using the default` when there is no user file.
+
 ---
 
 ## 8. Known oddities in the code
