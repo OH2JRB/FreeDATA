@@ -146,9 +146,10 @@ class radio:
           state:
 
         Returns:
-
+          None: no radio to key, like the other set_* (the radio manager
+          logs it as not supported)
         """
-        return state
+        return None
 
     def close_rig(self):
         """ """

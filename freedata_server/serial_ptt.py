@@ -12,7 +12,7 @@ class radio:
     return None.
     """
 
-    log = structlog.get_logger("radio (rigctld)")
+    log = structlog.get_logger("radio (serial_ptt)")
 
     def __init__(self, ctx):
         """Initializes the serial PTT controller.
@@ -177,20 +177,22 @@ class radio:
           state: Boolean - True to activate PTT, False to deactivate
 
         Returns:
-          state: Boolean - The new PTT state
+          bool: True if the RTS/DTR lines were set, False otherwise. The
+          other set_* return None: serial PTT cannot do them.
         """
         if self.serial_connection is None:
             self.log.warning("Error: Serial connection not established.")
-            return self.parameters["ptt"]
+            return False
 
         try:
             self.set_rts_state(state)
             self.set_dtr_state(state)
             self.parameters["ptt"] = state
+            return True
         except serial.SerialException as e:
-            self.log.warning(f"Error: {e}")
+            self.log.warning(f"Error setting PTT on {self.serial_comport}: {e}")
             self.parameters["ptt"] = False
-        return self.parameters["ptt"]
+            return False
 
     def set_rts_state(self, state):
         """

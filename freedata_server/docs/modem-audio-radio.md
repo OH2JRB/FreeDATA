@@ -420,12 +420,43 @@ Public API:
 
 | Method | Behaviour |
 |---|---|
-| `set_ptt(state)` | `radio.set_ptt(state)`; on un-key it is called **twice** "for reducing chance of stuck PTT". Then, if `SOCKET_INTERFACE.enable`, notifies the socket command client via `ctx.socket_interface_manager...socket_respond_ptt(state)` (exceptions printed). |
+| `set_ptt(state)` | `radio.set_ptt(state)`; on un-key it is called **twice** "for reducing chance of stuck PTT" (logged once: success if either call worked). Then, if `SOCKET_INTERFACE.enable`, notifies the socket command client via `ctx.socket_interface_manager...socket_respond_ptt(state)` (an exception is logged as a warning). |
 | `set_frequency`, `set_mode`, `set_rf_level`, `set_tuner` | forwards to backend and mirrors into `state_manager.set_radio(...)` |
+| `set_clock()` | rigctld only, see below |
+| `apply(action, call, **values)` | runs one backend call that changes the radio and logs it (see "Logging radio control") |
 | `update_parameters()` | every `refresh_rate` = 1 s: `radio.get_parameters()` -> `radio_frequency`, `radio_mode`, `radio_bandwidth`, `radio_rf_level`, `radio_tuner`, `s_meter_strength`; while transmitting also `radio_swr` (ALC is stored only in `self.radio_alc`) |
 | `stop()` | stops polling, `radio.disconnect()`, `radio.stop_service()` |
 
-Common backend interface: `connect`, `disconnect`, `set_ptt`, `set_frequency`, `set_mode`, `set_rf_level`, `set_tuner`, `get_parameters` (dict with `frequency`, `mode`, `alc`, `strength`, `bandwidth`, `rf`, `ptt`, `tuner`, `swr`), `stop_service`.
+Common backend interface: `connect`, `disconnect`, `set_ptt`, `set_frequency`, `set_mode`, `set_rf_level`, `set_tuner`, `get_parameters` (dict with `frequency`, `mode`, `alc`, `strength`, `bandwidth`, `rf`, `ptt`, `tuner`, `swr`), `stop_service`. The `set_*` return `True` when the radio took the change, `False` when it failed (the backend logs why) and `None` when the backend cannot do it (serial PTT for everything but PTT, the dummy radio for everything).
+
+### Logging radio control
+
+Every action that changes the radio goes through `RadioManager.apply()` and is written to the server log, so it reaches the log file (`<config dir>/freedata_server.log`, set up by `setup_logging(..., level="INFO")` in [server.py](../server.py); the file gets everything at info and above). One entry per action, with `action`, the values asked for and `control` (`RADIO.control`):
+
+| Outcome | Event | Level |
+|---|---|---|
+| The backend returned `True` (or anything but `False`/`None`) | `[RADIO] Radio control applied` | info |
+| The backend returned `False` | `[RADIO] Radio control failed` | warning |
+| The backend returned `None` | `[RADIO] Radio control not supported` | info |
+| The backend raised | `[RADIO] Radio control failed`, with `error`; the exception is raised again | error |
+
+| Action | Values | From |
+|---|---|---|
+| `set_ptt` | `ptt` | `RF` keying and un-keying around every transmission |
+| `set_frequency` | `frequency` | `POST /radio/` |
+| `set_mode` | `mode` | `POST /radio/` |
+| `set_rf_level` | `rf_level` | `POST /radio/` |
+| `set_tuner` | `tuner` | `POST /radio/` |
+| `set_clock` | `set_to`, `radio_clock`; on failure `reason`, `error` | `POST /radio/clock` |
+| `tune` | `enable` | `POST /radio/tune` (logged by the route: the tune tone is keyed by the modem, not the radio manager) |
+
+Example line in the log file:
+
+```
+2026-11-01T20:06:19.641971Z [info     ] [RADIO] Radio control applied  action=set_frequency control=rigctld frequency=14093000
+```
+
+The backends add the details of a failure: rigctld logs `rigctld did not set <what>` with the command and its reply, flrig logs `Set <what> failed` (standard `logging`, which reaches the same file), serial PTT the serial error. Reads are not logged on success. rigctld's polled reads log an error at warning the first time and when the error text changes; the same error again on the next polls goes to debug (not in the file), until a read works again (`poll_failed` / `poll_ok`). Connection attempts, rigctld service starts and stops, and the flrig connection keep their own log lines.
 
 ### Capability matrix
 
@@ -448,23 +479,24 @@ Common backend interface: `connect`, `disconnect`, `set_ptt`, `set_frequency`, `
 - `rigctld_bundle`: `start_service` finds `rigctld` via `helpers.find_binary_paths(..., search_system_wide=True)` (the bundled `lib/hamlib/bin/` of the install first, then PATH and the usual system and Hamlib folders) and launches it with `helpers.kill_and_execute(path, args)`. `format_rigctld_args()` builds args from `RADIO` config: `-m model_id`, `-r serial_port`, `-s serial_speed`, `-p ptt_port`, `-P ptt_type`, `-D serial_dcd`, `--set-conf dtr_state/rts_state/data_bits/stop_bits`, `--vfo` if `RIGCTLD.enable_vfo`, then `RIGCTLD.arguments` split on spaces. Values `"ignore"` or integer `0` are skipped (the string `"0"` is not).
 - `connect()`: up to 60 attempts (1 s apart), 2 s warm-up after connecting, then `\chk_vfo` and `v`. In bundle mode, rigctld is restarted every 10 failed attempts (5 s pause). Sets `radio_status` in state. Only one runs at a time (`connect_lock`). `disconnect()` sets `shutdown` and `stop_event`, which ends the attempts and their waits at once.
 - `get_parameters()` while not connected calls `start_connecting()`: a new connect thread, unless one is running, so the radio manager's poll loop is never held up.
+- Commands that change the radio (`set_ptt`, `set_frequency`, `set_mode`, `set_bandwidth`, `set_rf_level`, `set_tuner`) go through `send_set_command(what, command)`, which sends with `raw=True` and returns `True` only for `RPRT 0`. Any other reply (an error code, `None` on a timeout) logs a warning and the setter returns `False` without updating `parameters`.
 - `send_command()`: one command at a time (guarded by `await_response` Event, 1 s wait), sends `cmd\n`, one `recv(1024)`. Responses containing `RPRT` or `None` become `None`. Socket timeout/errors mark the backend disconnected; the next `get_parameters()` starts reconnecting in the background. When not connected it returns `""`.
 - VFO: if `\chk_vfo` returned `1`, `insert_vfo()` inserts the current VFO after the command letter (e.g. `F VFOA 14074000`).
 - PTT modes (`PTTMode`): `RX=0`, `TX=1`, `TX_MIC=2`, `TX_DATA=3`; `RADIO.ptt_mode` names the key mode, falling back to `TX` if invalid. Un-key always sends `T 0`. An error while keying (an `OSError` from the socket) marks rigctld disconnected; a valid mode used to do that too, through a logging bug (`'int' object has no attribute 'name'`).
-- `get_parameters()` reads VFO, frequency, mode+bandwidth, ALC, strength, RF power (x100 as %), tuner, SWR. Failed reads set the field to `"err"`.
+- `get_parameters()` reads VFO, frequency, mode+bandwidth, ALC, strength, RF power (x100 as %), tuner, SWR. Failed reads set the field to `"err"`; a read that raises is logged through `poll_failed` (once per error, see "Logging radio control").
 - `set_clock(now=None)` (only from `POST /radio/clock`): sends `\set_clock YYYY-MM-DDTHH:MM:SS+HHMM` with the server's local time and UTC offset (`clock_string`; Hamlib reads the offset as one number, `+0200` -> 200), then `\get_clock` to read the radio's clock back. It uses `send_command(..., raw=True)`, which returns the reply with its `RPRT` line instead of `None`, to tell `RPRT 0` from an error. `RPRT -11` (Hamlib's feature not available: the radio's backend has no clock, as on most non-Icom radios) raises `RadioClockError("not_supported")`, other replies `"failed"`, a disconnected radio `"not_connected"`. `RadioManager.set_clock()` raises `"unsupported_backend"` for flrig, serial PTT and the dummy radio. Seconds may be dropped by radios that keep only hours and minutes.
 
 ### flrig ([flrig.py](../flrig.py))
 
-XML-RPC via `xmlrpc.client.ServerProxy("http://FLRIG.ip:FLRIG.port")`. Starts its own poll thread in `__init__` (1 s): connects if needed, then reads frequency, mode, RF, PTT, SWR and S-meter. `connect()` asks flrig for `main.get_version`, so it reports connected only when flrig answers; a failed connect is logged once until the next success. Any polling exception marks it disconnected and the next loop reconnects. `stop_service()` / `close_rig()` stops and joins the thread. Uses standard `logging` instead of `structlog`.
+XML-RPC via `xmlrpc.client.ServerProxy("http://FLRIG.ip:FLRIG.port")`. Starts its own poll thread in `__init__` (1 s): connects if needed, then reads frequency, mode, RF, PTT, SWR and S-meter. `connect()` asks flrig for `main.get_version`, so it reports connected only when flrig answers; a failed connect is logged once until the next success. Any polling exception marks it disconnected and the next loop reconnects. The `set_*` return `True` once the XML-RPC call returned, `False` when not connected or the call raised. `stop_service()` / `close_rig()` stops and joins the thread. Uses standard `logging` instead of `structlog`.
 
 ### Serial PTT ([serial_ptt.py](../serial_ptt.py))
 
-Opens `serial.Serial(RADIO.ptt_port)` with pyserial defaults; `ptt_port == "ignore"` means no port. PTT drives **both** RTS and DTR: when `RADIO.serial_rts` / `RADIO.serial_dtr` is `"ON"` the line follows the PTT state, otherwise it is inverted. PTT is released on init. Frequency/mode/etc. are no-ops; `get_parameters()` returns placeholders. `radio_status` reflects whether the port opened.
+Opens `serial.Serial(RADIO.ptt_port)` with pyserial defaults; `ptt_port == "ignore"` means no port. PTT drives **both** RTS and DTR: when `RADIO.serial_rts` / `RADIO.serial_dtr` is `"ON"` the line follows the PTT state, otherwise it is inverted. PTT is released on init. `set_ptt` returns `True` when the lines were set, `False` with no port or a serial error. Frequency/mode/etc. are no-ops returning `None`; `get_parameters()` returns placeholders. `radio_status` reflects whether the port opened.
 
 ### Dummy ([rigdummy.py](../rigdummy.py))
 
-No hardware. Stores frequency, mode and RF level set by the caller, `set_ptt` returns the state, everything else is a no-op.
+No hardware. Stores frequency, mode and RF level set by the caller; every `set_*`, `set_ptt` included, returns `None`, so the radio manager logs them as not supported.
 
 ---
 

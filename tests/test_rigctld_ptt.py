@@ -17,7 +17,7 @@ def make_radio(ptt_mode):
     radio.ptt_mode = ptt_mode
     radio.parameters = {"chk_vfo": False, "vfo": None, "ptt": False}
     radio.log = mock.Mock()
-    radio.send_command = mock.Mock()
+    radio.send_command = mock.Mock(return_value="RPRT 0")
     return radio
 
 
@@ -27,7 +27,7 @@ class TestRigctldPtt(unittest.TestCase):
             with self.subTest(ptt_mode=name):
                 radio = make_radio(name)
                 self.assertTrue(radio.set_ptt(True))
-                radio.send_command.assert_called_once_with(f"T {value}")
+                radio.send_command.assert_called_once_with(f"T {value}", raw=True)
                 self.assertTrue(radio.connected)
                 self.assertTrue(radio.parameters["ptt"])
                 radio.log.warning.assert_not_called()
@@ -35,14 +35,14 @@ class TestRigctldPtt(unittest.TestCase):
     def test_unkey(self):
         radio = make_radio("TX_DATA")
         self.assertTrue(radio.set_ptt(False))
-        radio.send_command.assert_called_once_with("T 0")
+        radio.send_command.assert_called_once_with("T 0", raw=True)
         self.assertTrue(radio.connected)
         self.assertFalse(radio.parameters["ptt"])
 
     def test_invalid_mode_falls_back_to_tx(self):
         radio = make_radio("NOT_A_MODE")
         self.assertTrue(radio.set_ptt(True))
-        radio.send_command.assert_called_once_with("T 1")
+        radio.send_command.assert_called_once_with("T 1", raw=True)
         self.assertTrue(radio.connected)
 
     def test_command_error_still_disconnects(self):
@@ -50,6 +50,13 @@ class TestRigctldPtt(unittest.TestCase):
         radio.send_command.side_effect = OSError("broken pipe")
         self.assertFalse(radio.set_ptt(True))
         self.assertFalse(radio.connected)
+
+    def test_rigctld_error_reply(self):
+        radio = make_radio("TX")
+        radio.send_command.return_value = "RPRT -1"
+        self.assertFalse(radio.set_ptt(True))
+        self.assertFalse(radio.parameters["ptt"])
+        radio.log.warning.assert_called_once()
 
     def test_not_connected(self):
         radio = make_radio("TX")

@@ -1,5 +1,6 @@
 import asyncio
 
+import structlog
 from fastapi import APIRouter, Depends
 from freedata_server.api.common import api_response, api_abort
 from freedata_server.api.command_helpers import enqueue_tx_command
@@ -8,6 +9,7 @@ from freedata_server.context import AppContext, get_ctx
 from freedata_server.rigctld import RadioClockError
 
 router = APIRouter()
+log = structlog.get_logger("api (radio)")
 
 
 @router.get(
@@ -149,11 +151,14 @@ async def post_radio_tune(
     enable = params.get("enable_tuning")
     if enable:
         if not ctx.state_manager.is_modem_running:
+            log.warning("[RADIO] Radio control failed", action="tune", enable=True, error="Modem not running")
             api_abort("Modem not running", 503)
         if not await enqueue_tx_command(ctx, command_transmit_sine.TransmitSine):
+            log.warning("[RADIO] Radio control failed", action="tune", enable=True, error="Failed to start tuning tone")
             api_abort("Failed to start tuning tone.", 500)
     else:
         ctx.rf_modem.stop_sine()
+    log.info("[RADIO] Radio control applied", action="tune", enable=bool(enable))
     return api_response(params)
 
 

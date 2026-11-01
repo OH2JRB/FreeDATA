@@ -53,6 +53,7 @@ A full run takes about a minute. Both commands exit non-zero when a test fails.
 | `test_rigctld_connect.py` | rigctld connects in a background thread: creating the radio and polling it while not connected return at once, `disconnect()` ends the attempts, one connect at a time, connecting to a fake rigctld | no (mock context, local sockets) |
 | `test_rigctld_ptt.py` | rigctld `set_ptt`: each `RADIO.ptt_mode` sends its `T` value and leaves rigctld connected, un-key sends `T 0`, an invalid mode falls back to `TX`, a socket error disconnects | no (mocked command channel) |
 | `test_radio_clock.py` | Setting the radio clock: Hamlib's time format with positive, negative, zero and half-hour offsets, the `RPRT` codes, `send_command(raw=True)`, the read-back, a radio without a clock, other backends, and `POST /radio/clock`'s status codes | no (mocked rigctld) |
+| `test_radio_control_logging.py` | Radio control actions reach the log: `RadioManager.apply` at info/warning/error per outcome, un-key sent twice and logged once, the clock and tune actions, rigctld's `RPRT` check in every setter, poll errors logged once, flrig and serial PTT return values, and the entries landing in the log file set up by `setup_logging` (subprocess) | no (mocked backends) |
 | `test_codec2_load.py` | libcodec2 that does not load, or is not found, stops the import with exit code 3 and the reason on stderr; a normal import works (each case in a new Python process) | no |
 | `test_protocol_version_frames.py` | `CQ`, `QRV`, `BEACON` and `PING` carry the sender's protocol version in their former padding; an older station's frame reads `0`, an older decoder ignores the byte; `sender_protocol_version()` per frame type and on the received activity | no (mock context) |
 | `test_websocket_send.py` | The WebSocket workers send on the server's event loop (a loop thread stands in), drop a failing client, send JSON and audio bytes, and do not serialize when no client is connected | no (fake clients) |
@@ -136,4 +137,4 @@ an ARQ transfer shows up as `{"arq-transfer-outbound": {...}}` on the ISS and
 
 ## 6. Gaps
 
-- The socket interface and radio backends are only partly covered (the TCP data port target, rigctld connecting, flrig connecting and polling); serial PTT and the command port have no tests, and the REST endpoints are tested only for `/`, `/config` and a few handlers called directly (`test_api_fixes.py`).
+- The socket interface and radio backends are only partly covered (the TCP data port target, rigctld connecting, flrig connecting and polling, the set commands' results and logging); the command port has no tests, and the REST endpoints are tested only for `/`, `/config` and a few handlers called directly (`test_api_fixes.py`).
