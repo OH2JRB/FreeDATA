@@ -68,6 +68,8 @@ class radio:
         self.connect_thread = None
         self.await_response = threading.Event()
         self.await_response.set()
+        # the last error per polled value (poll_failed)
+        self.poll_errors = {}
 
         self.parameters = {
             "frequency": "---",
@@ -334,8 +336,37 @@ class radio:
 
         readback = self.send_command("\\get_clock", raw=True)
         radio_clock = readback if readback and "RPRT" not in readback else None
-        self.log.info("[RIGCTLD] Radio clock set", set_to=time_string, radio_clock=radio_clock)
+        # the radio manager logs the change at info
+        self.log.debug("[RIGCTLD] Radio clock set", set_to=time_string, radio_clock=radio_clock)
         return {"set_to": time_string, "radio_clock": radio_clock}
+
+    def send_set_command(self, what, command):
+        """Sends a command that changes the radio and checks rigctld's reply,
+        which is "RPRT 0" when the radio took it.
+
+        Returns:
+            bool: True if rigctld reported success. A failure is logged here,
+            with the command and the reply.
+        """
+        reply = self.send_command(command, raw=True)
+        if self.rprt_code(reply) == 0:
+            return True
+        self.log.warning(f"[RIGCTLD] rigctld did not set {what}", command=command, reply=reply)
+        return False
+
+    def poll_failed(self, what, err):
+        """Logs a failed read once: the radio manager polls every second, so
+        the same error again goes to debug, until the read works again."""
+        message = str(err)
+        if self.poll_errors.get(what) == message:
+            self.log.debug(f"[RIGCTLD] Error getting {what}: {message}")
+            return
+        self.poll_errors[what] = message
+        self.log.warning(f"[RIGCTLD] Error getting {what}: {message}")
+
+    def poll_ok(self, what):
+        """A read worked: the next error for it is logged again."""
+        self.poll_errors.pop(what, None)
 
     def insert_vfo(self, command):
         """Inserts the VFO into rigctld commands if supported.
@@ -378,12 +409,14 @@ class radio:
                 ptt_mode = PTTMode.RX
 
             command = self.insert_vfo(f"T {int(ptt_mode)}")
-            self.send_command(command)
+            if not self.send_set_command("PTT", command):
+                return False
 
             # Parameter-Update
             self.parameters["ptt"] = ptt_mode in (PTTMode.TX, PTTMode.TX_MIC, PTTMode.TX_DATA)
 
-            self.log.info(f"[RIGCTLD] Setting PTT: {ptt_mode.name} ({int(ptt_mode)})")
+            # the radio manager logs the change at info
+            self.log.debug(f"[RIGCTLD] Setting PTT: {ptt_mode.name} ({int(ptt_mode)})")
             return True
         except Exception as err:
             self.log.warning(f"[RIGCTLD] Error setting PTT: {err}")
@@ -404,7 +437,8 @@ class radio:
                 command = f"M {mode} 0"
                 command = self.insert_vfo(command)
 
-                self.send_command(command)
+                if not self.send_set_command("mode", command):
+                    return False
                 self.parameters["mode"] = mode
                 return True
             except Exception as err:
@@ -425,7 +459,8 @@ class radio:
             try:
                 command = f"F {frequency}"
                 command = self.insert_vfo(command)
-                self.send_command(command)
+                if not self.send_set_command("frequency", command):
+                    return False
                 self.parameters["frequency"] = frequency
                 return True
             except Exception as err:
@@ -446,7 +481,8 @@ class radio:
             try:
                 command = f"M {self.parameters['mode']} {bandwidth}"
                 command = self.insert_vfo(command)
-                self.send_command(command)
+                if not self.send_set_command("bandwidth", command):
+                    return False
                 self.parameters["bandwidth"] = bandwidth
                 return True
             except Exception as err:
@@ -467,7 +503,8 @@ class radio:
             try:
                 command = f"L RFPOWER {rf / 100}"  # RF RFPOWER --> RFPOWER == IC705
                 command = self.insert_vfo(command)
-                self.send_command(command)
+                if not self.send_set_command("RF level", command):
+                    return False
                 self.parameters["rf"] = rf
                 return True
             except Exception as err:
@@ -492,7 +529,8 @@ class radio:
                     command = "U TUNER 0"
 
                 command = self.insert_vfo(command)
-                self.send_command(command)
+                if not self.send_set_command("tuner", command):
+                    return False
 
                 self.parameters["tuner"] = state  # Update PTT state in parameters
                 return True
@@ -517,9 +555,10 @@ class radio:
 
                 state = result not in [None, ""] and int(result) == 1
                 self.parameters["tuner"] = state
+                self.poll_ok("TUNER state")
                 return True
             except Exception as err:
-                self.log.warning(f"[RIGCTLD] Error getting TUNER state: {err}")
+                self.poll_failed("TUNER state", err)
                 self.get_vfo()
 
         return False
@@ -595,9 +634,10 @@ class radio:
 
             else:
                 self.parameters["vfo"] = False
+            self.poll_ok("vfo")
 
         except Exception as e:
-            self.log.warning(f"Error getting vfo: {e}")
+            self.poll_failed("vfo", e)
             self.parameters["vfo"] = "err"
 
     def get_frequency(self):
@@ -616,9 +656,10 @@ class radio:
                 self.parameters["frequency"] = int(frequency_response)
             else:
                 self.parameters["frequency"] = "err"
+            self.poll_ok("frequency")
 
         except Exception as e:
-            self.log.warning(f"Error getting frequency: {e}")
+            self.poll_failed("frequency", e)
             self.parameters["frequency"] = "err"
 
     def get_mode_bandwidth(self):
@@ -643,11 +684,12 @@ class radio:
             else:
                 self.parameters["mode"] = "err"
                 self.parameters["bandwidth"] = "err"
+            self.poll_ok("mode and bandwidth")
         except ValueError:
             self.parameters["mode"] = "err"
             self.parameters["bandwidth"] = "err"
         except Exception as e:
-            self.log.warning(f"Error getting mode and bandwidth: {e}")
+            self.poll_failed("mode and bandwidth", e)
             self.parameters["mode"] = "err"
             self.parameters["bandwidth"] = "err"
 
@@ -667,9 +709,10 @@ class radio:
                 self.parameters["alc"] = float(alc_response)
             else:
                 self.parameters["alc"] = "err"
+            self.poll_ok("ALC")
 
         except Exception as e:
-            self.log.warning(f"Error getting ALC: {e}")
+            self.poll_failed("ALC", e)
             self.parameters["alc"] = "err"
             self.get_vfo()
 
@@ -689,8 +732,9 @@ class radio:
                 self.parameters["strength"] = int(strength_response)
             else:
                 self.parameters["strength"] = "err"
+            self.poll_ok("strength")
         except Exception as e:
-            self.log.warning(f"Error getting strength: {e}")
+            self.poll_failed("strength", e)
             self.parameters["strength"] = "err"
             self.get_vfo()
 
@@ -711,10 +755,11 @@ class radio:
                 self.parameters["rf"] = int(float(rf_response) * 100)
             else:
                 self.parameters["rf"] = "err"
+            self.poll_ok("RF power")
         except ValueError:
             self.parameters["rf"] = "err"
         except Exception as e:
-            self.log.warning(f"Error getting RF power: {e}")
+            self.poll_failed("RF power", e)
             self.parameters["rf"] = "err"
             self.get_vfo()
 
@@ -734,10 +779,11 @@ class radio:
                 self.parameters["swr"] = rf_response
             else:
                 self.parameters["swr"] = "err"
+            self.poll_ok("SWR")
         except ValueError:
             self.parameters["swr"] = "err"
         except Exception as e:
-            self.log.warning(f"Error getting SWR: {e}")
+            self.poll_failed("SWR", e)
             self.parameters["swr"] = "err"
             self.get_vfo()
 

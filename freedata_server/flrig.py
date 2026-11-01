@@ -90,15 +90,19 @@ class radio:
         self.parameters["rf"] = round(power_percentage, 0)
         return self.parameters["rf"]
 
+    # the set_* return True when flrig took the change, False when not
+    # connected or it failed: the radio manager logs the outcome
+
     def set_frequency(self, frequency):
         self.parameters["frequency"] = frequency
         if self.connected:
             try:
                 self.server.main.set_frequency(float(frequency))
-
+                return True
             except Exception as e:
                 self.logger.error(f"Set frequency failed: {e}")
                 self.connected = False
+        return False
 
     def get_mode(self):
         self.parameters["mode"] = self.server.rig.get_mode()
@@ -109,9 +113,11 @@ class radio:
         if self.connected:
             try:
                 self.server.rig.set_mode(mode)
+                return True
             except Exception as e:
                 self.logger.error(f"Set mode failed: {e}")
                 self.connected = False
+        return False
 
     def get_level(self):
         self.parameters["strength"] = self.server.rig.get_smeter()
@@ -129,10 +135,11 @@ class radio:
         if self.connected:
             try:
                 self.server.rig.set_bandwidth(int(bandwidth))
-
+                return True
             except Exception as e:
                 self.logger.error(f"Set bandwidth failed: {e}")
                 self.connected = False
+        return False
 
     def set_rf_level(self, rf):
         if self.connected:
@@ -145,10 +152,11 @@ class radio:
 
                 # Set power level in watts
                 self.server.rig.set_power(power_watts)
-
+                return True
             except Exception as e:
                 self.logger.error(f"Set RF level failed: {e}")
                 self.connected = False
+        return False
 
     def get_strength(self):
         return self.parameters["strength"]
@@ -161,9 +169,10 @@ class radio:
         if self.connected:
             try:
                 self.server.rig.tune(state)
+                return True
             except Exception as e:
                 self.logger.error(f"Set Tune failed: {e}")
-        return state
+        return False
 
     def get_swr(self):
         self.parameters["swr"] = self.server.rig.get_swrmeter()
@@ -178,9 +187,10 @@ class radio:
         if self.connected:
             try:
                 _result = self.server.rig.set_ptt(1) if state else self.server.rig.set_ptt(0)
+                return True
             except Exception as e:
                 self.logger.error(f"Set PTT failed: {e}")
-        return state
+        return False
 
     def get_status(self):
         return self.connected
