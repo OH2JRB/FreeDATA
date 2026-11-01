@@ -59,7 +59,8 @@
         "settings_help": "Settings",
         "station": "Station",
         "station_help": "Set station info",
-	"broadcast_help": "Broadcast"
+	"broadcast_help": "Broadcast",
+        "queue_help": "Message queue"
     },
     "grid": {
         "frequencydescription": "Commonly used frequencies are listed here, and are all USB. Simply click on an entry or manually enter a frequency in the textbox to tune your rig if rig control is enabled.",
@@ -206,6 +207,26 @@
         "revision": "Revision",
 	"startnewbroadcast": "Start new broadcast",
  	"deletebroadcastdomain": "Delete broadcast domain"
+    },
+    "queue": {
+        "title": "Message queue",
+        "description": "Messages waiting to be sent, in the order they go out.",
+        "empty": "No messages waiting to be sent.",
+        "refresh": "Refresh",
+        "position": "#",
+        "to": "To",
+        "message": "Message",
+        "queued": "Created",
+        "attempt": "Attempt",
+        "status": "Status",
+        "actions": "Actions",
+        "sendlast": "Send last",
+        "sendlast_help": "Send this message after all other waiting messages",
+        "delete": "Delete",
+        "delete_help": "Delete this message without sending it",
+        "deleteconfirm": "Delete this message to {{destination}}? It will not be sent.",
+        "transmitting": "sending",
+        "queuedstatus": "queued"
     },
     "chat": {
         "startnewchat": "Start a new chat",

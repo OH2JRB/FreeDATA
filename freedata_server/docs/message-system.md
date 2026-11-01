@@ -337,7 +337,7 @@ stateDiagram-v2
 ### Transmission (`SendMessageCommand.transmit`)
 
 1. Return early if an ARQ session is active (`state_manager.getARQ()`) or `ctx.rf_modem` is not set.
-2. `get_first_queued_message()` - oldest `queued` message by `timestamp`.
+2. `get_first_queued_message()` - the next `queued` message in `QUEUE_ORDER`: highest `priority` first, then oldest `timestamp`. Every message has priority 10 unless it was moved with send last.
 3. Reload it with `get_message_by_id` and rebuild a `MessageP2P` with `from_api_params(message_dict["origin"], message_dict)` (keeps the stored `id`).
 4. Collision avoidance: wait a random 0-9 s, wait while a codec2 signal is being received, then observe the channel for 10 s; if any codec2 signal appears, return and leave the message `queued`.
 5. Set status `transmitting`.
@@ -361,6 +361,13 @@ When the scheduler constructs `SendMessageCommand` with an existing queued messa
 - **Auto-repeat**: `FrameHandler.check_for_queued_message()` ([frame_handler.py](../frame_handler.py)) is called by the beacon, CQ and ping frame handlers. If `MESSAGES.enable_auto_repeat` is on and the frame SNR >= -2, it calls `set_message_to_queued_for_callsign(origin)`: the **first** `failed` message to that destination with `attempt < 10` gets `attempt += 1` and status `queued`.
 - **Manual**: `PATCH /messages/{id}` with `{"action": "retransmit"}` checks the message exists (404 otherwise), sets status `queued` and calls `increment_message_attempts`.
 - There is no time-based retry for P2P messages; queued messages are picked up by the 15 s scheduler job.
+
+### Message queue tab
+
+The GUI's queue tab ([queue_screen.vue](../../freedata_gui/src/components/queue_screen.vue)) shows `get_queue()`: the `transmitting` message, then the `queued` ones in `QUEUE_ORDER`.
+
+- **Send last** (`send_last`): sets the message's `priority` one below the lowest of the other queued messages, so it goes after all of them, also after messages queued later (those get priority 10). A manual retransmit sets priority 10 again.
+- **Delete** (`DELETE /freedata/queue/{id}`): claims the message with `state_manager.claim_message_transmit` first, as `SendMessageCommand.transmit` does, then `delete_message(id, allow_queued=True)`. While the message is claimed (being prepared or waiting for a free channel) or `transmitting`, the delete is refused. The chat's own delete still refuses queued messages.
 
 ### Stop button
 

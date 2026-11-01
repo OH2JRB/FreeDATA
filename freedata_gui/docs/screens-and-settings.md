@@ -37,6 +37,7 @@ There is no `vue-router` (not in `package.json`, not imported anywhere in `src/`
 | Left column | `main_left_navbar` | Health button + tab list |
 | Tab pane `#list-grid` (default active) | `dynamic_components.vue` | Home / grid dashboard |
 | Tab pane `#list-chat` | `chat_screen.vue` | P2P chat |
+| Tab pane `#list-queue` | `queue_screen.vue` | Message queue: messages waiting to be sent |
 | Tab pane `#list-broadcasts` | `broadcasts_screen.vue` | Broadcast / group chat |
 | Tab pane `#list-settings` | `settings_screen.vue` | Settings |
 | Bottom | `main_footer_navbar` | Status indicators and progress bar |
@@ -53,6 +54,7 @@ graph TD
   Main --> Left[main_left_navbar.vue]
   Main --> Grid[dynamic_components.vue  #list-grid]
   Main --> Chat[chat_screen.vue  #list-chat]
+  Main --> Queue[queue_screen.vue  #list-queue]
   Main --> Bc[broadcasts_screen.vue  #list-broadcasts]
   Main --> Set[settings_screen.vue  #list-settings]
   Main --> Foot[main_footer_navbar.vue]
@@ -76,11 +78,23 @@ graph TD
 | Health button (`bi-activity`, or spinner) | opens modal `#modemCheck` | - | always |
 | Home (`bi-columns-gap`) | `#list-grid` | `loadAllData()` (via list click handler) | disabled if `state.modem_connection !== "connected"` |
 | Chat (`bi-chat-text`) + unread badge | `#list-chat` | `getFreedataMessages()` + `loadAllData()` | same |
+| Message queue (`bi-hourglass-split`) + badge with the number of waiting messages | `#list-queue` | `getFreedataQueue()` + `loadAllData()` | disabled when disconnected |
 | Broadcasts (`bi-broadcast`) + unread badge | `#list-broadcasts` | `getFreedataDomains()` + `loadAllData()` | only rendered if `settings.remote.EXP.enable_groupchat` |
 | Settings (`bi-gear-wide-connected`) | `#list-settings` | `loadAllData()` (via list click handler only) | disabled when disconnected |
 | Station button (`bi-person-circle`, bottom) | `#stationInfoModal` | - | hard-coded `disabled` |
 
 The whole `#main-list-tab` container has `@click="loadAllData()"` (when connected), so **any** click on a nav item reloads modem state, sysinfo, audio/serial device lists, radio status, the remote config, messages and broadcast domains ([eventHandler.js](../src/js/eventHandler.js) `loadAllData`).
+
+### Message queue screen ([queue_screen.vue](../src/components/queue_screen.vue))
+
+A table of `chatStore.queue` (`GET /freedata/queue`, loaded by `loadAllData`, on opening the tab, by the
+Refresh button and on every `message-db` `changed` event): position, destination (with a lock if
+encrypted), the body as plain text cut at 80 characters, attachment names, creation time (UTC), attempt and
+status. The message being sent comes first and has no buttons. A queued message has:
+
+- **Send last**: `PATCH /freedata/queue/{id}` `{"action": "send_last"}`; disabled on the last row.
+- **Delete**: asks for confirmation, then `DELETE /freedata/queue/{id}`. The server refuses (409, shown as
+  an error toast) while the message is being sent.
 
 ### Settings screen ([settings_screen.vue](../src/components/settings_screen.vue))
 

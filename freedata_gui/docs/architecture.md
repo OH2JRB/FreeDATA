@@ -429,6 +429,9 @@ Callers still get `undefined` for any failure and cannot tell an HTTP error from
 | `retransmitFreedataMessage(id)` | PATCH `/freedata/messages/{id}` | `{action: "retransmit"}` | Returns body |
 | `setFreedataMessageAsRead(id)` | PATCH `/freedata/messages/{id}` | `{is_read: true}` | Returns body |
 | `deleteFreedataMessage(id)` | DELETE `/freedata/messages/{id}` | `{}` | Returns body |
+| `getFreedataQueue()` | GET `/freedata/queue` | - | Sets `chatStore.queue` to `messages` |
+| `deleteFreedataQueuedMessage(id)` | DELETE `/freedata/queue/{id}` | `{}` | Returns body |
+| `sendFreedataQueuedMessageLast(id)` | PATCH `/freedata/queue/{id}` | `{action: "send_last"}` | Returns body |
 | `getBeaconDataByCallsign(c)` | GET `/freedata/beacons/{c}` | | Returns list |
 | `getStationInfo(c)` | GET `/freedata/station/{c}` | | Returns body |
 | `setStationInfo(c, info)` | POST `/freedata/station/{c}` | the whole `stationInfo` object (`{callsign, location, info}`) | Returns body |

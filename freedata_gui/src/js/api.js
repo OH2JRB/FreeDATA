@@ -287,6 +287,21 @@ export async function getFreedataMessages() {
   }
 }
 
+export async function getFreedataQueue() {
+  const res = await apiGet("/freedata/queue");
+  if (res) {
+    chatStore.queue = res.messages;
+  }
+}
+
+export async function deleteFreedataQueuedMessage(id) {
+  return await apiDelete(`/freedata/queue/${id}`);
+}
+
+export async function sendFreedataQueuedMessageLast(id) {
+  return await apiPatch(`/freedata/queue/${id}`, { action: "send_last" });
+}
+
 export async function getFreedataMessageById(id) {
   let res = await apiGet(`/freedata/messages/${id}`);
   return res;
