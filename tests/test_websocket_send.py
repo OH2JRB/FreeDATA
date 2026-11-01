@@ -18,16 +18,23 @@ from freedata_server import websocket_manager
 class FakeClient:
     """A websocket that records what it is sent and on which event loop."""
 
-    def __init__(self, fail=False):
+    def __init__(self, fail=False, hang=False):
         self.fail = fail
+        self.hang = hang
         self.sent = []
         self.loops = []
+        self.closed = threading.Event()
 
     async def send_text(self, text):
         self.loops.append(asyncio.get_running_loop())
         if self.fail:
             raise ConnectionError("client gone")
+        if self.hang:
+            await asyncio.sleep(60)
         self.sent.append(text)
+
+    async def close(self):
+        self.closed.set()
 
     async def send_bytes(self, data):
         self.loops.append(asyncio.get_running_loop())
@@ -75,6 +82,19 @@ class TestWebsocketSend(unittest.TestCase):
         self.manager.send_to_clients(clients, "send_text", "hello")
         self.assertEqual(clients, {good})
         self.assertEqual(good.sent, ["hello"])
+        # closed, so the browser reconnects instead of waiting for data forever
+        self.assertTrue(bad.closed.wait(2))
+        self.assertFalse(good.closed.is_set())
+
+    def test_slow_client_dropped_and_closed(self):
+        # a background tab or a sleeping computer holds up the send
+        self.manager.SEND_TIMEOUT = 0.1
+        good, slow = FakeClient(), FakeClient(hang=True)
+        clients = {good, slow}
+        self.manager.send_to_clients(clients, "send_text", "hello")
+        self.assertEqual(clients, {good})
+        self.assertTrue(slow.closed.wait(2))
+        self.assertEqual(slow.sent, [])
 
     def test_data_worker_sends_json(self):
         client = FakeClient()
