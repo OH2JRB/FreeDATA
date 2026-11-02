@@ -79,6 +79,9 @@ where = [ "." ]
 include = [
     "freedata_server*",
     "freedata_gui",
+    # the built GUI: setuptools treats its folders as packages
+    "freedata_gui.dist",
+    "freedata_gui.dist.*",
 ]
 
 [tool.setuptools.package-data]
