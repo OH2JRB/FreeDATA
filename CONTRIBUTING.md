@@ -47,6 +47,7 @@ install`. The GUI's scripts, run inside `./freedata_gui`:
   `freedata_gui/dist`, which the server serves at `/gui`
 - `npm run preview` serves the built GUI for a last check
 - `npm run lint` runs ESLint, as the GUI CI does
+- `npm run sbom` writes the GUI's SBOM to `freedata-gui.cdx.json` (see below)
 
 ## Third-party licenses
 
@@ -66,6 +67,25 @@ python tools/third_party_licenses.py
 
 The texts of the native libraries live in `tools/licenses/`; add one there
 (and an entry in the script) when bundling a new library.
+
+## SBOM
+
+A software bill of materials (SBOM) lists every component a build contains,
+with versions; the EU Cyber Resilience Act asks for one. FreeDATA's are made
+in the CycloneDX format, with CycloneDX's own tools (`pip install .[dev]` and
+`npm install` in `freedata_gui` install them):
+
+- GUI: `npm run sbom` inside `./freedata_gui` writes `freedata-gui.cdx.json`
+  with the packages the built GUI contains (dev dependencies left out).
+- Server: list the Python packages of an environment with only FreeDATA
+  installed (`pip install .`), so test and build tools are not in it:
+
+```
+cyclonedx-py environment --pyproject pyproject.toml --mc-type application --output-format JSON --output-file freedata-server.cdx.json <path to that venv>
+```
+
+The native libraries (codec2, Hamlib, PortAudio) are not in either SBOM yet.
+The generated `*.cdx.json` files are not committed.
 
 ## Linting and Formatting (python-only)
 
