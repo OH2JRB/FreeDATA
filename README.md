@@ -32,6 +32,13 @@ Other ways to install:
 
 The server serves the GUI at `http://127.0.0.1:5000/gui`. For setting up and using FreeDATA, see the upstream [wiki](https://wiki.freedata.app).
 
+## Security
+
+The server has no login and listens on this computer only by default; stored
+messages and settings are not encrypted. See [SECURITY.md](SECURITY.md) for
+the security model, how to check a download, and how to report a
+vulnerability.
+
 ## Credits
 
 - DJ2LS and the FreeDATA contributors for the original project - https://github.com/DJ2LS/FreeDATA
