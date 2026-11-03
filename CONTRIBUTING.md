@@ -93,7 +93,11 @@ python tools/make_sbom.py --platform windows --hamlib-version 4.7.2
 - Native libraries and data files (codec2, Hamlib, PortAudio, the map data,
   ...): listed by hand in `NATIVE` in the script, for the builds that ship
   them. Update it, as `tools/third_party_licenses.py`, when bundling a new
-  one or another version.
+  one or another version. The versions of the DLLs from the Hamlib release
+  (libusb, the gcc runtime, winpthreads) are read from the files, and Hamlib's
+  and PortAudio's from the build; the copied waterfall and airports.json
+  files have no releases, so their entries name the upstream git commit and
+  say that FreeDATA changed them.
 
 The generated `*.cdx.json` files are not committed.
 
