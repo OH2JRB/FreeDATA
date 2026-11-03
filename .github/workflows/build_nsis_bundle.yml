@@ -11,6 +11,9 @@ jobs:
     permissions:
       contents: write
     runs-on: windows-latest
+    env:
+      # the Hamlib release bundled in the installer (and listed in the SBOM)
+      HAMLIB_VERSION: "4.7.2"
 
     steps:
       - name: Check out repository
@@ -49,7 +52,7 @@ jobs:
           fileName: "hamlib-w64-*.zip"
           # latest: true
           extract: true
-          tag: '4.7.2'
+          tag: ${{ env.HAMLIB_VERSION }}
           out-file-path: "freedata_server/lib/hamlib"
 
       - name: Move Hamlib Files
@@ -67,6 +70,14 @@ jobs:
       - name: Write third-party licenses
         # lists the Python and GUI packages actually installed for this build
         run: python tools/third_party_licenses.py
+
+      - name: Write SBOM
+        # CycloneDX: the Python packages (from a fresh environment with only
+        # FreeDATA installed), the GUI's packages and the native libraries
+        run: |
+          pip install cyclonedx-bom
+          python tools/make_sbom.py --platform windows --hamlib-version $env:HAMLIB_VERSION
+        shell: pwsh
 
       - name: Build binaries
         working-directory: freedata_server
@@ -137,6 +148,12 @@ jobs:
           name: 'FreeDATA-Installer'
           path: ./FreeDATA-Installer.exe
 
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: 'FreeDATA-SBOM-windows'
+          path: ./freedata-sbom_windows.cdx.json
+
       # the plain server zip, for running without the installer
       - name: Zip server
         if: startsWith(github.ref, 'refs/tags/v')
@@ -152,4 +169,5 @@ jobs:
           files: |
             ./FreeDATA-Installer.exe
             ./freedata-server_windows.zip
+            ./freedata-sbom_windows.cdx.json
           tag_name: ${{ github.ref_name }}
