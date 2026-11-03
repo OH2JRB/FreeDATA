@@ -91,7 +91,7 @@ Section "FreeDATA Server" SEC01
   WriteRegStr HKCU "Software\FreeDATA" "Install_Dir" "$INSTDIR"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayName" "FreeDATA"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayVersion" "${VERSION}"
-  WriteRegStr HKCU "${UNINSTALL_KEY}" "Publisher" "DJ2LS"
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "Publisher" "DJ2LS-OH2JRB"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "URLInfoAbout" "https://freedata.app"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayIcon" "$INSTDIR\freedata-server\freedata-server.exe"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "InstallLocation" "$INSTDIR"
