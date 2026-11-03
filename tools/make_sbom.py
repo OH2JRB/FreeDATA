@@ -121,6 +121,16 @@ NATIVE = [
     },
 ]
 
+# Packages whose metadata gives no SPDX license, only a classifier such as
+# "License :: OSI Approved :: BSD License" or nothing; checked against their
+# license files by hand.
+LICENSE_FIXES = {
+    "Jinja2": "BSD-3-Clause",
+    "colorama": "BSD-3-Clause",
+    "protobuf": "BSD-3-Clause",
+    "pyserial": "BSD-3-Clause",
+}
+
 
 def freedata_version():
     text = (ROOT / "freedata_server" / "constants.py").read_text(encoding="utf-8")
@@ -236,6 +246,23 @@ def prefix_refs(bom, prefix):
         dependency["dependsOn"] = [prefix + ref for ref in dependency.get("dependsOn", [])]
 
 
+def tidy_licenses(components):
+    """Keep the SPDX licenses of each component and drop the free-text names
+    that repeat them; fill in LICENSE_FIXES. Returns the names of components
+    still without an SPDX license."""
+    unclear = []
+    for component in components:
+        licenses = component.get("licenses", [])
+        spdx = [entry for entry in licenses if "expression" in entry or "id" in entry.get("license", {})]
+        if not spdx and component["name"] in LICENSE_FIXES:
+            spdx = [{"license": {"id": LICENSE_FIXES[component["name"]], "acknowledgement": "concluded"}}]
+        if spdx:
+            component["licenses"] = spdx
+        else:
+            unclear.append(component["name"])
+    return unclear
+
+
 def native_components(platform, versions):
     components = []
     for entry in NATIVE:
@@ -316,6 +343,9 @@ def main():
         gui_bom = gui_sbom(Path(tmp) / "gui.cdx.json")
 
     bom = combine(python_bom, gui_bom, native_components(args.platform, versions), version)
+    unclear = tidy_licenses(bom["components"])
+    if unclear:
+        print("no SPDX license, add to LICENSE_FIXES:", ", ".join(sorted(unclear)), file=sys.stderr)
     output.write_text(json.dumps(bom, indent=2) + "\n", encoding="utf-8")
     print(f"{output}: FreeDATA {version}, {len(bom['components'])} components")
 

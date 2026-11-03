@@ -99,6 +99,11 @@ python tools/make_sbom.py --platform windows --hamlib-version 4.7.2
   files have no releases, so their entries name the upstream git commit and
   say that FreeDATA changed them.
 
+Each component gets one SPDX license; free-text duplicates are dropped. A
+package whose metadata names no SPDX license (only "BSD License" or nothing)
+gets it from `LICENSE_FIXES` in the script, checked against its license file.
+The script lists any it still cannot name; add them there.
+
 The generated `*.cdx.json` files are not committed.
 
 ## Linting and Formatting (python-only)
