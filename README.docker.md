@@ -64,6 +64,8 @@ This can be run in one of two ways. By running the docker image with a long comm
 
 On first run, the container creates `config.ini` in the `./freedata-data` directory from the sample config, listening on all interfaces (`modemaddress = 0.0.0.0`) so the GUI can be reached through the published port. It can be edited to suit your needs via the GUI. The message database is kept in the same directory.
 
+The server only answers browsers that reach it by an IP address, `localhost`, a `.local` name, or a name listed in `allowed_hosts` in the `[NETWORK]` section. If you open the GUI by another name, for example `http://shackpc:5000/gui` or through a reverse proxy, add that name to the list, e.g. `allowed_hosts = ["shackpc", "radio.example.org"]`, and restart. Otherwise the GUI gets `403 Forbidden` and the server log names the host to add. This keeps other web sites from using the API, which has no login.
+
 Now we can start the server.
 
 ```bash

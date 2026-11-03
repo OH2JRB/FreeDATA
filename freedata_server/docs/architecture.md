@@ -55,7 +55,9 @@ file) or threads that hung at shutdown.
      `request.app.state.ctx` (or the WebSocket equivalent).
    - `lifespan`: nothing on startup; on exit calls `ctx.shutdown()` and logs "Shutdown complete".
      It does not exit the process; `main()` returns once uvicorn has stopped (section 1.2).
-   - `CORSMiddleware` with `allow_origins=["*"]`, all methods/headers, credentials allowed.
+   - `CORSMiddleware` with `allow_origins=["*"]`, all methods/headers, no credentials.
+   - `RequestGuard` (`request_guard.py`), added last so it runs first: refuses requests whose
+     Host name or Origin belongs to another site (see `docs/api.md` section 1.2).
    - HTTP middleware `nocache` sets `Cache-Control: no-store, no-cache, must-revalidate, private`
      and `Pragma: no-cache` on every response and logs `[API] METHOD path -> status`.
 5. **GUI static mounting** - the first existing directory of:
@@ -376,6 +378,7 @@ Defined in `CONFIG.config_types`; example values from [config.ini.example](../co
 |---|---|---|---|
 | NETWORK | `modemaddress` | str | `127.0.0.1` |
 | | `modemport` | int | `5000` |
+| | `allowed_hosts` | list | `[]` - extra host names the server may be reached by, and other sites allowed to call it (`request_guard.py`) |
 | STATION | `mycall` | str | `AA1AAA` |
 | | `mygrid` | str | `JN48ea` |
 | | `myssid` | int | `1` |

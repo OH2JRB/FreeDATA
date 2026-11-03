@@ -34,6 +34,7 @@ const defaultConfig = {
     NETWORK: {
       modemaddress: "127.0.0.1",
       modemport: 5000,
+      allowed_hosts: [],
     },
     RADIO: {
       control: "disabled",

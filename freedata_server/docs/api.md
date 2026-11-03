@@ -23,7 +23,8 @@ app.state.ctx = ctx  # used by get_ctx()
 
 | Middleware | Behaviour |
 |---|---|
-| `CORSMiddleware` | `allow_origins=["*"]`, `allow_credentials=True`, `allow_methods=["*"]`, `allow_headers=["*"]`. No authentication anywhere in the API. |
+| `RequestGuard` (`request_guard.py`, ASGI, runs first, HTTP and websockets) | Turns away other web sites, since the API has no authentication. **Host check:** the Host header's name must be an IP address, `localhost`, `*.localhost`, `*.local`, this computer's name, or listed in `NETWORK.allowed_hosts` (stops DNS rebinding). **Origin check:** if an `Origin` header is sent, its host must equal the Host header's name (any port, so the dev GUI on 8080 works) or be in `NETWORK.allowed_hosts`; `Origin: null` is refused. Requests without `Origin` (scripts, curl) pass. A refused HTTP request gets `403 {"error": "Forbidden: ..."}`, a refused websocket handshake 403 (close code 1008); both are logged as `[GUARD] Request rejected` with the name to add. `allowed_hosts` is read on every request. |
+| `CORSMiddleware` | `allow_origins=["*"]`, `allow_credentials=False`, `allow_methods=["*"]`, `allow_headers=["*"]`. Only requests from allowed origins get this far. |
 | `nocache` (HTTP) | Sets `Cache-Control: no-store, no-cache, must-revalidate, private` and `Pragma: no-cache` on every response, and logs `[API] METHOD path -> status`. |
 
 ### 1.3 Router mounting

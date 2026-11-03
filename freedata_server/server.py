@@ -14,6 +14,7 @@ from freedata_server.log_handler import setup_logging
 from freedata_server.constants import CONFIG_ENV_VAR, DEFAULT_CONFIG_FILE, DEFAULT_APP_DIR, API_VERSION
 from freedata_server.context import AppContext
 from freedata_server import helpers
+from freedata_server.request_guard import RequestGuard
 from freedata_server.shutdown_guard import exit_if_threads_hang, stop_signals_raise_keyboard_interrupt
 
 from freedata_server.api.general import router as general_router
@@ -97,14 +98,17 @@ app = FastAPI(
 # store ctx for dependency injection
 app.state.ctx = ctx
 
-# CORS configuration
+# CORS configuration: RequestGuard has already turned away other web sites,
+# what reaches this comes from an allowed origin. No cookies are used.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+# added last, so it runs first: before CORS, the routes and the websockets
+app.add_middleware(RequestGuard, get_config=lambda: ctx.config_manager.config)
 
 
 # HTTP middleware: disable caching and logging

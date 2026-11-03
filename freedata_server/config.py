@@ -22,6 +22,7 @@ class CONFIG:
         "NETWORK": {
             "modemaddress": str,
             "modemport": int,
+            "allowed_hosts": list,
         },
         "STATION": {
             "mycall": str,
