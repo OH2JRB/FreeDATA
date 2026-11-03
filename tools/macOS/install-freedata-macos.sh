@@ -22,6 +22,11 @@
 #
 #
 # Changelog:
+# 2.5:	3 Nov 2026
+#	Download FreeDATA from the OH2JRB/FreeDATA fork
+#	Check the SHA-256 of the Hamlib tarball before using it
+#	Build codec2 from a fixed commit instead of whatever main holds
+#
 # 2.4:	29 Jan 2025 (hb9hbo)
 #	OS version handling and further macports refinement
 #
@@ -323,6 +328,13 @@ then
 	wget https://github.com/Hamlib/Hamlib/releases/download/4.5.5/hamlib-4.5.5.tar.gz
 	if [ -f "hamlib-4.5.5.tar.gz" ];
 	then
+		# SHA-256 from the release's SHA256SUM-4.5.5
+		if ! echo "601c89f32ed225e9527ade3d64d0d05d23202c05ae21ffa77e59d70ee4597fcd  hamlib-4.5.5.tar.gz" | shasum -a 256 -c;
+		then
+			echo "Something went wrong.  hamlib-4.5.5.tar.gz does not have the expected SHA-256."
+			rm -f hamlib-4.5.5.tar.gz
+			exit 1
+		fi
 		tar -xf hamlib-4.5.5.tar.gz
 	else
 		echo "Something went wrong.  hamlib-4.5.5.tar.gz not downloaded."
@@ -403,15 +415,15 @@ echo "*************************************************************************"
 if [ "$args" == "develop" ];
 then
   echo "Downloading development version"
-  git clone https://github.com/DJ2LS/FreeDATA.git -b develop
+  git clone https://github.com/OH2JRB/FreeDATA.git -b develop
 	git checkout develop
 elif [[ $args == v* ]];
 then
     echo "Downloading specific version: $args"
-    git clone https://github.com/DJ2LS/FreeDATA.git -b $args
+    git clone https://github.com/OH2JRB/FreeDATA.git -b $args
 else
     echo "Downloading regular version"
-	git clone https://github.com/DJ2LS/FreeDATA.git
+	git clone https://github.com/OH2JRB/FreeDATA.git
 fi
 
 
@@ -459,9 +471,12 @@ then
 fi
 
 echo "*************************************************************************"
-echo "Downloading the latest codec library"
+# a fixed commit: codec2's only release (1.2.0) predates the modes FreeDATA uses
+codec2commit="310777b1c6f1af0bc7c72f5b32f80f6fd9136962"
+echo "Downloading the codec2 library, commit" $codec2commit
 echo "*************************************************************************"
 git clone https://github.com/drowe67/codec2.git
+git -C codec2 checkout -q $codec2commit || { echo "Something went wrong.  codec2 commit $codec2commit not found."; exit 1; }
 
 
 echo "*************************************************************************"

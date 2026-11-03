@@ -97,6 +97,36 @@ python tools/make_sbom.py --platform windows --hamlib-version 4.7.2
 
 The generated `*.cdx.json` files are not committed.
 
+## Pinned downloads
+
+Everything the builds and install scripts download from outside PyPI and npm
+is fixed to one version and checked, so a changed or replaced file stops the
+build instead of ending up in it. When updating one, change the version and
+its checksum or commit together:
+
+| What | Where | Pinned by |
+| --- | --- | --- |
+| Hamlib Windows zip | `build_nsis_bundle.yml`: `HAMLIB_VERSION`, `HAMLIB_SHA256` | SHA-256 from the Hamlib release page |
+| Hamlib source | `Dockerfile`: `HAMLIB_VERSION`, `HAMLIB_SHA256`; Linux installer: `hamlibsha256_472` (other versions are checked against the release's `SHA256SUM-<version>`); macOS installer: 4.5.5 | SHA-256 |
+| codec2 source | `Dockerfile`: `CODEC2_COMMIT`; Linux and macOS installers: `codec2commit` | git commit (codec2's only release, 1.2.0, predates the modes FreeDATA uses) |
+| nvm installer | Linux installer: `nvmsha256` | SHA-256 of `install.sh` |
+| appimagetool | `build_appimage_bundle.yml` | release 1.9.1 and its SHA-256 |
+| GitHub Actions | all workflows | commit hash, with the version as a comment; Dependabot updates both |
+
+The prebuilt codec2 libraries in `freedata_server/lib/codec2` came from
+upstream DJ2LS/FreeDATA; which codec2 commit they were built from is not
+recorded. What is known:
+
+| File | Platform | Built with | Added in | SHA-256 |
+| --- | --- | --- | --- | --- |
+| `libcodec2.dll` | Windows x86-64 | MinGW GCC 13.1.1 (Fedora) | 772ea7a5, 2024-04-18 | `5922b32bede9f137c6d701d5a547be4f823643cade06b98eb6da7346824b569d` |
+| `libcodec2.so` | Linux x86-64 | GCC 11.4.0 (Ubuntu 22.04) | 3d2e6457, 2024-05-08 | `18184adbedf5b1b50dfd892c3e53ac43a632bb4cb0a01e17c02800c3ec6ffb29` |
+| `libcodec2.1.2.dylib` | macOS x86-64 | | 7fe71445, 2024-09-15 | `1a760ad2baa5cab9d2b861646f770080ea1f5d816c0b85166866c5ee0fd5ce9c` |
+| `arm64_libcodec2.1.2.dylib` | macOS arm64 | | fd88a318, 2026-01-09 | `68a5facec7c43765e6926fb4f24e12d667f1dd204335f079fae4204a1e64bb7d` |
+
+Replacing one: build it from the `codec2commit` above, update this table, and
+say in the commit message how it was built.
+
 ## Linting and Formatting (python-only)
 
 The python sources must be formatted and checked using `ruff`. There is a CI

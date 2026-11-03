@@ -24,15 +24,15 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Python 3.13
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.13"
 
       - name: Install Node.js, NPM and Yarn
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: 24
 
@@ -109,8 +109,10 @@ jobs:
           chmod +x $APPDIR/AppRun
 
       - name: Download appimagetool
+        # a fixed release, checked against its SHA-256 from the release page
         run: |
-          wget -q https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage -O appimagetool-x86_64.AppImage
+          wget -q https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage -O appimagetool-x86_64.AppImage
+          echo "ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0  appimagetool-x86_64.AppImage" | sha256sum -c
           chmod +x appimagetool-x86_64.AppImage
 
       - name: Build AppImage
@@ -144,25 +146,29 @@ jobs:
           test $ok = 1
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: 'FreeDATA-x86_64.AppImage'
           path: FreeDATA-x86_64.AppImage
 
       - name: Upload SBOM artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: 'FreeDATA-SBOM-linux'
           path: freedata-sbom_linux.cdx.json
 
-      # the plain server zip, for running without the AppImage
+      # the plain server zip, for running without the AppImage (made on every
+      # run, so a test run checks it; only a tag uploads it)
       - name: Zip server
-        if: startsWith(github.ref, 'refs/tags/v')
         working-directory: freedata_server/server.dist
         run: zip -qr ../../freedata-server_ubuntu.zip .
 
+      # lets users check a download: sha256sum -c SHA256SUMS-linux.txt
+      - name: Write SHA-256 sums
+        run: sha256sum FreeDATA-x86_64.AppImage freedata-server_ubuntu.zip freedata-sbom_linux.cdx.json | tee SHA256SUMS-linux.txt
+
       - name: Upload Installer to Release
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         if: startsWith(github.ref, 'refs/tags/v')
         with:
           draft: true
@@ -170,5 +176,6 @@ jobs:
             FreeDATA-x86_64.AppImage
             freedata-server_ubuntu.zip
             freedata-sbom_linux.cdx.json
+            SHA256SUMS-linux.txt
           tag_name: ${{ github.ref_name }}
           name: 'FreeDATA-x86_64.AppImage'

@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 ################################################################################
 # FreeDATA server with the web GUI, built from this repository's own source.
 # codec2 and Hamlib are built for the image's architecture (amd64 or arm64).
@@ -23,7 +24,11 @@ RUN npm run build
 ################################################################################
 FROM python:3.13-slim-trixie AS server
 
+# Hamlib release and the SHA-256 of its source tarball (from the release
+# page), and the codec2 commit to build: change them together
 ARG HAMLIB_VERSION=4.7.2
+ARG HAMLIB_SHA256=ae1fcf2dbc80ea0786ea8f047b09399c3f7737d1930442f61a031708ed33e88f
+ARG CODEC2_COMMIT=310777b1c6f1af0bc7c72f5b32f80f6fd9136962
 
 RUN apt-get update && \
   apt-get install -y --no-install-recommends build-essential cmake git portaudio19-dev && \
@@ -32,7 +37,7 @@ RUN apt-get update && \
 # Hamlib (rigctld)
 WORKDIR /src
 
-ADD https://github.com/Hamlib/Hamlib/releases/download/${HAMLIB_VERSION}/hamlib-${HAMLIB_VERSION}.tar.gz ./hamlib.tar.gz
+ADD --checksum=sha256:${HAMLIB_SHA256} https://github.com/Hamlib/Hamlib/releases/download/${HAMLIB_VERSION}/hamlib-${HAMLIB_VERSION}.tar.gz ./hamlib.tar.gz
 
 RUN tar -xf hamlib.tar.gz && \
   cd hamlib-${HAMLIB_VERSION} && \
@@ -40,8 +45,9 @@ RUN tar -xf hamlib.tar.gz && \
   make -j"$(nproc)" && \
   make install
 
-# codec2
-RUN git clone --depth 1 https://github.com/drowe67/codec2.git /src/codec2 && \
+# codec2, at a fixed commit: its only release (1.2.0) predates the modes
+# FreeDATA uses
+RUN git init -q /src/codec2 &&   git -C /src/codec2 fetch -q --depth 1 https://github.com/drowe67/codec2.git ${CODEC2_COMMIT} &&   git -C /src/codec2 checkout -q FETCH_HEAD && \
   cmake -S /src/codec2 -B /src/codec2/build_linux && \
   make -C /src/codec2/build_linux codec2 -j"$(nproc)"
 
