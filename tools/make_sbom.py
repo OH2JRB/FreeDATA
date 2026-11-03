@@ -19,11 +19,13 @@ import argparse
 import json
 import re
 import shutil
+import struct
 import subprocess
 import sys
 import tempfile
 import uuid
 import venv
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -54,6 +56,7 @@ NATIVE = [
     },
     {
         "name": "libusb",
+        "version": "{libusb}",  # read from the DLL
         "type": "library",
         "license": "LGPL-2.1-or-later",
         "url": "https://github.com/libusb/libusb",
@@ -62,6 +65,7 @@ NATIVE = [
     },
     {
         "name": "gcc runtime",
+        "version": "{gcc}",  # the GCC release that built the DLL
         "type": "library",
         "license": "GPL-3.0-or-later WITH GCC-exception-3.1",
         "url": "https://gcc.gnu.org",
@@ -70,6 +74,7 @@ NATIVE = [
     },
     {
         "name": "mingw-w64 winpthreads",
+        "version": "{winpthread}",  # read from the DLL
         "type": "library",
         "license": "MIT AND BSD-3-Clause",
         "url": "https://github.com/mingw-w64/mingw-w64",
@@ -87,11 +92,13 @@ NATIVE = [
     },
     {
         "name": "waterfall (spectrum.js)",
+        "version": "885cb7bf",  # upstream git commit, the project has no releases
         "type": "library",
         "license": "MIT",
         "url": "https://github.com/jledet/waterfall",
         "platforms": ["windows", "linux"],
         "note": "copied into the GUI: freedata_gui/src/assets/waterfall",
+        "modified": "changed for FreeDATA, among other things colour modes added",
     },
     {
         "name": "world-atlas countries-50m.json",
@@ -104,13 +111,25 @@ NATIVE = [
     },
     {
         "name": "JSON-Airports airports.json",
+        "version": "c3ee8e06",  # upstream git commit of the latest airports.json, no releases
         "type": "data",
         "license": "MIT",
         "url": "https://github.com/jbrooksuk/JSON-Airports",
         "platforms": ["windows", "linux"],
         "note": "GUI: freedata_gui/src/assets/airports.json",
+        "modified": "changed for FreeDATA: entries edited, added and removed (6685 airports)",
     },
 ]
+
+# Packages whose metadata gives no SPDX license, only a classifier such as
+# "License :: OSI Approved :: BSD License" or nothing; checked against their
+# license files by hand.
+LICENSE_FIXES = {
+    "Jinja2": "BSD-3-Clause",
+    "colorama": "BSD-3-Clause",
+    "protobuf": "BSD-3-Clause",
+    "pyserial": "BSD-3-Clause",
+}
 
 
 def freedata_version():
@@ -127,6 +146,41 @@ def portaudio_version(python):
     ).stdout
     match = re.search(r"V(\d+(\.\d+)+)", out)
     return match.group(1) if match else None
+
+
+def dll_version(path):
+    """The file version in a Windows DLL's version resource, e.g. 1.0.24."""
+    try:
+        data = Path(path).read_bytes()
+    except OSError:
+        return None
+    i = data.find(struct.pack("<I", 0xFEEF04BD))  # VS_FIXEDFILEINFO signature
+    if i < 0:
+        return None
+    ms, ls = struct.unpack_from("<II", data, i + 8)
+    return f"{ms >> 16}.{ms & 0xFFFF}.{ls >> 16}"
+
+
+def gcc_version(path):
+    """The GCC release that built a DLL, from its "GCC: (GNU) 14-posix" notes."""
+    try:
+        data = Path(path).read_bytes()
+    except OSError:
+        return None
+    found = Counter(re.findall(rb"GCC: \(GNU\) (\d+(?:\.\d+)*)", data))
+    return found.most_common(1)[0][0].decode() if found else None
+
+
+def native_versions(hamlib_version, python):
+    """Versions of the native components, read from the files where they have one."""
+    hamlib_bin = ROOT / "freedata_server" / "lib" / "hamlib" / "bin"
+    return {
+        "hamlib": hamlib_version,
+        "portaudio": portaudio_version(python),
+        "libusb": dll_version(hamlib_bin / "libusb-1.0.dll"),
+        "gcc": gcc_version(hamlib_bin / "libgcc_s_seh-1.dll"),
+        "winpthread": dll_version(hamlib_bin / "libwinpthread-1.dll"),
+    }
 
 
 def venv_python(env):
@@ -192,6 +246,23 @@ def prefix_refs(bom, prefix):
         dependency["dependsOn"] = [prefix + ref for ref in dependency.get("dependsOn", [])]
 
 
+def tidy_licenses(components):
+    """Keep the SPDX licenses of each component and drop the free-text names
+    that repeat them; fill in LICENSE_FIXES. Returns the names of components
+    still without an SPDX license."""
+    unclear = []
+    for component in components:
+        licenses = component.get("licenses", [])
+        spdx = [entry for entry in licenses if "expression" in entry or "id" in entry.get("license", {})]
+        if not spdx and component["name"] in LICENSE_FIXES:
+            spdx = [{"license": {"id": LICENSE_FIXES[component["name"]], "acknowledgement": "concluded"}}]
+        if spdx:
+            component["licenses"] = spdx
+        else:
+            unclear.append(component["name"])
+    return unclear
+
+
 def native_components(platform, versions):
     components = []
     for entry in NATIVE:
@@ -210,6 +281,8 @@ def native_components(platform, versions):
         component["licenses"] = [{"expression": entry["license"]}]
         component["externalReferences"] = [{"type": "vcs", "url": entry["url"]}]
         component["properties"] = [{"name": "freedata:shipped", "value": entry["note"]}]
+        if "modified" in entry:
+            component["pedigree"] = {"notes": entry["modified"]}
         components.append(component)
     return components
 
@@ -265,11 +338,14 @@ def main():
         else:
             env = Path(tmp) / "env"
             python = make_python_env(env)
-        versions = {"hamlib": args.hamlib_version, "portaudio": portaudio_version(python)}
+        versions = native_versions(args.hamlib_version, python)
         python_bom = python_sbom(env, Path(tmp) / "python.cdx.json")
         gui_bom = gui_sbom(Path(tmp) / "gui.cdx.json")
 
     bom = combine(python_bom, gui_bom, native_components(args.platform, versions), version)
+    unclear = tidy_licenses(bom["components"])
+    if unclear:
+        print("no SPDX license, add to LICENSE_FIXES:", ", ".join(sorted(unclear)), file=sys.stderr)
     output.write_text(json.dumps(bom, indent=2) + "\n", encoding="utf-8")
     print(f"{output}: FreeDATA {version}, {len(bom['components'])} components")
 
