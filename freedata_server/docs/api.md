@@ -17,7 +17,7 @@ app = FastAPI(title="FreeDATA API", version=str(API_VERSION), lifespan=lifespan)
 app.state.ctx = ctx  # used by get_ctx()
 ```
 
-`main()` reads `NETWORK.modemaddress` (default `0.0.0.0`) and `NETWORK.modemport` (default `5000`) from the config and runs `uvicorn.run(app, host, port)`.
+`main()` reads `NETWORK.modemaddress` (empty means `127.0.0.1`, this computer only) and `NETWORK.modemport` (default `5000`) from the config and runs `uvicorn.run(app, host, port)`. When the address is not a loopback one (`helpers.is_loopback`), it logs a `[NETWORK]` warning: the API has no login, so anyone who can reach the port can control the radio.
 
 ### 1.2 Middleware
 

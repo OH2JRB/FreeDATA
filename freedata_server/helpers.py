@@ -4,6 +4,7 @@ Created on Fri Dec 25 21:25:14 2020
 @author: DJ2LS
 """
 
+import ipaddress
 import time
 from datetime import datetime, timezone
 import structlog
@@ -370,6 +371,16 @@ def browsable_host(host: str) -> str:
     if ":" in host and not host.startswith("["):
         return f"[{host}]"
     return host
+
+
+def is_loopback(host: str) -> bool:
+    """Whether a server listening on host can only be reached from this computer."""
+    if host == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host.strip("[]")).is_loopback
+    except ValueError:
+        return False  # a host name: may resolve to a network address
 
 
 def check_callsign(callsign: str, crc_to_check: bytes, ssid_list):

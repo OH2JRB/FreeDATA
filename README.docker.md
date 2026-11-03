@@ -62,7 +62,7 @@ pacmd set-default-source 1
 
 This can be run in one of two ways. By running the docker image with a long command line or via `docker compose`. Lets start with the long command line.
 
-On first run, the container creates `config.ini` in the `./freedata-data` directory from the sample config, listening on all interfaces (`modemaddress = 0.0.0.0`) so the GUI can be reached through the published port. It can be edited to suit your needs via the GUI. The message database is kept in the same directory.
+On first run, the container creates `config.ini` in the `./freedata-data` directory from the sample config, listening on all interfaces (`modemaddress = 0.0.0.0`) so the GUI can be reached through the published port. The examples below publish the port on `127.0.0.1` only, so only this computer can reach it. It can be edited to suit your needs via the GUI. The message database is kept in the same directory.
 
 The server only answers browsers that reach it by an IP address, `localhost`, a `.local` name, or a name listed in `allowed_hosts` in the `[NETWORK]` section. If you open the GUI by another name, for example `http://shackpc:5000/gui` or through a reverse proxy, add that name to the list, e.g. `allowed_hosts = ["shackpc", "radio.example.org"]`, and restart. Otherwise the GUI gets `403 Forbidden` and the server log names the host to add. This keeps other web sites from using the API, which has no login.
 
@@ -73,7 +73,7 @@ docker run --rm -it \
     -v ./freedata-data:/data \
     -e PULSE_SERVER=host.docker.internal \
     -v /$HOME/.config/pulse:/home/freedata/.config/pulse \
-    -p 5000:5000 \
+    -p 127.0.0.1:5000:5000 \
     --name freedata \
     ghcr.io/oh2jrb/freedata:latest
 ```
@@ -86,10 +86,12 @@ docker run --rm -it \
     -e PULSE_SERVER=host.docker.internal \
     -e RIGCTLD_ARGS="--model=2036 --port=4532 --rig-file=192.168.0.10:6701" \
     -v /$HOME/.config/pulse:/home/freedata/.config/pulse \
-    -p 5000:5000 \
+    -p 127.0.0.1:5000:5000 \
     --name freedata \
     ghcr.io/oh2jrb/freedata:latest
 ```
+
+The API has no login: anyone who can reach the port can key the transmitter, change the config and read or delete messages. To use the GUI from another computer, publish the port on the network with `-p 5000:5000` (or `5000:5000` in compose) only on a network you trust, or put an HTTPS reverse proxy with a login in front of it.
 
 A slightly more tidy method of provding the same config is via `docker compose`. Create a `docker-compose.yml` file with the following content:
 
@@ -106,7 +108,7 @@ services:
       - PULSE_SERVER=host.docker.internal
       - RIGCTLD_ARGS=--model=2036 --port=4532 --rig-file=192.168.0.10:6701
     ports:
-      - 5000:5000
+      - 127.0.0.1:5000:5000
 ```
 
 This can then be run with:

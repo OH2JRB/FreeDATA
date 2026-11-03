@@ -37,6 +37,16 @@ class TestBrowsableHost(unittest.TestCase):
         self.assertEqual(helpers.browsable_host("[fe80::1]"), "[fe80::1]")
 
 
+class TestIsLoopback(unittest.TestCase):
+    def test_this_computer_only(self):
+        for host in ("127.0.0.1", "127.0.1.1", "::1", "[::1]", "localhost"):
+            self.assertTrue(helpers.is_loopback(host), host)
+
+    def test_reachable_from_the_network(self):
+        for host in ("0.0.0.0", "::", "192.168.1.5", "fe80::1", "shackpc"):
+            self.assertFalse(helpers.is_loopback(host), host)
+
+
 def command_class(run):
     class Command:
         def __init__(self, ctx, params):
