@@ -84,8 +84,9 @@ file) or threads that hung at shutdown.
 
 ### 1.2 `main()`
 
-- `host = config["NETWORK"]["modemaddress"] or "0.0.0.0"`, `port = int(config["NETWORK"]["modemport"])`
-  (default 5000).
+- `host = config["NETWORK"]["modemaddress"] or "127.0.0.1"`, `port = int(config["NETWORK"]["modemport"])`
+  (default 5000). A host that is not loopback (`helpers.is_loopback`) logs a `[NETWORK]` warning,
+  as the API has no login.
 - If a GUI dir was found, logs `[GUI] AVAILABLE ON http://<host>:<port>/gui` (with
   `helpers.browsable_host(host)`: `127.0.0.1` for `0.0.0.0`, `[::1]` for `::`) and, if
   `GUI.auto_run_browser` is true (default `True` when missing), starts a daemon thread that waits 2 s

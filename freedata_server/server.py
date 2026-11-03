@@ -165,8 +165,14 @@ def open_browser_after_delay(url, delay=2):
 
 
 def main():
-    host = ctx.config_manager.config.get("NETWORK", {}).get("modemaddress") or "0.0.0.0"
+    # only this computer, unless the config names another address
+    host = ctx.config_manager.config.get("NETWORK", {}).get("modemaddress") or "127.0.0.1"
     port = int(ctx.config_manager.config.get("NETWORK", {}).get("modemport", 5000))
+    if not helpers.is_loopback(host):
+        logger.warning(
+            f"[NETWORK] Listening on {host}: anyone who can reach this computer on port {port} "
+            "can control the radio, the API has no login. Use only on a network you trust."
+        )
 
     # Launch GUI if available
     if gui_dir and os.path.isdir(gui_dir):

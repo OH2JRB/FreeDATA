@@ -45,6 +45,12 @@
 #
 #
 # Changelog:
+# 2.15:	3 Nov 2026
+#	Check the SHA-256 of the nvm installer and the Hamlib tarball before
+#	using them; for a Hamlib version other than the default, against the
+#	SHA256SUM file of its release
+#	Build codec2 from a fixed commit instead of whatever main holds
+#
 # 2.14:	28 Oct 2026
 #	Run "pip install ." after building codec2 and the GUI, so the installed
 #	package contains them. Before, the server loaded the installed copy with
@@ -171,6 +177,13 @@ else
 	hamlibver="4.7.2"
 fi
 
+# SHA-256 of the files downloaded below, from their release pages, and the
+# codec2 commit to build (its only release, 1.2.0, predates the modes
+# FreeDATA uses). Update them together with the versions.
+nvmsha256="48a0eee9a60e07422dce0eb5774754c83889570ca1ee2566c516acbe8af03a9e"
+hamlibsha256_472="ae1fcf2dbc80ea0786ea8f047b09399c3f7737d1930442f61a031708ed33e88f"
+codec2commit="310777b1c6f1af0bc7c72f5b32f80f6fd9136962"
+
 osname=`grep -E '^(NAME)=' /etc/os-release | cut -d\" -f2`
 osversion=`grep -E '^(VERSION_ID)=' /etc/os-release | cut -d\" -f2`
 
@@ -266,6 +279,12 @@ echo "*************************************************************************"
 wget https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.8/install.sh
 if [ -f "install.sh" ];
 then
+	if ! echo "$nvmsha256  install.sh" | sha256sum -c;
+	then
+		echo "Something went wrong.  nvm install.sh does not have the expected SHA-256."
+		rm -f install.sh
+		exit 1
+	fi
 	XDG_CONFIG_HOME=""
 	chmod 750 install.sh
 	./install.sh
@@ -320,6 +339,18 @@ then
 	wget https://github.com/Hamlib/Hamlib/releases/download/$hamlibver/hamlib-$hamlibver.tar.gz
 	if [ -f "hamlib-$hamlibver.tar.gz" ];
 	then
+		if [ "$hamlibver" == "4.7.2" ];
+		then
+			hamlibsha256=$hamlibsha256_472
+		else
+			hamlibsha256=`wget -qO- https://github.com/Hamlib/Hamlib/releases/download/$hamlibver/SHA256SUM-$hamlibver | grep " hamlib-$hamlibver.tar.gz$" | cut -f1 -d" "`
+		fi
+		if [ -z "$hamlibsha256" ] || ! echo "$hamlibsha256  hamlib-$hamlibver.tar.gz" | sha256sum -c;
+		then
+			echo "Something went wrong.  hamlib-"$hamlibver".tar.gz does not have the expected SHA-256."
+			rm -f hamlib-$hamlibver.tar.gz
+			exit 1
+		fi
 		tar -xplf hamlib-$hamlibver.tar.gz
 	else
 		echo "Something went wrong.  hamlib-"$hamlibver".tar.gz not downloaded."
@@ -425,9 +456,10 @@ then
 fi
 
 echo "*************************************************************************"
-echo "Downloading the latest codec library"
+echo "Downloading the codec2 library, commit" $codec2commit
 echo "*************************************************************************"
 git clone https://github.com/drowe67/codec2.git
+git -C codec2 checkout -q $codec2commit || { echo "Something went wrong.  codec2 commit $codec2commit not found."; exit 1; }
 
 echo "*************************************************************************"
 echo "Changing into the codec2 library directory"

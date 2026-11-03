@@ -14,13 +14,16 @@ jobs:
     env:
       # the Hamlib release bundled in the installer (and listed in the SBOM)
       HAMLIB_VERSION: "4.7.2"
+      # SHA-256 of hamlib-w64-<version>.zip, from the Hamlib release page;
+      # update it together with HAMLIB_VERSION
+      HAMLIB_SHA256: "8553bc6c5c6032e8debf99c017e98f58fed7e07e7c25d04815dc3e8bbe3304c7"
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Python 3.13
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.13"
 
@@ -28,14 +31,14 @@ jobs:
         run: choco install nsis
 
       - name: Install Node.js, NPM and Yarn
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: 24
 
       - name: Vue Builder
         working-directory: freedata_gui
         run: |
-          npm i
+          npm ci
           npm run build
 
       - name: LIST ALL FILES
@@ -46,24 +49,19 @@ jobs:
           python -m pip install --upgrade pip
           pip install .[nuitka]
 
-      - uses: robinraju/release-downloader@v1.13
-        with:
-          repository: "Hamlib/Hamlib"
-          fileName: "hamlib-w64-*.zip"
-          # latest: true
-          extract: true
-          tag: ${{ env.HAMLIB_VERSION }}
-          out-file-path: "freedata_server/lib/hamlib"
-
-      - name: Move Hamlib Files
+      - name: Download Hamlib
         working-directory: freedata_server
         run: |
-          # Find the downloaded folder (handle version numbers dynamically)
-          $HAMLIB_DIR = Get-ChildItem -Directory -Path lib/hamlib -Filter "hamlib-w64*" | Select-Object -First 1
-          # Move all contents from the found directory to the target directory
+          $zip = "hamlib-w64-$env:HAMLIB_VERSION.zip"
+          Invoke-WebRequest "https://github.com/Hamlib/Hamlib/releases/download/$env:HAMLIB_VERSION/$zip" -OutFile $zip
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+          if ($hash -ne $env:HAMLIB_SHA256) { throw "$zip has SHA-256 $hash, expected $env:HAMLIB_SHA256" }
+          Expand-Archive $zip -DestinationPath lib/hamlib
+          # move the contents of the versioned folder up into lib/hamlib
+          $HAMLIB_DIR = Get-Item "lib/hamlib/hamlib-w64-$env:HAMLIB_VERSION"
           Move-Item "$($HAMLIB_DIR.FullName)\*" "lib/hamlib" -Force
-          # Remove the now empty versioned directory
           Remove-Item "$($HAMLIB_DIR.FullName)" -Recurse -Force
+          Remove-Item $zip
         shell: pwsh
 
 
@@ -133,7 +131,7 @@ jobs:
         run: echo "version=$(python -c 'import re; print(re.search(r"MODEM_VERSION = \"([^\"]+)\"", open("freedata_server/constants.py").read()).group(1))')" >> "$GITHUB_OUTPUT"
 
       - name: Create installer
-        uses: joncloud/makensis-action@v5.0
+        uses: joncloud/makensis-action@971ef20f43e4f9f3af2c7f276cb7348d033da1cd # v5.0
         with:
           script-file: "freedata-nsis-config.nsi"
           arguments: '/V3 /DVERSION=${{ steps.version.outputs.version }}'
@@ -143,25 +141,34 @@ jobs:
         run: ls -R
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: 'FreeDATA-Installer'
           path: ./FreeDATA-Installer.exe
 
       - name: Upload SBOM artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: 'FreeDATA-SBOM-windows'
           path: ./freedata-sbom_windows.cdx.json
 
-      # the plain server zip, for running without the installer
+      # the plain server zip, for running without the installer (made on every
+      # run, so a test run checks it; only a tag uploads it)
       - name: Zip server
-        if: startsWith(github.ref, 'refs/tags/v')
         run: Compress-Archive -Path freedata_server/server.dist/* -DestinationPath freedata-server_windows.zip
         shell: pwsh
 
+      # lets users check a download: Get-FileHash, or sha256sum -c
+      - name: Write SHA-256 sums
+        run: |
+          $files = "FreeDATA-Installer.exe", "freedata-server_windows.zip", "freedata-sbom_windows.cdx.json"
+          $lines = foreach ($f in $files) { "$((Get-FileHash $f -Algorithm SHA256).Hash.ToLower())  $f" }
+          [IO.File]::WriteAllText("SHA256SUMS-windows.txt", ($lines -join "`n") + "`n")
+          Get-Content SHA256SUMS-windows.txt
+        shell: pwsh
+
       - name: Upload Installer to Release
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         if: startsWith(github.ref, 'refs/tags/v')
         with:
           # a draft, like the AppImage's: published by hand once checked
@@ -170,4 +177,5 @@ jobs:
             ./FreeDATA-Installer.exe
             ./freedata-server_windows.zip
             ./freedata-sbom_windows.cdx.json
+            ./SHA256SUMS-windows.txt
           tag_name: ${{ github.ref_name }}
