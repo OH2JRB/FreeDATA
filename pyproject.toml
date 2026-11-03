@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "freedata"
 dynamic = ["version"]
 authors = [
-    {name = "DJ2LS-OH2JRB", email = "dj2ls@proton.me"}
+    {name = "DJ2LS-OH2JRB", email = "oh2jrb@gmail.com"}
 ]
 description = "A versatile, open-source platform designed specifically for HF communications, leveraging Codec2 data modes for robust global digital communication."
 readme = "README.md"
