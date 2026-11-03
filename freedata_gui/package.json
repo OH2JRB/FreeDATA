@@ -8,7 +8,8 @@
     "serve": "vite",
     "build": "npm i && vite build",
     "preview": "vite preview",
-    "lint": "npx eslint ."
+    "lint": "npx eslint .",
+    "sbom": "cyclonedx-npm --omit dev --output-format JSON --output-file freedata-gui.cdx.json"
   },
   "repository": {
     "type": "git",
@@ -48,6 +49,7 @@
     "vuemoji-picker": "^0.3.2"
   },
   "devDependencies": {
+    "@cyclonedx/cyclonedx-npm": "^6.0.1",
     "@vitejs/plugin-vue": "^6.0.10",
     "eslint": "^9.39.1",
     "eslint-plugin-vue": "^10.4.0",

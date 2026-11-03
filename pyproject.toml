@@ -65,6 +65,8 @@ dev = [
     "freedata[test]",
     # exact: ruff versions format differently
     "ruff==0.17.2",
+    # SBOM (CycloneDX) of the Python packages
+    "cyclonedx-bom",
 ]
 build = [
     "build",

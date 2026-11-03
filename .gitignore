@@ -45,3 +45,6 @@ freedata_server/server.build/
 freedata_server/server.dist/
 freedata_server/server.onefile-build/
 /FreeDATA-Installer.exe
+
+# SBOMs (CONTRIBUTING.md)
+*.cdx.json
