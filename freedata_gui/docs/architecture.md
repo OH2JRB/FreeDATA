@@ -136,7 +136,7 @@ new WebSocket(`${wsProtocol}//${hostname}:${adjustedPort}/${endpoint}`);
 Consequences:
 
 - In production the page is `http://host:5000/gui/`, so calls go to `http://host:5000/...`.
-- In development (`npm run serve` on port 8080) calls are redirected to port 5000 on the same hostname. If port 8080 is taken, Vite falls back to another port (8081, ...); then, or if the server runs on a port other than 5000, the dev GUI cannot reach it. There is no dev-server proxy in `vite.config.js`; CORS on the server (`allow_origins=["*"]`) makes the cross-port calls work.
+- In development (`npm run serve` on port 8080) calls are redirected to port 5000 on the same hostname. If port 8080 is taken, Vite falls back to another port (8081, ...); then, or if the server runs on a port other than 5000, the dev GUI cannot reach it. There is no dev-server proxy in `vite.config.js`; the server accepts the cross-port calls because the page's origin has the same host name (`request_guard.py`). A GUI served from another host name must be listed in `NETWORK.allowed_hosts`.
 - Behind a reverse proxy on a default port, `window.location.port` is `""` and the URL becomes `http://host:/...`, which browsers treat as the default port.
 
 ---
