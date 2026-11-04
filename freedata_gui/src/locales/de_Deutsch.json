@@ -210,6 +210,11 @@
 	    "new": "neu",
         "selectChat": "Bitte starte oder wähle einen Chat aus",
         "noConversations": "bislang noch kein Chat hier",
+        "messagelog": "Nachrichtenprotokoll",
+        "messagelog_help": "Alle Nachrichten in eine CSV-Datei schreiben",
+        "messagelog_written": "Nachrichtenprotokoll geschrieben",
+        "messagelog_file": "Datei",
+        "messagelog_path": "Pfad",
         "loadingMessages": "Lade Nachrichten..."
     },
 	"broadcast": {

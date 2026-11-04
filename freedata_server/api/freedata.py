@@ -213,6 +213,41 @@ async def get_freedata_messages(ctx: AppContext = Depends(get_ctx)):
     return api_response(result)
 
 
+@router.post(
+    "/messages/log",
+    summary="Write a Message Log CSV File",
+    tags=["FreeDATA"],
+    responses={
+        200: {
+            "description": "The CSV file was written next to the message database on the server.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "status": "success",
+                        "file_name": "freedata-message-log_20261104-153012.csv",
+                        "file_path": "C:\\Users\\me\\AppData\\Roaming\\FreeDATA\\freedata-message-log_20261104-153012.csv",
+                        "total_messages": 42,
+                    }
+                }
+            },
+        },
+        500: {
+            "description": "The file could not be written.",
+            "content": {"application/json": {"example": {"detail": {"error": "Could not write the message log."}}}},
+        },
+    },
+)
+async def post_freedata_message_log(ctx: AppContext = Depends(get_ctx)):
+    """Writes all messages to a new CSV file (date and time in UTC, sender,
+    receiver, message text, attachment file names) in the directory of the
+    message database, and returns its name and full path."""
+    try:
+        result = await asyncio.to_thread(_mgr_msgs(ctx).write_message_log_csv)
+    except Exception as e:
+        api_abort(f"Could not write the message log: {e}", 500)
+    return api_response(result)
+
+
 @router.delete(
     "/messages/{message_id}",
     summary="Delete Message by ID",

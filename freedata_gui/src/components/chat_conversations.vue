@@ -1,15 +1,56 @@
 <template>
   <!-- Navbar for starting a new chat -->
-  <nav class="navbar sticky-top bg-body-tertiary border-bottom p-1">
+  <nav class="navbar sticky-top bg-body-tertiary border-bottom p-1 flex-nowrap gap-1">
     <button
-      class="btn btn-outline-primary w-100"
+      class="btn btn-outline-primary flex-grow-1"
       data-bs-target="#newChatModal"
       data-bs-toggle="modal"
       @click="startNewChat"
     >
       <i class="bi bi-pencil-square" /> {{ $t('chat.startnewchat') }}
     </button>
+    <button
+      class="btn btn-outline-secondary"
+      :title="$t('chat.messagelog_help')"
+      :aria-label="$t('chat.messagelog_help')"
+      :disabled="writingMessageLog"
+      @click="writeMessageLog"
+    >
+      <span
+        v-if="writingMessageLog"
+        class="spinner-border spinner-border-sm"
+        aria-hidden="true"
+      />
+      <i
+        v-else
+        class="bi bi-filetype-csv"
+      />
+      <!-- icon only where the sidebar is narrow -->
+      <span class="d-none d-xl-inline"> {{ $t('chat.messagelog') }}</span>
+    </button>
   </nav>
+
+  <!-- Where the message log was written (on the server computer) -->
+  <div
+    v-if="messageLog"
+    class="alert alert-success alert-dismissible small m-1 mb-0 p-2 pe-5"
+    role="status"
+  >
+    <strong>{{ $t('chat.messagelog_written') }}</strong>
+    ({{ messageLog.total_messages }})
+    <div class="text-break">
+      {{ $t('chat.messagelog_file') }}: <code class="user-select-all">{{ messageLog.file_name }}</code>
+    </div>
+    <div class="text-break">
+      {{ $t('chat.messagelog_path') }}: <code class="user-select-all">{{ messageLog.file_path }}</code>
+    </div>
+    <button
+      type="button"
+      class="btn-close p-2"
+      aria-label="Close"
+      @click="messageLog = null"
+    />
+  </div>
 
   <!-- List of chats -->
   <div
@@ -80,7 +121,7 @@ import DOMPurify from 'dompurify';
 import { setActivePinia } from 'pinia';
 import pinia from '../store/index';
 import { useChatStore } from '../store/chatStore.js';
-import { setFreedataMessageAsRead, getFreedataMessages } from '../js/api.js';
+import { setFreedataMessageAsRead, getFreedataMessages, writeFreedataMessageLog } from '../js/api.js';
 import { loadBeaconData, parseServerTimestamp } from '../js/messagesHandler.js';
 import { ref } from 'vue';
 import { useIsMobile } from '../js/mobile_devices.js';
@@ -91,6 +132,21 @@ setActivePinia(pinia);
 
 const chat = useChatStore(pinia);
 const newChatCall = ref(null);
+// result of the last "message log" request: file_name, file_path, total_messages
+const messageLog = ref(null);
+const writingMessageLog = ref(false);
+
+// The server writes the CSV file next to its message database; errors are
+// shown as toast by apiPost.
+async function writeMessageLog() {
+  writingMessageLog.value = true;
+  try {
+    const result = await writeFreedataMessageLog();
+    if (result?.file_path) messageLog.value = result;
+  } finally {
+    writingMessageLog.value = false;
+  }
+}
 
 function chatSelected(callsign) {
   chat.selectedCallsign = callsign.toUpperCase();
@@ -175,7 +231,10 @@ function previewBody(body) {
 
 export default {
   setup() {
-    return { chat, newChatCall, chatSelected, setMessagesAsRead, getDateTime, newChat, startNewChat, previewBody };
+    return {
+      chat, newChatCall, chatSelected, setMessagesAsRead, getDateTime, newChat, startNewChat, previewBody,
+      messageLog, writingMessageLog, writeMessageLog,
+    };
   }
 };
 </script>

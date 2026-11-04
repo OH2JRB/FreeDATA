@@ -61,6 +61,13 @@ class DatabaseManager:
 
         self.logger = structlog.get_logger(type(self).__name__)
 
+    def get_database_path(self):
+        """The database file: $FREEDATA_DATABASE, or freedata-messages.db in
+        the per-user app directory (DEFAULT_APP_DIR)."""
+        if self.DATABASE_ENV_VAR in os.environ:
+            return os.getenv(self.DATABASE_ENV_VAR)
+        return os.path.join(DEFAULT_APP_DIR, self.DEFAULT_DATABASE_FILE)
+
     def get_database(self):
         """Retrieves the database file path.
 
@@ -74,11 +81,7 @@ class DatabaseManager:
         Returns:
             str: The database file path as a SQLAlchemy URL.
         """
-        if self.DATABASE_ENV_VAR in os.environ:
-            db_path = os.getenv(self.DATABASE_ENV_VAR)
-        else:
-            db_path = os.path.join(DEFAULT_APP_DIR, self.DEFAULT_DATABASE_FILE)
-
+        db_path = self.get_database_path()
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
         return "sqlite:///" + db_path
 
