@@ -34,7 +34,15 @@ class TestMessageLog(unittest.TestCase):
     def tearDownClass(cls):
         cls.ctx.shutdown()
 
-    def add(self, body, attachments=(), origin="AA1AAA-1", destination="QU1AAA-1"):
+    def add(
+        self,
+        body,
+        attachments=(),
+        origin="AA1AAA-1",
+        destination="QU1AAA-1",
+        direction="transmit",
+        status="transmitted",
+    ):
         time.sleep(0.02)  # the id holds the time; Windows clock steps are ~16 ms
         params = {
             "destination": destination,
@@ -45,7 +53,7 @@ class TestMessageLog(unittest.TestCase):
             ],
         }
         message = MessageP2P.from_api_params(origin, params)
-        self.db.add_message(message.to_dict(), statistics={}, direction="transmit", status="transmitted")
+        self.db.add_message(message.to_dict(), statistics={}, direction=direction, status=status)
         return message
 
     def write_log(self):
@@ -72,7 +80,30 @@ class TestMessageLog(unittest.TestCase):
         rows = self.read_rows(path)
         self.assertEqual(rows[0], ["Date/time (UTC)", "Sender", "Receiver", "Message", "Attachments"])
         self.assertEqual(result["total_messages"], len(rows) - 1)
-        self.assertEqual(len(self.db.get_all_messages()), len(rows) - 1)
+        completed = [
+            m
+            for m in self.db.get_all_messages()
+            if (m["direction"], m["status"]) in (("transmit", "transmitted"), ("receive", "received"))
+        ]
+        self.assertEqual(len(completed), len(rows) - 1)
+
+    def test_only_completed_transmissions(self):
+        tag = uuid.uuid4().hex
+        sent = self.add(f"{tag} sent")
+        received = self.add(
+            f"{tag} received", origin="BB2BBB-2", destination="AA1AAA-1", direction="receive", status="received"
+        )
+        for status in ("queued", "transmitting", "failed", "aborted"):
+            self.add(f"{tag} {status}", status=status)
+
+        bodies = [row[3] for row in self.read_rows(self.write_log()["file_path"]) if tag in row[3]]
+        self.assertEqual(bodies, [f"{tag} sent", f"{tag} received"])
+
+        # sent again: left out until the new transmission has finished
+        self.db.update_message(sent.id, {"status": "queued"})
+        bodies = [row[3] for row in self.read_rows(self.write_log()["file_path"]) if tag in row[3]]
+        self.assertEqual(bodies, [f"{tag} received"])
+        self.assertTrue(received.id)
 
     def test_rows_quoting_and_attachments(self):
         tag = uuid.uuid4().hex

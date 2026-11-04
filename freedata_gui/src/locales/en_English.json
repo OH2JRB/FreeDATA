@@ -239,7 +239,7 @@
         "selectChat": "Please select or create a chat",
         "noConversations": "No conversations, yet",
         "messagelog": "Message log",
-        "messagelog_help": "Write all messages to a CSV file",
+        "messagelog_help": "Write sent and received messages to a CSV file",
         "messagelog_written": "Message log written",
         "messagelog_file": "File",
         "messagelog_path": "Path",
