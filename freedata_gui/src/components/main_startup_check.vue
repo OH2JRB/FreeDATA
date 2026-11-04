@@ -144,6 +144,30 @@
                       </option>
                     </select>
                   </div>
+                  <!-- RX audio lost since the modem started -->
+                  <div class="input-group input-group-sm mb-1">
+                    <label class="input-group-text w-50 text-wrap">
+                      {{ $t('modals.rxaudiolost') }}
+                      <button
+                        type="button"
+                        class="btn btn-link p-0 ms-2"
+                        data-bs-toggle="tooltip"
+                        :title="$t('modals.rxaudiolost_help')"
+                      >
+                        <i class="bi bi-question-circle" />
+                      </button>
+                    </label>
+                    <label class="input-group-text w-50 flex-wrap gap-1">
+                      <span
+                        v-for="kind in ['driver', 'queue', 'decoder']"
+                        :key="kind"
+                        class="badge"
+                        :class="state.rx_audio_loss[kind] ? 'bg-warning text-dark' : 'bg-secondary'"
+                      >
+                        {{ $t('modals.rxaudiolost_' + kind) }}: {{ state.rx_audio_loss[kind] }}
+                      </span>
+                    </label>
+                  </div>
 
 
                   <div

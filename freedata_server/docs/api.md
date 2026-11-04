@@ -299,7 +299,7 @@ These are produced by `EventManager.broadcast()` ([event_manager.py](../event_ma
 Produced by `StateManager` ([state_manager.py](../state_manager.py)):
 
 - `{"type": "state", ...}`: a full state snapshot, as `GET /modem/state` returns it (`get_state_event(False)`); the stream itself sends only the changes below.
-- `{"type": "state-change", ...}`: the same fields, sent by `set(key, value)` and `set_channel_slot_busy()` when the snapshot differs from the last one. Fields: `is_modem_running, is_beacon_running, is_away_from_key, is_pskreporter_enabled, radio_status, channel_busy, channel_busy_slot, is_codec2_traffic, audio_dbfs, activities, is_modem_busy`. `channel_busy` is `true` while the channel is busy (`not channel_busy_event.is_set()`; the event is set while the channel is free).
+- `{"type": "state-change", ...}`: the same fields, sent by `set(key, value)` and `set_channel_slot_busy()` when the snapshot differs from the last one. Fields: `is_modem_running, is_beacon_running, is_away_from_key, is_pskreporter_enabled, radio_status, channel_busy, channel_busy_slot, is_codec2_traffic, audio_dbfs, activities, is_modem_busy, rx_audio_loss` (`{driver, queue, decoder}`: RX audio blocks lost since the modem started). `channel_busy` is `true` while the channel is busy (`not channel_busy_event.is_set()`; the event is set while the channel is free).
 - `{"type": "radio-change", radio_status, radio_frequency, radio_rf_level, radio_mode, s_meter_strength, radio_swr, radio_tuner}`, sent by `set_radio()` when the value changes. `get_radio_event` can also build `type: "radio"`.
 
 ### 3.3 `/fft` messages

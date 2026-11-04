@@ -176,6 +176,9 @@ def main():
             "can control the radio, the API has no login. Use only on a network you trust."
         )
 
+    if helpers.raise_process_priority():
+        logger.info("[SYS] Running above normal priority, for steadier RX audio")
+
     # Launch GUI if available
     if gui_dir and os.path.isdir(gui_dir):
         url = f"http://{helpers.browsable_host(host)}:{port}/gui"

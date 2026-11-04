@@ -141,6 +141,33 @@ class TestRxAudioLossLog(unittest.TestCase):
         rf.log_rx_audio_loss(reported, 10)
         self.assertEqual(len(warnings), 1, "losses already reported are not logged again")
 
+    def test_losses_reach_the_gui_state(self):
+        rf = _rf()
+        rf.log = _RecordingLog([])
+        self.assertEqual(rf.ctx.state_manager.rx_audio_loss, {"driver": 0, "queue": 0, "decoder": 0})
+        rf.rx_audio_status_blocks = 4
+        rf.rx_audio_dropped_blocks = 2
+        rf.demodulator.buffer_overflow_counter[0] = 1
+        rf.demodulator.buffer_overflow_counter[3] = 2
+        rf.log_rx_audio_loss((0, 0), 10)
+        self.assertEqual(rf.ctx.state_manager.rx_audio_loss, {"driver": 4, "queue": 2, "decoder": 3})
+        self.assertEqual(rf.ctx.state_manager.get_state_event(False)["rx_audio_loss"]["driver"], 4)
+
+
+class TestRxBufferSetting(unittest.TestCase):
+    def test_default_and_limits(self):
+        self.assertEqual(modem.rx_buffer_ms({}), modem.RX_BUFFER_MS_DEFAULT)
+        self.assertEqual(modem.rx_buffer_ms({"AUDIO": {"rx_buffer_ms": 0}}), 200)
+        self.assertEqual(modem.rx_buffer_ms({"AUDIO": {"rx_buffer_ms": 500}}), 500)
+        self.assertEqual(modem.rx_buffer_ms({"AUDIO": {"rx_buffer_ms": 20}}), modem.RX_BUFFER_MS_MIN)
+        self.assertEqual(modem.rx_buffer_ms({"AUDIO": {"rx_buffer_ms": 9999}}), modem.RX_BUFFER_MS_MAX)
+        self.assertEqual(modem.rx_buffer_ms({"AUDIO": {"rx_buffer_ms": "x"}}), 200)
+
+    def test_config_has_it(self):
+        ctx = AppContext(CONFIG)
+        self.assertIn("rx_buffer_ms", ctx.config_manager.read()["AUDIO"])
+        self.assertIsInstance(ctx.config_manager.read()["AUDIO"]["rx_buffer_ms"], int)
+
 
 class TestRxAudioReblocking(unittest.TestCase):
     """The capture block size must never reach the DSP chain.

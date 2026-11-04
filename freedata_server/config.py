@@ -43,6 +43,8 @@ class CONFIG:
             "tx_audio_level": int,
             "rx_auto_audio_level": bool,
             "tx_auto_audio_level": bool,
+            # depth of the RX capture buffer in ms; 0 = the default (modem.RX_BUFFER_MS_DEFAULT)
+            "rx_buffer_ms": int,
         },
         "RADIO": {
             "control": str,

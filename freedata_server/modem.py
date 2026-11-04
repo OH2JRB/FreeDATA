@@ -17,6 +17,25 @@ from freedata_server import audio
 from freedata_server import demodulator
 from freedata_server import modulator
 
+# Depth of the RX capture buffer (PortAudio's input latency), AUDIO.rx_buffer_ms.
+# A deeper buffer rides out longer stalls of the computer or its USB audio
+# before the driver loses audio (input overflow), but delays what is received
+# by up to that much. 0 or a missing setting means the default.
+RX_BUFFER_MS_DEFAULT = 200
+RX_BUFFER_MS_MIN = 100
+RX_BUFFER_MS_MAX = 1000
+
+
+def rx_buffer_ms(config):
+    """AUDIO.rx_buffer_ms within RX_BUFFER_MS_MIN..MAX; 0 or missing gives the default."""
+    try:
+        value = int(config.get("AUDIO", {}).get("rx_buffer_ms") or 0)
+    except (TypeError, ValueError):
+        value = 0
+    if value <= 0:
+        return RX_BUFFER_MS_DEFAULT
+    return max(RX_BUFFER_MS_MIN, min(RX_BUFFER_MS_MAX, value))
+
 
 class RF:
     """Handles FreeDATA modem functionality.
@@ -213,7 +232,8 @@ class RF:
             in_api = sd.query_hostapis(sd.query_devices(in_dev_index)["hostapi"])["name"]
             self.rx_audio_device = f"{in_dev_name} ({in_api})"
 
-            self.log.info(f"[MDM] init: receiving audio from '{self.rx_audio_device}'")
+            self.rx_buffer_ms = rx_buffer_ms(self.ctx.config_manager.config)
+            self.log.info(f"[MDM] init: receiving audio from '{self.rx_audio_device}'", rx_buffer_ms=self.rx_buffer_ms)
             self.log.info(f"[MDM] init: transmiting audio on '{out_dev_name}'")
             self.log.debug("[MDM] init: starting pyaudio callback and decoding threads")
 
@@ -232,9 +252,10 @@ class RF:
             # This is deliberate and load-bearing: a fixed blocksize=4800 makes
             # some virtual devices (measured on snd-aloop) starve/overflow --
             # a two period ring at 100 ms periods drops audio continuously and
-            # the modem is deaf. latency=0.2 sets the ring depth explicitly so
-            # the ring comes out deep (many small periods) on every device
-            # measured (CM108 hardware and snd-aloop alike).
+            # the modem is deaf. latency sets the ring depth explicitly so the
+            # ring comes out deep (many small periods) on every device measured
+            # (CM108 hardware and snd-aloop alike), 0.2 s by default;
+            # AUDIO.rx_buffer_ms makes it deeper for a device that overflows.
             # The capture block size is decoupled from the DSP block size:
             # PortAudio may deliver any block length here (512/1024-class blocks
             # are common on real hardware, and are NOT a multiple of codec2's
@@ -249,9 +270,10 @@ class RF:
                 device=in_dev_index,
                 samplerate=self.AUDIO_SAMPLE_RATE,
                 blocksize=0,
-                latency=0.2,
+                latency=self.rx_buffer_ms / 1000,
             )
             self.sd_input_stream.start()
+            self.publish_rx_audio_loss()
 
             # process RX audio off the real-time callback thread
             self.rx_audio_carry_48k = np.empty(0, dtype=np.int16)  # no stale audio across restarts
@@ -526,6 +548,7 @@ class RF:
         Returns:
             tuple: The current counts, to pass to the next call.
         """
+        self.publish_rx_audio_loss()
         current = (self.rx_audio_status_blocks, self.rx_audio_dropped_blocks)
         status_blocks = current[0] - reported[0]
         dropped_blocks = current[1] - reported[1]
@@ -539,6 +562,20 @@ class RF:
                 device=self.rx_audio_device,
             )
         return current
+
+    def publish_rx_audio_loss(self):
+        """Puts the RX audio lost since the modem started into the state, for
+        the GUI's System check: blocks the driver flagged (lost before
+        FreeDATA got them), blocks dropped because the RX worker fell behind,
+        and blocks a decoder's buffer had no room for."""
+        self.ctx.state_manager.set(
+            "rx_audio_loss",
+            {
+                "driver": self.rx_audio_status_blocks,
+                "queue": self.rx_audio_dropped_blocks,
+                "decoder": sum(self.demodulator.buffer_overflow_counter),
+            },
+        )
 
     def process_rx_audio_block(self, indata) -> None:
         """Re-blocks one captured audio block and runs the DSP chain on it.

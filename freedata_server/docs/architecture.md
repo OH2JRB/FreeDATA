@@ -256,6 +256,7 @@ Holds mutable runtime state and pushes state snapshots to `state_queue`.
 | `is_beacon_running`, `is_away_from_key` | `False` | |
 | `transmitting_event` | Event, set (= not transmitting) | Managed via `setTransmitting/isTransmitting`. |
 | `audio_dbfs` | `0` | |
+| `rx_audio_loss` | `{driver: 0, queue: 0, decoder: 0}` | RX audio blocks lost since the modem started (`modem.RF.publish_rx_audio_loss`) |
 | `dxcallsign`, `dxgrid` | `b"ZZ9YY-0"`, `b"------"` | |
 | `heard_stations` | `[]` | Rows built by `helpers.add_to_heard_stations`. |
 | `activities_list` | `{}` | id (random 8-byte hex) -> activity dict. |
@@ -270,7 +271,7 @@ Holds mutable runtime state and pushes state snapshots to `state_queue`.
 | `set(key, value)` | `setattr`, then builds a `state-change` event and enqueues it only if it differs from the last one (`newstate`). |
 | `set_radio(key, value)` | Same for `radio-change` events (`newradio`). |
 | `sendStateUpdate(state)` | Raw enqueue. |
-| `get_state_event(changed)` | `{"type": "state"\|"state-change", is_modem_running, is_beacon_running, is_away_from_key, radio_status, channel_busy_slot, is_codec2_traffic, audio_dbfs, activities, is_modem_busy}` |
+| `get_state_event(changed)` | `{"type": "state"\|"state-change", is_modem_running, is_beacon_running, is_away_from_key, radio_status, channel_busy_slot, is_codec2_traffic, audio_dbfs, activities, is_modem_busy, rx_audio_loss}` |
 | `get_radio_event(changed)` | `{"type": "radio"\|"radio-change", radio_status, radio_frequency, radio_rf_level, radio_mode, s_meter_strength, radio_swr, radio_tuner}` |
 | `get_radio_status()` | Same radio fields without `type`. |
 | `set_channel_slot_busy(array)` | Replaces `channel_busy_slot` and enqueues a `state-change` if any slot differs. |
@@ -396,6 +397,7 @@ Defined in `CONFIG.config_types`; example values from [config.ini.example](../co
 | | `tx_audio_level` | int | `0` |
 | | `rx_auto_audio_level` | bool | `True` |
 | | `tx_auto_audio_level` | bool | `False` |
+| | `rx_buffer_ms` | int | `0` (= 200 ms; otherwise limited to 100..1000) |
 | RADIO | `control` | str | `disabled` |
 | | `serial_port` | str | `/dev/cu.Bluetooth-Incoming-Port` |
 | | `model_id` | int | `1001` |

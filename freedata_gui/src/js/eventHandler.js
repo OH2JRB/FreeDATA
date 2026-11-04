@@ -86,6 +86,7 @@ export function stateDispatcher(data) {
     stateStore.channel_busy_slot = data.channel_busy_slot;
     stateStore.beacon_state = data.is_beacon_running;
     stateStore.away_from_key = data.is_away_from_key;
+    if (data.rx_audio_loss) stateStore.rx_audio_loss = data.rx_audio_loss;
     // the PSK Reporter switch, also after a server restart (always off then)
     if (
       typeof data.is_pskreporter_enabled === "boolean" &&

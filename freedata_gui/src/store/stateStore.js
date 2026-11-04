@@ -54,6 +54,8 @@ export const useStateStore = defineStore("stateStore", () => {
   var hamlib_status = ref("");
   var tx_audio_level = ref("");
   var rx_audio_level = ref("");
+  // RX audio blocks lost since the modem started: driver, queue, decoder
+  var rx_audio_loss = ref({ driver: 0, queue: 0, decoder: 0 });
 
   var alc = ref("");
 
@@ -128,6 +130,7 @@ export const useStateStore = defineStore("stateStore", () => {
     hamlib_status,
     tx_audio_level,
     rx_audio_level,
+    rx_audio_loss,
     alc,
     modemStartCount,
     arq_transmission_percent,

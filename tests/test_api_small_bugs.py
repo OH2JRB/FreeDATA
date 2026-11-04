@@ -47,6 +47,40 @@ class TestIsLoopback(unittest.TestCase):
             self.assertFalse(helpers.is_loopback(host), host)
 
 
+class TestRaiseProcessPriority(unittest.TestCase):
+    def process(self, priority):
+        process = mock.Mock()
+        process.nice.side_effect = lambda value=None: priority if value is None else None
+        return process
+
+    def test_windows_normal_goes_above_normal(self):
+        process = self.process(32)  # normal
+        with (
+            mock.patch.object(helpers.sys, "platform", "win32"),
+            mock.patch.object(helpers.psutil, "Process", return_value=process),
+            mock.patch.object(helpers.psutil, "NORMAL_PRIORITY_CLASS", 32, create=True),
+            mock.patch.object(helpers.psutil, "ABOVE_NORMAL_PRIORITY_CLASS", 32768, create=True),
+        ):
+            self.assertTrue(helpers.raise_process_priority())
+        process.nice.assert_called_with(32768)
+
+    def test_a_priority_the_user_set_is_kept(self):
+        process = self.process(128)  # high
+        with (
+            mock.patch.object(helpers.sys, "platform", "win32"),
+            mock.patch.object(helpers.psutil, "Process", return_value=process),
+            mock.patch.object(helpers.psutil, "NORMAL_PRIORITY_CLASS", 32, create=True),
+            mock.patch.object(helpers.psutil, "ABOVE_NORMAL_PRIORITY_CLASS", 32768, create=True),
+        ):
+            self.assertFalse(helpers.raise_process_priority())
+        self.assertEqual(process.nice.call_count, 1, "only read, not changed")
+
+    def test_other_systems_unchanged(self):
+        with mock.patch.object(helpers.sys, "platform", "linux"), mock.patch.object(helpers.psutil, "Process") as p:
+            self.assertFalse(helpers.raise_process_priority())
+        p.assert_not_called()
+
+
 def command_class(run):
     class Command:
         def __init__(self, ctx, params):
