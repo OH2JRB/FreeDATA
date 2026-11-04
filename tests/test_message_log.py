@@ -57,7 +57,7 @@ class TestMessageLog(unittest.TestCase):
 
     def read_rows(self, path):
         with open(path, encoding="utf-8-sig", newline="") as f:
-            return list(csv.reader(f))
+            return list(csv.reader(f, delimiter=";"))
 
     def test_log_file_next_to_database(self):
         result = self.write_log()
@@ -85,6 +85,10 @@ class TestMessageLog(unittest.TestCase):
         with open(result["file_path"], "rb") as f:
             raw = f.read()
         self.assertTrue(raw.startswith(b"\xef\xbb\xbf"), "UTF-8 byte order mark for spreadsheets")
+        # semicolon separated, for Excel with a comma as decimal mark
+        self.assertTrue(raw[3:].startswith(b"Date/time (UTC);Sender;Receiver;Message;Attachments\r\n"))
+        # a comma alone needs no quoting
+        self.assertIn(f";{tag} plain;".encode(), raw)
         # RFC 4180: the cell is quoted, quotes doubled, the line break kept inside
         self.assertIn(f'"{tag} Hello, ""world"";\nsecond line äöå ✓"'.encode(), raw)
 

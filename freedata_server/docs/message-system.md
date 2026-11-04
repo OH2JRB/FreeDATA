@@ -374,9 +374,9 @@ The GUI's queue tab ([queue_screen.vue](../../freedata_gui/src/components/queue_
 `POST /freedata/messages/log` ("Message log" button above the chat list) calls `DatabaseManagerMessages.write_message_log_csv()`. It writes every P2P message, oldest first, to `freedata-message-log_<local YYYYMMDD-HHMMSS>.csv` in the directory of the database file (`_2`, `_3`, ... when that name exists), so the file is on the server computer, and returns `file_name`, `file_path` and `total_messages`.
 
 - Columns: `Date/time (UTC)` (`YYYY-MM-DD HH:MM:SS`), `Sender`, `Receiver`, `Message`, `Attachments` (file names joined with `; `, empty when there are none). Only the attachment names are read, not their data.
-- UTF-8 with a byte order mark, comma separated, quoted as in RFC 4180 (commas, quotes and line breaks stay in their cell), CRLF row ends.
+- UTF-8 with a byte order mark, semicolon separated, quoted as in RFC 4180 (semicolons, quotes and line breaks stay in their cell), CRLF row ends.
 - A cell that starts with `=`, `+`, `-`, `@`, tab or CR gets a leading `'`, so a spreadsheet does not run text from another station as a formula.
-- Excel opens a `.csv` by double-click with the Windows list separator; where that is `;` (for example Finnish or German settings) use Data > From Text/CSV. A `sep=,` line would fix the columns but makes Excel ignore the byte order mark.
+- Why `;`: Excel splits a double-clicked `.csv` at the Windows list separator, which is `;` where the decimal mark is a comma (for example Finnish or German settings). Where it is `,` (for example US English), Excel puts each row in one column on double-click; use Data > From Text/CSV, which detects the semicolon, as LibreOffice's import dialog lets you pick it. A `sep=;` first line would make every Excel split right, but Excel then ignores the byte order mark and garbles non-ASCII text.
 
 ### Stop button
 

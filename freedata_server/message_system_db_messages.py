@@ -229,9 +229,11 @@ class DatabaseManagerMessages(DatabaseManager):
         One row per message: date and time (UTC), sender, receiver, message
         text and the file names of its attachments (separated by "; ",
         empty when there are none). The file is UTF-8 with a byte order
-        mark, so spreadsheets read non-ASCII text right, and quoted as in
-        RFC 4180, so commas, quotes and line breaks in a message stay in
-        their cell.
+        mark, so spreadsheets read non-ASCII text right. The separator is a
+        semicolon: Excel splits a double-clicked CSV at the Windows list
+        separator, which is ";" wherever the decimal mark is a comma (for
+        example Finnish and German settings). Quoting is as in RFC 4180, so
+        semicolons, quotes and line breaks in a message stay in their cell.
 
         Args:
             directory (str, optional): Where to write the file. Defaults to
@@ -283,7 +285,7 @@ class DatabaseManagerMessages(DatabaseManager):
                 file_name = f"{stem}_{number}.csv"
 
         with csv_file:
-            writer = csv.writer(csv_file)
+            writer = csv.writer(csv_file, delimiter=";")
             writer.writerow(self.MESSAGE_LOG_HEADER)
             for message_id, timestamp, origin, destination, body in messages:
                 writer.writerow((
