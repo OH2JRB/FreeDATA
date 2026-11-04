@@ -330,9 +330,26 @@ export async function postFreedataMessageADIF(id) {
   });
 }
 
-// Write all messages to a CSV file on the server; returns file_name and file_path
-export async function writeFreedataMessageLog() {
-  return await apiPost("/freedata/messages/log");
+// The message log as a CSV file: returns { blob, totalMessages }, or
+// undefined on an error (shown as toast)
+export async function getFreedataMessageLog() {
+  const endpoint = "/freedata/messages/log";
+  setNetworkTrafficBusy(true);
+  try {
+    const response = await fetch(buildURL(endpoint));
+    if (!response.ok) {
+      showApiError("GET", endpoint, await getErrorMessage(response));
+      return;
+    }
+    return {
+      blob: await response.blob(),
+      totalMessages: Number(response.headers.get("X-Total-Messages")),
+    };
+  } catch (error) {
+    showApiError("GET", endpoint, error?.message || String(error));
+  } finally {
+    setNetworkTrafficBusy(false);
+  }
 }
 
 export async function retransmitFreedataMessage(id) {

@@ -106,6 +106,8 @@ app.add_middleware(
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
+    # read by the GUI dev server (another port) when downloading the message log
+    expose_headers=["X-Total-Messages"],
 )
 # added last, so it runs first: before CORS, the routes and the websockets
 app.add_middleware(RequestGuard, get_config=lambda: ctx.config_manager.config)

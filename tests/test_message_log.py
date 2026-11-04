@@ -1,8 +1,9 @@
-"""The message log: POST /freedata/messages/log writes all messages to a CSV
-file next to the message database and returns its name and full path."""
+"""The message log: GET /freedata/messages/log returns the completed messages
+as a CSV download, oldest first; nothing is stored on the server."""
 
 import base64
 import csv
+import io
 import os
 import time
 import unittest
@@ -42,6 +43,7 @@ class TestMessageLog(unittest.TestCase):
         destination="QU1AAA-1",
         direction="transmit",
         status="transmitted",
+        timestamp=None,
     ):
         time.sleep(0.02)  # the id holds the time; Windows clock steps are ~16 ms
         params = {
@@ -53,39 +55,40 @@ class TestMessageLog(unittest.TestCase):
             ],
         }
         message = MessageP2P.from_api_params(origin, params)
-        self.db.add_message(message.to_dict(), statistics={}, direction=direction, status=status)
+        data = message.to_dict()
+        if timestamp:  # the message time is the one in its id
+            data["id"] = message.id = f"{origin}_{destination}_{timestamp}"
+        self.db.add_message(data, statistics={}, direction=direction, status=status)
         return message
 
-    def write_log(self):
-        response = self.client.post("/freedata/messages/log")
+    def download(self):
+        response = self.client.get("/freedata/messages/log")
         self.assertEqual(response.status_code, 200)
-        result = response.json()
-        self.addCleanup(os.remove, result["file_path"])
-        return result
+        return response
 
-    def read_rows(self, path):
-        with open(path, encoding="utf-8-sig", newline="") as f:
-            return list(csv.reader(f, delimiter=";"))
+    def rows(self, response):
+        return list(csv.reader(io.StringIO(response.content.decode("utf-8-sig"), newline=""), delimiter=";"))
 
-    def test_log_file_next_to_database(self):
-        result = self.write_log()
-        self.assertEqual(result["status"], "success")
-        path = result["file_path"]
-        self.assertTrue(os.path.isabs(path))
-        self.assertTrue(os.path.isfile(path))
-        self.assertEqual(os.path.basename(path), result["file_name"])
-        self.assertRegex(result["file_name"], r"^freedata-message-log_\d{8}-\d{6}(_\d+)?\.csv$")
-        database_dir = os.path.dirname(os.path.abspath(os.environ["FREEDATA_DATABASE"]))
-        self.assertEqual(os.path.dirname(path), database_dir)
-        rows = self.read_rows(path)
+    def test_download(self):
+        files_before = set(os.listdir(os.path.dirname(os.path.abspath(os.environ["FREEDATA_DATABASE"]))))
+        response = self.download()
+        self.assertEqual(response.headers["content-type"], "text/csv; charset=utf-8")
+        self.assertRegex(
+            response.headers["content-disposition"],
+            r'^attachment; filename="freedata-message-log_\d{8}-\d{6}\.csv"$',
+        )
+        rows = self.rows(response)
         self.assertEqual(rows[0], ["Date/time (UTC)", "Sender", "Receiver", "Message", "Attachments"])
-        self.assertEqual(result["total_messages"], len(rows) - 1)
+        self.assertEqual(int(response.headers["x-total-messages"]), len(rows) - 1)
         completed = [
             m
             for m in self.db.get_all_messages()
             if (m["direction"], m["status"]) in (("transmit", "transmitted"), ("receive", "received"))
         ]
         self.assertEqual(len(completed), len(rows) - 1)
+        # nothing written next to the database
+        files_after = set(os.listdir(os.path.dirname(os.path.abspath(os.environ["FREEDATA_DATABASE"]))))
+        self.assertEqual(files_after, files_before)
 
     def test_only_completed_transmissions(self):
         tag = uuid.uuid4().hex
@@ -102,14 +105,34 @@ class TestMessageLog(unittest.TestCase):
             self.addCleanup(self.db.delete_message, message.id)
             self.addCleanup(self.db.update_message, message.id, {"status": "failed"})
 
-        bodies = [row[3] for row in self.read_rows(self.write_log()["file_path"]) if tag in row[3]]
+        bodies = [row[3] for row in self.rows(self.download()) if tag in row[3]]
         self.assertEqual(bodies, [f"{tag} sent", f"{tag} received"])
 
         # sent again: left out until the new transmission has finished
         self.db.update_message(sent.id, {"status": "queued"})
-        bodies = [row[3] for row in self.read_rows(self.write_log()["file_path"]) if tag in row[3]]
+        bodies = [row[3] for row in self.rows(self.download()) if tag in row[3]]
         self.assertEqual(bodies, [f"{tag} received"])
         self.assertTrue(received.id)
+
+    def test_oldest_first(self):
+        # added in another order than their times: a received message can be
+        # older than one sent before it reached the database
+        tag = uuid.uuid4().hex
+        for body, timestamp in (
+            ("third", "2001-01-03T08:00:00+00:00"),
+            ("first", "2001-01-01T23:59:59.500000+00:00"),
+            ("second", "2001-01-02T00:00:00+00:00"),
+        ):
+            self.add(f"{tag} {body}", timestamp=timestamp)
+
+        rows = [row for row in self.rows(self.download()) if tag in row[3]]
+        self.assertEqual([row[3] for row in rows], [f"{tag} first", f"{tag} second", f"{tag} third"])
+        self.assertEqual(
+            [row[0] for row in rows], ["2001-01-01 23:59:59", "2001-01-02 00:00:00", "2001-01-03 08:00:00"]
+        )
+        # oldest first over the whole log, not only these
+        times = [row[0] for row in self.rows(self.download())[1:]]
+        self.assertEqual(times, sorted(times))
 
     def test_rows_quoting_and_attachments(self):
         tag = uuid.uuid4().hex
@@ -118,9 +141,8 @@ class TestMessageLog(unittest.TestCase):
         files = self.add(tricky, attachments=("a, b.txt", "kuva.jpg"))
         formula = self.add(f"=1+1 {tag}", origin="BB2BBB-2", destination="AA1AAA-1")
 
-        result = self.write_log()
-        with open(result["file_path"], "rb") as f:
-            raw = f.read()
+        response = self.download()
+        raw = response.content
         self.assertTrue(raw.startswith(b"\xef\xbb\xbf"), "UTF-8 byte order mark for spreadsheets")
         # semicolon separated, for Excel with a comma as decimal mark
         self.assertTrue(raw[3:].startswith(b"Date/time (UTC);Sender;Receiver;Message;Attachments\r\n"))
@@ -129,7 +151,7 @@ class TestMessageLog(unittest.TestCase):
         # RFC 4180: the cell is quoted, quotes doubled, the line break kept inside
         self.assertIn(f'"{tag} Hello, ""world"";\nsecond line äöå ✓"'.encode(), raw)
 
-        rows = [row for row in self.read_rows(result["file_path"]) if tag in row[3]]
+        rows = [row for row in self.rows(response) if tag in row[3]]
         self.assertEqual(len(rows), 3)
         for row in rows:
             self.assertEqual(len(row), 5)
@@ -144,16 +166,11 @@ class TestMessageLog(unittest.TestCase):
         self.assertEqual(rows[2][1:3], ["BB2BBB-2", "AA1AAA-1"])
         self.assertTrue(files.id and formula.id)
 
-    def test_new_file_each_time(self):
-        first = self.write_log()
-        second = self.write_log()
-        self.assertNotEqual(first["file_path"], second["file_path"])
-
-    def test_write_error_is_500(self):
-        with mock.patch.object(DatabaseManagerMessages, "write_message_log_csv", side_effect=PermissionError("denied")):
-            response = self.client.post("/freedata/messages/log")
+    def test_error_is_500(self):
+        with mock.patch.object(DatabaseManagerMessages, "message_log_csv", side_effect=RuntimeError("broken")):
+            response = self.client.get("/freedata/messages/log")
         self.assertEqual(response.status_code, 500)
-        self.assertIn("denied", response.json()["detail"]["error"])
+        self.assertIn("broken", response.json()["detail"]["error"])
 
 
 if __name__ == "__main__":
