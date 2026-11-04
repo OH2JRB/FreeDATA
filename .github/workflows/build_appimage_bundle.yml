@@ -17,9 +17,13 @@ on:
 jobs:
   build-and-release:
     # The fork's default workflow token is read-only; creating the draft
-    # release and uploading its files needs write access to contents
+    # release and uploading its files needs write access to contents. The
+    # other three let actions/attest sign the build provenance.
     permissions:
       contents: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
     runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
 
     steps:
@@ -166,6 +170,16 @@ jobs:
       # lets users check a download: sha256sum -c SHA256SUMS-linux.txt
       - name: Write SHA-256 sums
         run: sha256sum FreeDATA-x86_64.AppImage freedata-server_ubuntu.zip freedata-sbom_linux.cdx.json | tee SHA256SUMS-linux.txt
+
+      # signed build provenance: proves the files were built by this workflow
+      # from this commit (gh attestation verify, see SECURITY.md)
+      - name: Attest build provenance
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: |
+            FreeDATA-x86_64.AppImage
+            freedata-server_ubuntu.zip
+            freedata-sbom_linux.cdx.json
 
       - name: Upload Installer to Release
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
