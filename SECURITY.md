@@ -36,6 +36,22 @@ On Windows, compare the output of
 `Get-FileHash FreeDATA-Installer.exe -Algorithm SHA256` with the line in
 `SHA256SUMS-windows.txt`.
 
+The sums show a download is complete, not who built it. For that, every
+release file and the Docker image also have a signed build provenance
+attestation: a record, signed through GitHub and Sigstore, that the file was
+built by this repository's release workflow and from which commit. Check it
+with the [GitHub CLI](https://cli.github.com):
+
+```bash
+gh attestation verify FreeDATA-Installer.exe -R OH2JRB/FreeDATA
+gh attestation verify oci://ghcr.io/oh2jrb/freedata:latest -R OH2JRB/FreeDATA
+```
+
+It fails if the file was changed, or built anywhere else. The output names
+the workflow and the commit, which should be the release's tag. Releases
+up to 0.30.1 have no attestations. The files are not code-signed, so Windows
+may still warn about the installer.
+
 ## Security model
 
 FreeDATA is meant to run on the station computer, used by its operator.
