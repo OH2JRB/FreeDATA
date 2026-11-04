@@ -6,7 +6,7 @@ from sqlalchemy import and_, func, or_
 from sqlalchemy.exc import IntegrityError
 from datetime import datetime, timedelta, timezone
 import csv
-import os
+import io
 from freedata_server.exceptions import MessageStatusError
 
 
@@ -226,9 +226,9 @@ class DatabaseManagerMessages(DatabaseManager):
     # confirmed by the ARQ session, or fully received
     MESSAGE_LOG_COMPLETED = (("transmit", "transmitted"), ("receive", "received"))
 
-    def write_message_log_csv(self, directory=None):
-        """Writes the successfully completed P2P messages, oldest first, to a
-        new CSV file.
+    def message_log_csv(self):
+        """The successfully completed P2P messages, oldest first, as CSV
+        text, for the GUI to download.
 
         Only sent messages with status "transmitted" (the ARQ session
         finished) and received messages with status "received" are
@@ -238,23 +238,20 @@ class DatabaseManagerMessages(DatabaseManager):
 
         One row per message: date and time (UTC), sender, receiver, message
         text and the file names of its attachments (separated by "; ",
-        empty when there are none). The file is UTF-8 with a byte order
-        mark, so spreadsheets read non-ASCII text right. The separator is a
+        empty when there are none). Rows are sorted by the message time,
+        which comes from the message ID (UTC), so the order does not depend
+        on when a message reached the database. The separator is a
         semicolon: Excel splits a double-clicked CSV at the Windows list
         separator, which is ";" wherever the decimal mark is a comma (for
         example Finnish and German settings). Quoting is as in RFC 4180, so
         semicolons, quotes and line breaks in a message stay in their cell.
-
-        Args:
-            directory (str, optional): Where to write the file. Defaults to
-                the directory of the message database.
+        The caller encodes it (UTF-8 with a byte order mark, so spreadsheets
+        read non-ASCII text right).
 
         Returns:
-            dict: status, file_name, file_path and total_messages.
+            dict: csv (the text), file_name (a suggested name, with the
+            server's local date and time) and total_messages.
         """
-        if directory is None:
-            directory = os.path.dirname(os.path.abspath(self.get_database_path()))
-
         session = self.get_thread_scoped_session()
         try:
             messages = (
@@ -288,36 +285,22 @@ class DatabaseManagerMessages(DatabaseManager):
         finally:
             session.remove()
 
-        os.makedirs(directory, exist_ok=True)
-        stem = f"freedata-message-log_{datetime.now():%Y%m%d-%H%M%S}"
-        file_name = f"{stem}.csv"
-        number = 1
-        while True:
-            file_path = os.path.join(directory, file_name)
-            try:
-                csv_file = open(file_path, "x", encoding="utf-8-sig", newline="")
-                break
-            except FileExistsError:
-                number += 1
-                file_name = f"{stem}_{number}.csv"
+        text = io.StringIO(newline="")
+        writer = csv.writer(text, delimiter=";")
+        writer.writerow(self.MESSAGE_LOG_HEADER)
+        for message_id, timestamp, origin, destination, body in messages:
+            writer.writerow((
+                timestamp.strftime("%Y-%m-%d %H:%M:%S") if timestamp else "",
+                csv_text(origin),
+                csv_text(destination),
+                csv_text(body),
+                csv_text("; ".join(attachment_names.get(message_id, []))),
+            ))
 
-        with csv_file:
-            writer = csv.writer(csv_file, delimiter=";")
-            writer.writerow(self.MESSAGE_LOG_HEADER)
-            for message_id, timestamp, origin, destination, body in messages:
-                writer.writerow((
-                    timestamp.strftime("%Y-%m-%d %H:%M:%S") if timestamp else "",
-                    csv_text(origin),
-                    csv_text(destination),
-                    csv_text(body),
-                    csv_text("; ".join(attachment_names.get(message_id, []))),
-                ))
-
-        self.log(f"Wrote {len(messages)} messages to {file_path}")
+        self.log(f"Message log with {len(messages)} messages")
         return {
-            "status": "success",
-            "file_name": file_name,
-            "file_path": file_path,
+            "csv": text.getvalue(),
+            "file_name": f"freedata-message-log_{datetime.now():%Y%m%d-%H%M%S}.csv",
             "total_messages": len(messages),
         }
 

@@ -13,11 +13,11 @@
       class="btn btn-outline-secondary"
       :title="$t('chat.messagelog_help')"
       :aria-label="$t('chat.messagelog_help')"
-      :disabled="writingMessageLog"
-      @click="writeMessageLog"
+      :disabled="savingMessageLog"
+      @click="saveMessageLog"
     >
       <span
-        v-if="writingMessageLog"
+        v-if="savingMessageLog"
         class="spinner-border spinner-border-sm"
         aria-hidden="true"
       />
@@ -30,19 +30,22 @@
     </button>
   </nav>
 
-  <!-- Where the message log was written (on the server computer) -->
+  <!-- The message log saved on this computer -->
   <div
     v-if="messageLog"
     class="alert alert-success alert-dismissible small m-1 mb-0 p-2 pe-5"
     role="status"
   >
-    <strong>{{ $t('chat.messagelog_written') }}</strong>
-    ({{ messageLog.total_messages }})
+    <strong>{{ $t('chat.messagelog_saved') }}</strong>
+    ({{ messageLog.totalMessages }})
     <div class="text-break">
-      {{ $t('chat.messagelog_file') }}: <code class="user-select-all">{{ messageLog.file_name }}</code>
+      {{ $t('chat.messagelog_file') }}: <code class="user-select-all">{{ messageLog.fileName }}</code>
     </div>
-    <div class="text-break">
-      {{ $t('chat.messagelog_path') }}: <code class="user-select-all">{{ messageLog.file_path }}</code>
+    <div
+      v-if="!messageLog.picked"
+      class="text-muted"
+    >
+      {{ $t('chat.messagelog_downloaded') }}
     </div>
     <button
       type="button"
@@ -121,7 +124,8 @@ import DOMPurify from 'dompurify';
 import { setActivePinia } from 'pinia';
 import pinia from '../store/index';
 import { useChatStore } from '../store/chatStore.js';
-import { setFreedataMessageAsRead, getFreedataMessages, writeFreedataMessageLog } from '../js/api.js';
+import { setFreedataMessageAsRead, getFreedataMessages, getFreedataMessageLog } from '../js/api.js';
+import { displayToast, escapeHtml } from '../js/popupHandler.js';
 import { loadBeaconData, parseServerTimestamp } from '../js/messagesHandler.js';
 import { ref } from 'vue';
 import { useIsMobile } from '../js/mobile_devices.js';
@@ -132,19 +136,64 @@ setActivePinia(pinia);
 
 const chat = useChatStore(pinia);
 const newChatCall = ref(null);
-// result of the last "message log" request: file_name, file_path, total_messages
+// the last saved message log: fileName, totalMessages, picked (saved where
+// the user chose in the save dialog)
 const messageLog = ref(null);
-const writingMessageLog = ref(false);
+const savingMessageLog = ref(false);
 
-// The server writes the CSV file next to its message database; errors are
-// shown as toast by apiPost.
-async function writeMessageLog() {
-  writingMessageLog.value = true;
+function messageLogFileName() {
+  const pad = (n) => String(n).padStart(2, '0');
+  const d = new Date();
+  return `freedata-message-log_${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`
+    + `-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}.csv`;
+}
+
+// Saves the message log (CSV, from the server) on this computer. Where the
+// browser has a save dialog (Chrome and Edge, on 127.0.0.1, localhost or
+// HTTPS), it asks for the folder and file name first, while the click
+// still allows it. Other browsers download the file: they save it in the
+// download folder, or ask where if set to. Server errors are shown as
+// toast by getFreedataMessageLog.
+async function saveMessageLog() {
+  const suggestedName = messageLogFileName();
+  let handle = null;
+  if (window.showSaveFilePicker) {
+    try {
+      handle = await window.showSaveFilePicker({
+        suggestedName,
+        types: [{ description: 'CSV', accept: { 'text/csv': ['.csv'] } }],
+      });
+    } catch (error) {
+      if (error?.name === 'AbortError') return; // the user cancelled
+      handle = null; // no dialog after all: download instead
+    }
+  }
+
+  savingMessageLog.value = true;
   try {
-    const result = await writeFreedataMessageLog();
-    if (result?.file_path) messageLog.value = result;
+    const log = await getFreedataMessageLog();
+    if (!log) return;
+    if (handle) {
+      const writable = await handle.createWritable();
+      await writable.write(log.blob);
+      await writable.close();
+    } else {
+      const url = URL.createObjectURL(log.blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = suggestedName;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    }
+    messageLog.value = {
+      fileName: handle ? handle.name : suggestedName,
+      totalMessages: log.totalMessages,
+      picked: Boolean(handle),
+    };
+  } catch (error) {
+    displayToast('danger', 'bi-exclamation-octagon', `Message log not saved: ${escapeHtml(error?.message || String(error))}`, 8000);
   } finally {
-    writingMessageLog.value = false;
+    savingMessageLog.value = false;
   }
 }
 
@@ -233,7 +282,7 @@ export default {
   setup() {
     return {
       chat, newChatCall, chatSelected, setMessagesAsRead, getDateTime, newChat, startNewChat, previewBody,
-      messageLog, writingMessageLog, writeMessageLog,
+      messageLog, savingMessageLog, saveMessageLog,
     };
   }
 };

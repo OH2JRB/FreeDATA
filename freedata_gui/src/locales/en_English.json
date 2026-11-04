@@ -239,10 +239,10 @@
         "selectChat": "Please select or create a chat",
         "noConversations": "No conversations, yet",
         "messagelog": "Message log",
-        "messagelog_help": "Write sent and received messages to a CSV file",
-        "messagelog_written": "Message log written",
+        "messagelog_help": "Save the completed sent and received messages as a CSV file on this computer",
+        "messagelog_saved": "Message log saved",
         "messagelog_file": "File",
-        "messagelog_path": "Path",
+        "messagelog_downloaded": "Saved by the browser in its download folder, or where you chose if it asks",
         "loadingMessages": "Loading messages...",
         "encryption": {
             "title": "Encryption",

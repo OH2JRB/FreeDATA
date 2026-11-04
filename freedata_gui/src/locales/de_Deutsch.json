@@ -211,10 +211,10 @@
         "selectChat": "Bitte starte oder wähle einen Chat aus",
         "noConversations": "bislang noch kein Chat hier",
         "messagelog": "Nachrichtenprotokoll",
-        "messagelog_help": "Gesendete und empfangene Nachrichten in eine CSV-Datei schreiben",
-        "messagelog_written": "Nachrichtenprotokoll geschrieben",
+        "messagelog_help": "Abgeschlossene gesendete und empfangene Nachrichten als CSV-Datei auf diesem Computer speichern",
+        "messagelog_saved": "Nachrichtenprotokoll gespeichert",
         "messagelog_file": "Datei",
-        "messagelog_path": "Pfad",
+        "messagelog_downloaded": "Vom Browser im Download-Ordner gespeichert, oder dort, wo Sie es gewählt haben, falls er fragt",
         "loadingMessages": "Lade Nachrichten..."
     },
 	"broadcast": {
