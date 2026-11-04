@@ -371,8 +371,9 @@ The GUI's queue tab ([queue_screen.vue](../../freedata_gui/src/components/queue_
 
 ### Message log
 
-`POST /freedata/messages/log` ("Message log" button above the chat list) calls `DatabaseManagerMessages.write_message_log_csv()`. It writes every P2P message, oldest first, to `freedata-message-log_<local YYYYMMDD-HHMMSS>.csv` in the directory of the database file (`_2`, `_3`, ... when that name exists), so the file is on the server computer, and returns `file_name`, `file_path` and `total_messages`.
+`POST /freedata/messages/log` ("Message log" button above the chat list) calls `DatabaseManagerMessages.write_message_log_csv()`. It writes the successfully completed P2P messages, oldest first, to `freedata-message-log_<local YYYYMMDD-HHMMSS>.csv` in the directory of the database file (`_2`, `_3`, ... when that name exists), so the file is on the server computer, and returns `file_name`, `file_path` and `total_messages`.
 
+- Only completed transfers (`MESSAGE_LOG_COMPLETED`): `direction=transmit` with status `transmitted` (the ARQ session finished) and `direction=receive` with status `received`. `queued`, `transmitting`, `failed` and `aborted` messages are left out, and so is a transmitted message that was sent again (back to `queued`) until the new transmission finishes. Encrypted messages still waiting for a key are not P2P messages yet (they are in the pending table) and are not logged.
 - Columns: `Date/time (UTC)` (`YYYY-MM-DD HH:MM:SS`), `Sender`, `Receiver`, `Message`, `Attachments` (file names joined with `; `, empty when there are none). Only the attachment names are read, not their data.
 - UTF-8 with a byte order mark, semicolon separated, quoted as in RFC 4180 (semicolons, quotes and line breaks stay in their cell), CRLF row ends.
 - A cell that starts with `=`, `+`, `-`, `@`, tab or CR gets a leading `'`, so a spreadsheet does not run text from another station as a formula.

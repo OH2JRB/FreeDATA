@@ -238,7 +238,8 @@ async def get_freedata_messages(ctx: AppContext = Depends(get_ctx)):
     },
 )
 async def post_freedata_message_log(ctx: AppContext = Depends(get_ctx)):
-    """Writes all messages to a new CSV file (date and time in UTC, sender,
+    """Writes the successfully completed messages (sent: "transmitted",
+    received: "received") to a new CSV file (date and time in UTC, sender,
     receiver, message text, attachment file names) in the directory of the
     message database, and returns its name and full path."""
     try:

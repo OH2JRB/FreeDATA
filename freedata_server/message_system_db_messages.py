@@ -2,7 +2,7 @@ from freedata_server.message_system_db_manager import DatabaseManager
 from freedata_server.message_system_db_attachments import DatabaseManagerAttachments
 from freedata_server.message_system_db_model import Attachment, MessageAttachment, Status, P2PMessage
 from freedata_server.message_system_db_station import DatabaseManagerStations
-from sqlalchemy import func
+from sqlalchemy import and_, func, or_
 from sqlalchemy.exc import IntegrityError
 from datetime import datetime, timedelta, timezone
 import csv
@@ -222,9 +222,19 @@ class DatabaseManagerMessages(DatabaseManager):
         return messages_with_header
 
     MESSAGE_LOG_HEADER = ("Date/time (UTC)", "Sender", "Receiver", "Message", "Attachments")
+    # (direction, status) of a successfully completed transfer: sent and
+    # confirmed by the ARQ session, or fully received
+    MESSAGE_LOG_COMPLETED = (("transmit", "transmitted"), ("receive", "received"))
 
     def write_message_log_csv(self, directory=None):
-        """Writes all P2P messages, oldest first, to a new CSV file.
+        """Writes the successfully completed P2P messages, oldest first, to a
+        new CSV file.
+
+        Only sent messages with status "transmitted" (the ARQ session
+        finished) and received messages with status "received" are
+        written; queued, transmitting, failed and aborted messages are
+        left out. A transmitted message sent again is left out until the
+        new transmission has finished.
 
         One row per message: date and time (UTC), sender, receiver, message
         text and the file names of its attachments (separated by "; ",
@@ -255,6 +265,13 @@ class DatabaseManagerMessages(DatabaseManager):
                     P2PMessage.origin_callsign,
                     P2PMessage.destination_callsign,
                     P2PMessage.body,
+                )
+                .join(Status, P2PMessage.status_id == Status.id)
+                .filter(
+                    or_(
+                        and_(P2PMessage.direction == direction, Status.name == status)
+                        for direction, status in self.MESSAGE_LOG_COMPLETED
+                    )
                 )
                 .order_by(P2PMessage.timestamp, P2PMessage.id)
                 .all()
