@@ -296,6 +296,49 @@ function reloadModem(){
     </label>
   </div>
 
+<!-- RX buffer depth -->
+  <div class="input-group input-group-sm mb-1">
+    <label class="input-group-text w-50 text-wrap">
+      {{ $t('settings.modem.rxbuffer') }}
+      <button
+        type="button"
+        class="btn btn-link p-0 ms-2"
+        data-bs-toggle="tooltip"
+        :title="$t('settings.modem.rxbuffer_help')"
+      >
+        <i class="bi bi-question-circle" />
+      </button>
+    </label>
+    <select
+      id="rx_buffer_ms"
+      v-model.number="settings.remote.AUDIO.rx_buffer_ms"
+      class="form-select form-select-sm w-50"
+      @change="onChange"
+    >
+      <option :value="0">
+        {{ $t('settings.modem.rxbuffer_default') }}
+      </option>
+      <option :value="100">
+        100
+      </option>
+      <option :value="300">
+        300
+      </option>
+      <option :value="400">
+        400
+      </option>
+      <option :value="500">
+        500
+      </option>
+      <option :value="750">
+        750
+      </option>
+      <option :value="1000">
+        1000
+      </option>
+    </select>
+  </div>
+
 <!-- TX Audio Auto Adjust -->
   <div class="input-group input-group-sm mb-1">
     <label class="input-group-text w-50 text-wrap">

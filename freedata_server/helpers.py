@@ -383,6 +383,29 @@ def is_loopback(host: str) -> bool:
         return False  # a host name: may resolve to a network address
 
 
+def raise_process_priority():
+    """Runs the server above normal priority on Windows, so busy programs delay
+    its RX audio processing less (fewer input overflows). Not higher: high or
+    realtime priority can starve the rest of the computer. A priority the
+    user has set (anything but normal) is left as it is.
+
+    Elsewhere nothing changes; raising the priority there needs root rights.
+
+    Returns:
+        bool: True if the priority was raised.
+    """
+    if sys.platform != "win32":
+        return False
+    try:
+        process = psutil.Process()
+        if process.nice() == psutil.NORMAL_PRIORITY_CLASS:
+            process.nice(psutil.ABOVE_NORMAL_PRIORITY_CLASS)
+            return True
+    except (psutil.Error, OSError):
+        pass
+    return False
+
+
 def check_callsign(callsign: str, crc_to_check: bytes, ssid_list):
     """
     Function to check a crc against a callsign to calculate the

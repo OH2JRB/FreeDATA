@@ -20,6 +20,8 @@ class StateManager:
         self.statequeue = statequeue
         self.newstate = None
         self.newradio = None
+        # RX audio lost since the modem started (modem.RF.publish_rx_audio_loss)
+        self.rx_audio_loss = {"driver": 0, "queue": 0, "decoder": 0}
         # returns the station's IARU region, 0 = all; AppContext sets it from the config
         self.iaru_region = lambda: 0
         self.last = time.time()
@@ -182,6 +184,7 @@ class StateManager:
             "audio_dbfs": self.audio_dbfs,
             "activities": self.activities_list,
             "is_modem_busy": self.getARQ(),
+            "rx_audio_loss": self.rx_audio_loss,
         }
 
     def get_radio_event(self, isChangedState):

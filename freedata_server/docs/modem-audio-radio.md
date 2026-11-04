@@ -34,7 +34,7 @@ Fixed rates:
 
 ```mermaid
 flowchart TD
-    A[sounddevice InputStream<br/>48 kHz int16 mono, blocksize=0, latency=0.2] -->|sd_input_audio_callback<br/>copy + put_nowait| B[rx_audio_in_queue<br/>maxsize=100, drops counted]
+    A[sounddevice InputStream<br/>48 kHz int16 mono, blocksize=0, latency=AUDIO.rx_buffer_ms] -->|sd_input_audio_callback<br/>copy + put_nowait| B[rx_audio_in_queue<br/>maxsize=100, drops counted]
     B --> C[rx_audio_processing_worker thread]
     C --> D[process_rx_audio_block<br/>append to rx_audio_carry_48k,<br/>cut whole 4800-sample blocks]
     D --> E[run_rx_audio_dsp]
@@ -335,7 +335,7 @@ use `loaded_sounddevice()`, which never triggers a load.
 | Class | `sd.InputStream` | `sd.OutputStream` |
 | Format | 1 ch, int16, 48 kHz | 1 ch, int16, 48 kHz |
 | blocksize | `0` (PortAudio chooses) | `2400` |
-| latency | `0.2` | default |
+| latency | `rx_buffer_ms(config) / 1000` (`AUDIO.rx_buffer_ms`, default 0.2 s) | default |
 | Callback | `sd_input_audio_callback` | `sd_output_audio_callback` |
 
 Failure in `init_audio` calls `stop_modem()` and returns `False`; `start_modem()` then raises `RuntimeError("Unable to init audio devices")`.
@@ -344,8 +344,9 @@ Failure in `init_audio` calls `stop_modem()` and returns `False`; `start_modem()
 
 The comments in [modem.py](../modem.py) explain the design:
 
-- `blocksize=0` is deliberate: a fixed 4800 blocksize starved/overflowed on some virtual devices (measured on `snd-aloop`). `latency=0.2` makes the PortAudio ring deep.
-- The input callback only copies the block into `rx_audio_in_queue` (`maxsize=100`). If the queue is full the block is dropped and `rx_audio_dropped_blocks` is incremented. If PortAudio flags a block (`status`, such as an input overflow: audio was lost before it), the block is still queued and only counted in `rx_audio_status_blocks`. The worker logs one "[AUDIO] RX audio lost" warning at most every `RX_AUDIO_LOSS_LOG_INTERVAL` (10 s) with the flagged and dropped block counts and the input device and its host API.
+- `blocksize=0` is deliberate: a fixed 4800 blocksize starved/overflowed on some virtual devices (measured on `snd-aloop`). The latency makes the PortAudio ring deep: `AUDIO.rx_buffer_ms` (`modem.rx_buffer_ms()`), 0 or missing = `RX_BUFFER_MS_DEFAULT` (200 ms), limited to `RX_BUFFER_MS_MIN`..`RX_BUFFER_MS_MAX` (100..1000 ms). A deeper ring rides out longer stalls of the computer or its USB audio before the driver flags an input overflow, at up to that much more RX delay. Releases up to 0.18.1 used `blocksize=4800` and ran the DSP inside the callback; their per-block `[AUDIO STATUS] frames=4800 ... input overflow` log lines come from that.
+- The input callback only copies the block into `rx_audio_in_queue` (`maxsize=100`). If the queue is full the block is dropped and `rx_audio_dropped_blocks` is incremented. If PortAudio flags a block (`status`, such as an input overflow: audio was lost before it), the block is still queued and only counted in `rx_audio_status_blocks`. The worker logs one "[AUDIO] RX audio lost" warning at most every `RX_AUDIO_LOSS_LOG_INTERVAL` (10 s) with the flagged and dropped block counts and the input device and its host API. The same check calls `publish_rx_audio_loss()`, which puts the counts since the modem started into `state_manager.rx_audio_loss` (`driver`: flagged by PortAudio, `queue`: dropped from `rx_audio_in_queue`, `decoder`: the sum of `demodulator.buffer_overflow_counter`), sent with the state events and shown in the GUI's System check (Modem: Lost RX audio). It is also published when the input stream starts, so a restarted modem shows zeros.
+- On Windows `server.main()` calls `helpers.raise_process_priority()`: a process at normal priority goes to above normal (not high or realtime, which can starve the rest of the computer), so busy programs delay the RX worker less. A priority the user set is kept; other systems are unchanged (raising it there needs root rights).
 - `rx_audio_processing_worker` (daemon thread) drains the queue; `None` is the shutdown sentinel posted by `stop_modem()`.
 - `stop_modem()` closes `sd_input_stream` / `sd_output_stream` only if they exist, so it is safe in TESTMODE or after a failed audio init.
 - `process_rx_audio_block` re-blocks: captured samples are appended to `rx_audio_carry_48k`, the DSP runs once per complete 4800-sample block, and any remainder is carried to the next call. This keeps the resampler input gapless and a multiple of 6 regardless of capture size (e.g. 512/1024-sample blocks).
@@ -359,6 +360,7 @@ The comments in [modem.py](../modem.py) explain the design:
 | `AUDIO.tx_audio_level` | dB gain on TX 8 kHz audio (data) or 48 kHz tone (sine) |
 | `AUDIO.rx_auto_audio_level` | `normalize_audio` per 800-sample RX block before gain |
 | `AUDIO.tx_auto_audio_level` | `normalize_audio` on the whole burst before gain |
+| `AUDIO.rx_buffer_ms` | input stream latency (capture ring depth), see RX blocking and latency |
 
 Both levels are read once in `RF.__init__`.
 

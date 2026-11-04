@@ -123,7 +123,7 @@ The modal is an accordion; each section header carries a badge:
 | Section | Badge source | Green when | Contents / actions |
 |---|---|---|---|
 | Network | `state.modem_connection` | `"connected"` | Info alert; read-only API URL (`window.location` protocol/host/port) |
-| Modem | `state.is_modem_running` | truthy | Audio input/output selects (`AUDIO.input_device` / `output_device`, options from `audioStore`, `@change=onChange`); "Manual modem restart" button: `stopModem()` (`POST /modem/stop`), then `startModem()` (`POST /modem/start`) after 5 s |
+| Modem | `state.is_modem_running` | truthy | Audio input/output selects (`AUDIO.input_device` / `output_device`, options from `audioStore`, `@change=onChange`); "Lost RX audio": badges for `state.rx_audio_loss` driver / queue / decoder (yellow when not 0, from the state events); "Manual modem restart" button: `stopModem()` (`POST /modem/stop`), then `startModem()` (`POST /modem/start`) after 5 s |
 | Radio control | `getRigControlStatus()` | `RADIO.control == "disabled"`, otherwise `state.radio_status`; an unknown control type returns `false` (red) | `RADIO.control` select (same 5 options as settings); when `rigctld_bundle`: `RADIO.serial_port` select from `serialStore` and a "Test Hamlib" button. The test only reads the radio status (`getRadioStatus()`, `GET /radio`) and never transmits; while it runs the button is disabled, afterwards an online/offline badge shows, with frequency and mode when the rig answers |
 | System info | - | - | API/modem versions, OS info, Python info from `state` |
 
@@ -291,6 +291,7 @@ Visible only when `RADIO.control == "rigctld_bundle"` (`d-none` otherwise):
 | RX audio level | `remote.AUDIO.rx_audio_level` | range -30..20 |
 | TX audio level | `remote.AUDIO.tx_audio_level` | range -30..20 |
 | RX auto level | `remote.AUDIO.rx_auto_audio_level` | switch |
+| RX buffer | `remote.AUDIO.rx_buffer_ms` | select Default (0 = 200) / 100 / 300 / 400 / 500 / 750 / 1000 ms |
 | TX auto level | `remote.AUDIO.tx_auto_audio_level` | switch |
 | TX delay | `remote.MODEM.tx_delay` | select 0-1000 ms in 50 ms steps |
 | Maximum bandwidth | `remote.MODEM.maximum_bandwidth` | select 250 / 500 / 1700 / 2438 Hz |
