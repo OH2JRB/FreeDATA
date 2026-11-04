@@ -93,8 +93,14 @@ class TestMessageLog(unittest.TestCase):
         received = self.add(
             f"{tag} received", origin="BB2BBB-2", destination="AA1AAA-1", direction="receive", status="received"
         )
-        for status in ("queued", "transmitting", "failed", "aborted"):
-            self.add(f"{tag} {status}", status=status)
+        unfinished = [
+            self.add(f"{tag} {status}", status=status) for status in ("queued", "transmitting", "failed", "aborted")
+        ]
+        # the message DB is shared by the whole test run: a queued message left
+        # here would be sent by another test's schedule manager
+        for message in [sent, *unfinished]:
+            self.addCleanup(self.db.delete_message, message.id)
+            self.addCleanup(self.db.update_message, message.id, {"status": "failed"})
 
         bodies = [row[3] for row in self.read_rows(self.write_log()["file_path"]) if tag in row[3]]
         self.assertEqual(bodies, [f"{tag} sent", f"{tag} received"])
