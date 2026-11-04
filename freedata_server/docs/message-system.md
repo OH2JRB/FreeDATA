@@ -21,7 +21,7 @@ The message system stores and moves FreeDATA peer-to-peer (P2P) chat messages, t
 ### Engine and location
 
 - Backend: **SQLite** via SQLAlchemy `create_engine(..., echo=False)` ([message_system_db_manager.py](../message_system_db_manager.py)).
-- Path resolution (`DatabaseManager.get_database()`):
+- Path resolution (`DatabaseManager.get_database_path()`, which `get_database()` turns into a URL):
   1. If the environment variable `FREEDATA_DATABASE` is set, its value is the file path.
   2. Otherwise `DEFAULT_APP_DIR/freedata-messages.db` (`DEFAULT_APP_DIR` comes from [constants.py](../constants.py)).
   
@@ -368,6 +368,15 @@ The GUI's queue tab ([queue_screen.vue](../../freedata_gui/src/components/queue_
 
 - **Send last** (`send_last`): sets the message's `priority` one below the lowest of the other queued messages, so it goes after all of them, also after messages queued later (those get priority 10). A manual retransmit sets priority 10 again.
 - **Delete** (`DELETE /freedata/queue/{id}`): claims the message with `state_manager.claim_message_transmit` first, as `SendMessageCommand.transmit` does, then `delete_message(id, allow_queued=True)`. While the message is claimed (being prepared or waiting for a free channel) or `transmitting`, the delete is refused. The chat's own delete still refuses queued messages.
+
+### Message log
+
+`POST /freedata/messages/log` ("Message log" button above the chat list) calls `DatabaseManagerMessages.write_message_log_csv()`. It writes every P2P message, oldest first, to `freedata-message-log_<local YYYYMMDD-HHMMSS>.csv` in the directory of the database file (`_2`, `_3`, ... when that name exists), so the file is on the server computer, and returns `file_name`, `file_path` and `total_messages`.
+
+- Columns: `Date/time (UTC)` (`YYYY-MM-DD HH:MM:SS`), `Sender`, `Receiver`, `Message`, `Attachments` (file names joined with `; `, empty when there are none). Only the attachment names are read, not their data.
+- UTF-8 with a byte order mark, comma separated, quoted as in RFC 4180 (commas, quotes and line breaks stay in their cell), CRLF row ends.
+- A cell that starts with `=`, `+`, `-`, `@`, tab or CR gets a leading `'`, so a spreadsheet does not run text from another station as a formula.
+- Excel opens a `.csv` by double-click with the Windows list separator; where that is `;` (for example Finnish or German settings) use Data > From Text/CSV. A `sep=,` line would fix the columns but makes Excel ignore the byte order mark.
 
 ### Stop button
 

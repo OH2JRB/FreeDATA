@@ -330,6 +330,11 @@ export async function postFreedataMessageADIF(id) {
   });
 }
 
+// Write all messages to a CSV file on the server; returns file_name and file_path
+export async function writeFreedataMessageLog() {
+  return await apiPost("/freedata/messages/log");
+}
+
 export async function retransmitFreedataMessage(id) {
   return await apiPatch(`/freedata/messages/${id}`, { action: "retransmit" });
 }

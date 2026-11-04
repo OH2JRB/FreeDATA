@@ -1,11 +1,24 @@
 from freedata_server.message_system_db_manager import DatabaseManager
 from freedata_server.message_system_db_attachments import DatabaseManagerAttachments
-from freedata_server.message_system_db_model import Status, P2PMessage
+from freedata_server.message_system_db_model import Attachment, MessageAttachment, Status, P2PMessage
 from freedata_server.message_system_db_station import DatabaseManagerStations
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from datetime import datetime, timedelta, timezone
+import csv
+import os
 from freedata_server.exceptions import MessageStatusError
+
+
+# a spreadsheet runs a cell that starts with one of these as a formula
+CSV_FORMULA_START = ("=", "+", "-", "@", "\t", "\r")
+
+
+def csv_text(value):
+    """Text for a message log cell; text from other stations that would start
+    a formula gets a leading apostrophe, so a spreadsheet shows it as text."""
+    text = "" if value is None else str(value)
+    return "'" + text if text.startswith(CSV_FORMULA_START) else text
 
 
 def status_name_of(message):
@@ -207,6 +220,87 @@ class DatabaseManagerMessages(DatabaseManager):
         messages_dict = self.get_all_messages(filters)
         messages_with_header = {"total_messages": len(messages_dict), "messages": messages_dict}
         return messages_with_header
+
+    MESSAGE_LOG_HEADER = ("Date/time (UTC)", "Sender", "Receiver", "Message", "Attachments")
+
+    def write_message_log_csv(self, directory=None):
+        """Writes all P2P messages, oldest first, to a new CSV file.
+
+        One row per message: date and time (UTC), sender, receiver, message
+        text and the file names of its attachments (separated by "; ",
+        empty when there are none). The file is UTF-8 with a byte order
+        mark, so spreadsheets read non-ASCII text right, and quoted as in
+        RFC 4180, so commas, quotes and line breaks in a message stay in
+        their cell.
+
+        Args:
+            directory (str, optional): Where to write the file. Defaults to
+                the directory of the message database.
+
+        Returns:
+            dict: status, file_name, file_path and total_messages.
+        """
+        if directory is None:
+            directory = os.path.dirname(os.path.abspath(self.get_database_path()))
+
+        session = self.get_thread_scoped_session()
+        try:
+            messages = (
+                session
+                .query(
+                    P2PMessage.id,
+                    P2PMessage.timestamp,
+                    P2PMessage.origin_callsign,
+                    P2PMessage.destination_callsign,
+                    P2PMessage.body,
+                )
+                .order_by(P2PMessage.timestamp, P2PMessage.id)
+                .all()
+            )
+            attachment_names = {}
+            # names only: the attachment data can be large
+            for message_id, name in (
+                session
+                .query(MessageAttachment.message_id, Attachment.name)
+                .join(Attachment, MessageAttachment.attachment_id == Attachment.id)
+                .order_by(Attachment.id)
+            ):
+                attachment_names.setdefault(message_id, []).append(name or "")
+        finally:
+            session.remove()
+
+        os.makedirs(directory, exist_ok=True)
+        stem = f"freedata-message-log_{datetime.now():%Y%m%d-%H%M%S}"
+        file_name = f"{stem}.csv"
+        number = 1
+        while True:
+            file_path = os.path.join(directory, file_name)
+            try:
+                csv_file = open(file_path, "x", encoding="utf-8-sig", newline="")
+                break
+            except FileExistsError:
+                number += 1
+                file_name = f"{stem}_{number}.csv"
+
+        with csv_file:
+            writer = csv.writer(csv_file)
+            writer.writerow(self.MESSAGE_LOG_HEADER)
+            for message_id, timestamp, origin, destination, body in messages:
+                writer.writerow((
+                    timestamp.strftime("%Y-%m-%d %H:%M:%S") if timestamp else "",
+                    csv_text(origin),
+                    csv_text(destination),
+                    csv_text(body),
+                    csv_text("; ".join(attachment_names.get(message_id, []))),
+                ))
+
+        self.log(f"Wrote {len(messages)} messages to {file_path}")
+        return {
+            "status": "success",
+            "file_name": file_name,
+            "file_path": file_path,
+            "total_messages": len(messages),
+        }
 
     def get_message_by_id(self, message_id):
         """Retrieves a P2P message by its ID.

@@ -14,7 +14,7 @@ Server-side storage and transport are documented in [../../freedata_server/docs/
 | File | Role |
 |---|---|
 | [chat_screen.vue](../src/components/chat_screen.vue) | Chat page layout: conversation sidebar, message area, composer, scroll-to-bottom watcher |
-| [chat_conversations.vue](../src/components/chat_conversations.vue) | Conversation list (one row per callsign), "start new chat" button, mark-as-read on select |
+| [chat_conversations.vue](../src/components/chat_conversations.vue) | Conversation list (one row per callsign), "start new chat" and "message log" buttons, mark-as-read on select |
 | [chat_messages.vue](../src/components/chat_messages.vue) | Message list for each callsign, date separators, picks sent/received bubble |
 | [chat_messages_sent.vue](../src/components/chat_messages_sent.vue) | Outgoing bubble: status badge, attempt counter, retransmit/info/delete/ADIF buttons |
 | [chat_messages_received.vue](../src/components/chat_messages_received.vue) | Incoming bubble: info/ADIF/delete buttons |
@@ -187,6 +187,7 @@ Download: `getFreedataAttachmentBySha512(hash)` -> `GET /freedata/messages/attac
 | Info | both bubbles | `requestMessageInfo(id)` -> `getFreedataMessageById` | `GET /freedata/messages/{id}` |
 | ADIF log | both bubbles | `sendADIFviaUDP(id)` -> `postFreedataMessageADIF` | `POST /freedata/messages/{id}/adif` `{action: "retransmit"}` |
 | Download attachment | both bubbles | `getMessageAttachment(hash)` | `GET /freedata/messages/attachment/{hash}` |
+| Message log | button next to "Start a new chat" (icon only below the `xl` breakpoint) | `writeMessageLog()` -> `writeFreedataMessageLog()`; shows the returned file name and full path in a dismissible alert above the conversation list | `POST /freedata/messages/log` |
 | Beacon history | selecting a conversation, header graph button, desktop auto-select | `loadBeaconData(callsign)` -> `getBeaconDataByCallsign` | `GET /freedata/beacons/{callsign}` |
 
 The handlers return the API promise, but apart from `deleteCallsignFromDB` and `requestMessageInfo` the components do not use the result; the UI updates through the `message-db` websocket event. A failed POST/PATCH/DELETE shows an error toast with the server's message (4.1).
