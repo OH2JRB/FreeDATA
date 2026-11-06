@@ -414,10 +414,25 @@ else
 	exit 1
 fi
 
+# A dropped connection to PyPI makes pip retry ("Retrying ... RemoteDisconnected");
+# give it more tries and a longer wait than its defaults (5 tries, 15 s) on slow
+# or unstable links, and stop if it still fails instead of carrying on
+export PIP_RETRIES=10
+export PIP_DEFAULT_TIMEOUT=60
+
+pip_failed() {
+	echo "*************************************************************************"
+	echo "pip could not install the Python packages (see the errors above)."
+	echo "This is usually a network problem reaching pypi.org. Check the"
+	echo "connection, or a proxy or firewall, and run this script again."
+	echo "*************************************************************************"
+	exit 1
+}
+
 echo "*************************************************************************"
 echo "Updating pip and wheel"
 echo "*************************************************************************"
-pip install --upgrade pip wheel
+pip install --upgrade pip wheel || pip_failed
 
 echo "*************************************************************************"
 echo "Downloading the FreeDATA software from the git repo"
@@ -508,7 +523,7 @@ echo "*************************************************************************"
 echo "Installing FreeDATA and its Python requirements into the virtual environment"
 echo "*************************************************************************"
 cd ..
-python -m pip install .
+python -m pip install . || pip_failed
 
 # Return to the directory we started in
 cd ..
