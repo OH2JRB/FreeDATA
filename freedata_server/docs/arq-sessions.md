@@ -349,32 +349,39 @@ stateDiagram-v2
 | 2 | `data_ofdm_500` | 0 | 3.19 | 500 | `[F, F, T, F, F]` |
 | 3 | `datac1` | 3 | 4.18 | 1700 | `[F, T, T, T, F]` |
 | 4 | `data_ofdm_2438` | 8.5 | 5.5 | 2438 | `[T, T, T, T, T]` |
+| 5 | `data_ofdm_250_hr` | 2 | 5.17 | 250 | `[F, F, T, F, F]` |
+| 6 | `data_ofdm_500_hr` | 5 | 3.52 | 500 | `[F, F, T, F, F]` |
+| 7 | `data_ofdm_1700_hr` | 6 | 8.25 | 1700 | `[F, T, T, T, F]` |
 
-A level 5 (`qam16c2`) is commented out. Until protocol version 2 the levels were numbered from `datac4` = 0.
+Levels 5 to 7 are the higher code rates (4.2), used only when both stations have them. Their numbers come
+after the others so that a station without them never meets one; `SPEED_LEVEL_ORDER`
+`(0, 1, 5, 2, 6, 3, 7, 4)` ranks all levels by payload bit rate. Until protocol version 2 the levels were
+numbered from `datac4` = 0.
 
 **Bandwidth negotiation**: the ISS sends `MODEM.maximum_bandwidth` in `ARQ_SESSION_OPEN`. The IRS uses the
 lower of that and its own `MODEM.maximum_bandwidth`. A value of `0` means "max of the table" (2438) inside
-`get_appropriate_speed_level`.
+`get_appropriate_speed_level`. Bit 15 of the field is `HIGH_RATE_FLAG` (4.2), masked off before the comparison.
 
 **Level selection** is done by the IRS only, in `calibrate_speed_settings()` on `ARQ_SESSION_INFO` and on
 every non-final `ARQ_BURST_FRAME`:
 
 1. `latest_snr = self.snr` (SNR of the last received frame, set by the frame handler via `set_details`), or
    `-10` if not set.
-2. `get_appropriate_speed_level(snr, maximum_bandwidth)` walks the levels from highest to lowest and picks
+2. `get_appropriate_speed_level(snr, maximum_bandwidth, high_rate)` walks `SPEED_LEVEL_ORDER` from the fastest
+   level down (levels 5 to 7 only with `high_rate`, 4.2) and picks
    the first with `snr >= min_snr`, `bandwidth <= maximum_bandwidth`, and
    `check_channel_busy(state_manager.channel_busy_slot, mode_slots)`. That check fails if any slot is both
    busy and used by the mode. If no level qualifies, it falls back to datac4 (level 1). The FSK level is
    never chosen here. On a session that is on FSK, `calibrate_speed_settings()` returns level 0 at once.
-3. The demodulator is set to decode the current, previous and newly selected modes
-   (`rf_modem.demodulator.set_decode_mode({...})`).
+3. The demodulator is set to decode the current, previous and newly selected modes, and the fallback modes
+   of the current and selected levels (`rf_modem.demodulator.set_decode_mode({...})`).
 4. `speed_level` jumps directly to the selected level. The one-step-at-a-time logic is commented out.
 
 The IRS reports the level in `ARQ_SESSION_INFO_ACK.speed_level` / `ARQ_BURST_ACK.speed_level`. The ISS
 adopts it in `update_speed_level()` and builds the next burst in that level's mode.
 
-**ISS fallback**: after two consecutive burst timeouts, the ISS steps down on its own: to datac4 from the
-higher levels, to FSK from datac4 (section 2.3).
+**ISS fallback**: after two consecutive burst timeouts, the ISS steps down on its own: from a high-rate level
+to its fallback level (4.2), to datac4 from the other higher levels, to FSK from datac4 (section 2.3).
 
 ### 4.1 FSK fallback
 
@@ -467,6 +474,53 @@ after `RETRIES_BEFORE_FSK` (2) unanswered attempts of a frame that fits an FSK f
 bytes goes in one FSK payload frame, larger data in an ARQ session that starts on FSK.
 
 ---
+
+### 4.2 Higher code rates
+
+Levels 5 to 7 send the waveforms of `data_ofdm_250`, `data_ofdm_500` and `data_ofdm_1700` with an LDPC code of
+a higher rate (`codec2.create_high_rate_config`). The libcodec2 that FreeDATA ships has no long code of a high
+rate, so:
+
+| Level | Mode | LDPC code | Code rate | Bytes per frame | Payload bps | Fallback level |
+|---:|---|---|---:|---:|---:|---|
+| 5 | `data_ofdm_250_hr` | `HRAa_1536_512`, shortened | 0.65 | 120 (`datac4`: 56) | 186 | 1 (`datac4`) |
+| 6 | `data_ofdm_500_hr` | `HRAa_1536_512`, shortened | 0.74 | 185 (`data_ofdm_500`: 121) | 420 | 2 (`data_ofdm_500`) |
+| 7 | `data_ofdm_1700_hr` | `H_16200_9720` over 75 modem frames | 0.6 | 1211 (`datac1`: 510) | 1174 | 3 (`datac1`) |
+
+Measured offline with `tools/channel_sim.py` (20 frames per cell; 3 kHz SNR at which all frames decoded,
+AWGN / mid-latitude disturbed): `data_ofdm_250_hr` -3 / 6 dB against `datac4` -5 / -3 dB;
+`data_ofdm_500_hr` -1 / 9 dB against `data_ofdm_500` -3 / 3 dB; `data_ofdm_1700_hr` 2 / 10 dB, the same as
+`datac1`. `min_snr` follows: 2, 5 and 6 dB. With the bandwidth they need, levels 2 and 3 are faster than 5
+and 6, so 5 is chosen only when the bandwidth is limited to 250 Hz, 6 only at 500 Hz (or when the slots of
+`datac1` are busy), and 7 below the `min_snr` of `data_ofdm_2438` or when it cannot be used.
+`data_ofdm_2438` has no high-rate level: a 2048-bit code fits only 6 of its modem frames, and the preamble of
+each short frame costs more than the code rate gains.
+
+**Unique words.** A high-rate mode and its fallback have the same preamble and carriers. Each high-rate mode
+has a unique word of its own (`codec2.high_rate_uw`, PRBS9), and `data_ofdm_1700_hr` a longer one (32 bits
+instead of 16): with the sibling's unique word, the receiver of either mode synced on every frame of the
+other and failed to decode it. Even so, about one frame in seven of a high-rate mode still makes its
+sibling's receiver sync and fail. `ARQSessionIRS.take_decode_failures()` therefore leaves out the failures of
+the sibling of the mode the last burst came in (`last_burst_level`, `get_sibling_levels`).
+
+**Negotiation.** `ARQ_SESSION_OPEN` has no room left, so an ISS with `MODEM.enable_high_rate` on sets bit 15
+(`HIGH_RATE_FLAG`, `0x8000`) of its `maximum_bandwidth` field. The IRS masks it off and sets `high_rate` when
+the flag is there and its own `MODEM.enable_high_rate` is on. Only the IRS chooses levels, so an ISS without
+them never gets one. An IRS without them reads the flagged field as a bandwidth above its own and uses its
+own, as for any larger ISS bandwidth; before, an ISS with `maximum_bandwidth = 0` made such an IRS use the
+whole table whatever its own setting. The protocol version stays 2.
+
+**Fallback**, to the same waveform at the lower code rate first:
+
+- The ISS, after two lost bursts at a high-rate level, goes on at its fallback level (then, after two more,
+  at datac4 and on to FSK as before).
+- The IRS, at a high-rate level, steps to the fallback after `DECODE_FAILURES_TO_STEP_DOWN` frames that synced
+  but did not decode, and also when a burst arrives at the fallback level of the high-rate level it asked
+  for (the ISS has fallen back). It then leaves the high-rate levels out for `HIGH_RATE_HOLD` (5) answers,
+  whatever the SNR says, and may choose them again after that.
+
+`MODEM.enable_high_rate` ("Enable higher code rates" in the GUI) is on by default, also when it is added to
+a config from before it existed (`CONFIG.setting_defaults`).
 
 ## 5. Data integrity
 

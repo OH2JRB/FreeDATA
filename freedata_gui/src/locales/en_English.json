@@ -412,6 +412,8 @@
             "maximumbandwidth_help": "Select the maximum bandwidth the modem will use",
             "enablefsk": "Enable FSK modes",
             "enablefsk_help": "Let ARQ sessions and P2P connections fall back to the 50 baud 4FSK mode when the OFDM modes fail, as on auroral paths. Both stations need it enabled",
+            "enablehighrate": "Enable higher code rates",
+            "enablehighrate_help": "Let ARQ sessions use the 250, 500 and 1700 Hz modes at a higher code rate when the SNR allows, falling back to the standard modes when frames are lost. Used only when both stations have it enabled",
             "enabletxautoadjust": "Auto TX audio level", 
             "rxbuffer": "RX buffer in ms",
             "rxbuffer_default": "Default (200)",

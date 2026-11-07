@@ -31,6 +31,7 @@ const defaultConfig = {
       enable_morse_identifier: false,
       maximum_bandwidth: 2438,
       enable_fsk: false,
+      enable_high_rate: true,
     },
     NETWORK: {
       modemaddress: "127.0.0.1",

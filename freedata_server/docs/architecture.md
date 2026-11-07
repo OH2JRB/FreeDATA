@@ -423,6 +423,7 @@ Defined in `CONFIG.config_types`; example values from [config.ini.example](../co
 | | `maximum_bandwidth` | int | `2438` |
 | | `tx_delay` | int | `50` |
 | | `enable_fsk` | bool | `False` (the FSK modes, see [arq-sessions.md](arq-sessions.md), section 4.1) |
+| | `enable_high_rate` | bool | `True`, also when added to an older config (`CONFIG.setting_defaults`; the higher code rates, see [arq-sessions.md](arq-sessions.md), section 4.2) |
 | SOCKET_INTERFACE | `enable` | bool | `False` |
 | | `host` | str | `127.0.0.1` |
 | | `cmd_port` | int | `9000` |

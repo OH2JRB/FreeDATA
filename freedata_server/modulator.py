@@ -51,6 +51,9 @@ class Modulator:
         self.data_ofdm_500_tx = codec2.open_instance(codec2.FREEDV_MODE.data_ofdm_500.value)
         self.data_ofdm_1700_tx = codec2.open_instance(codec2.FREEDV_MODE.data_ofdm_1700.value)
         self.data_ofdm_2438_tx = codec2.open_instance(codec2.FREEDV_MODE.data_ofdm_2438.value)
+        self.data_ofdm_250_hr_tx = codec2.open_instance(codec2.FREEDV_MODE.data_ofdm_250_hr.value)
+        self.data_ofdm_500_hr_tx = codec2.open_instance(codec2.FREEDV_MODE.data_ofdm_500_hr.value)
+        self.data_ofdm_1700_hr_tx = codec2.open_instance(codec2.FREEDV_MODE.data_ofdm_1700_hr.value)
         self.data_vhf_1 = codec2.open_instance(codec2.FREEDV_MODE.data_vhf_1.value)
         self.data_fsk4_50_tx = codec2.open_instance(codec2.FREEDV_MODE.data_fsk4_50.value)
 
@@ -173,6 +176,9 @@ class Modulator:
             codec2.FREEDV_MODE.data_ofdm_500: self.data_ofdm_500_tx,
             codec2.FREEDV_MODE.data_ofdm_1700: self.data_ofdm_1700_tx,
             codec2.FREEDV_MODE.data_ofdm_2438: self.data_ofdm_2438_tx,
+            codec2.FREEDV_MODE.data_ofdm_250_hr: self.data_ofdm_250_hr_tx,
+            codec2.FREEDV_MODE.data_ofdm_500_hr: self.data_ofdm_500_hr_tx,
+            codec2.FREEDV_MODE.data_ofdm_1700_hr: self.data_ofdm_1700_hr_tx,
             # codec2.FREEDV_MODE.qam16c2: self.freedv_qam16c2_tx,
             # codec2.FREEDV_MODE.data_qam_2438: self.freedv_data_qam_2438_tx,
             codec2.FREEDV_MODE.data_vhf_1: self.data_vhf_1,
