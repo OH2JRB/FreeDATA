@@ -3,7 +3,7 @@ from freedata_server import codec2
 from freedata_server import data_frame_factory
 import random
 from freedata_server.codec2 import FREEDV_MODE
-from freedata_server.config import fsk_modes_enabled
+from freedata_server.config import fsk_modes_enabled, high_rate_modes_enabled
 from freedata_server.modem_frametypes import FRAME_TYPE
 from freedata_server import arq_session
 from freedata_server import helpers
@@ -338,7 +338,16 @@ class ARQSessionISS(arq_session.ARQSession):
                 and self.state not in [ISS_State.ABORTED, ISS_State.ABORTING]
             ):
                 lowest_ofdm_level = self.FSK_LEVEL + 1
-                if self.speed_level > lowest_ofdm_level:
+                if self.is_high_rate_level(self.speed_level):
+                    # first the same waveform at the lower code rate; the IRS
+                    # decodes it too, and its next answer chooses again
+                    fallback_level = self.get_fallback_level(self.speed_level)
+                    self.log(
+                        f"Falling back from speed level {self.speed_level} to {fallback_level}, a lower code rate",
+                        isWarning=True,
+                    )
+                    self.speed_level = fallback_level
+                elif self.speed_level > lowest_ofdm_level:
                     self.log("SENDING IN FALLBACK SPEED LEVEL", isWarning=True)
                     self.speed_level = lowest_ofdm_level
                 else:
@@ -390,7 +399,9 @@ class ARQSessionISS(arq_session.ARQSession):
         an ARQ session new event.
         """
         maximum_bandwidth = self.ctx.config_manager.config["MODEM"]["maximum_bandwidth"]
-        print(maximum_bandwidth)
+        if high_rate_modes_enabled(self.ctx):
+            # the IRS may choose the high-rate levels (HIGH_RATE_FLAG)
+            maximum_bandwidth |= self.HIGH_RATE_FLAG
         self.ctx.event_manager.send_arq_session_new(True, self.id, self.dxcall, self.total_length, self.state.name)
         session_open_frame = self.frame_factory.build_arq_session_open(
             self.dxcall, self.id, maximum_bandwidth, self.protocol_version

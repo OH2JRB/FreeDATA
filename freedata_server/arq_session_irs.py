@@ -5,7 +5,7 @@ from freedata_server import helpers
 from freedata_server import stats
 from freedata_server.modem_frametypes import FRAME_TYPE
 from freedata_server.codec2 import FREEDV_MODE
-from freedata_server.config import fsk_modes_enabled
+from freedata_server.config import fsk_modes_enabled, high_rate_modes_enabled
 from enum import Enum
 import time
 from freedata_server.p2p_connection import States as P2PStates
@@ -59,6 +59,11 @@ class ARQSessionIRS(arq_session.ARQSession):
     # for STEP_DOWN_HOLD answers, whatever the SNR says
     DECODE_FAILURES_TO_STEP_DOWN = 2
     STEP_DOWN_HOLD = 3
+    # At a high-rate level the IRS steps down to its fallback level instead
+    # (the same waveform at the lower code rate), and also when the ISS has
+    # fallen back to it after lost bursts. The high-rate levels then stay out for
+    # HIGH_RATE_HOLD answers, whatever the SNR says
+    HIGH_RATE_HOLD = 5
 
     # A signal at least this share of the expected burst's frame long, with
     # nothing decoded DECODE_ALLOWANCE seconds after its end: on a path that
@@ -150,6 +155,9 @@ class ARQSessionIRS(arq_session.ARQSession):
         self.statistics = stats.stats(self.ctx)
 
         self.step_down_hold = 0
+        self.high_rate_hold = 0
+        # the speed level of the last burst frame received
+        self.last_burst_level = None
         # failures counted before this session do not count
         self.take_decode_failures()
 
@@ -304,12 +312,20 @@ class ARQSessionIRS(arq_session.ARQSession):
         Returns:
             Tuple[None, None]: Returns None for both data and type_byte as this method doesn't handle data.
         """
+        # an ISS with the high-rate levels sets HIGH_RATE_FLAG in the bandwidth field
+        iss_bandwidth = open_frame["maximum_bandwidth"] & ~self.HIGH_RATE_FLAG
+        self.high_rate = bool(open_frame["maximum_bandwidth"] & self.HIGH_RATE_FLAG) and high_rate_modes_enabled(
+            self.ctx
+        )
         # check for maximum bandwidth. If ISS bandwidth is higher than own, then use own
-        if open_frame["maximum_bandwidth"] > self.ctx.config_manager.config["MODEM"]["maximum_bandwidth"]:
+        if iss_bandwidth > self.ctx.config_manager.config["MODEM"]["maximum_bandwidth"]:
             self.maximum_bandwidth = self.ctx.config_manager.config["MODEM"]["maximum_bandwidth"]
         else:
-            self.maximum_bandwidth = open_frame["maximum_bandwidth"]
-        self.log(f"Negotiated transmission bandwidth {self.maximum_bandwidth}Hz")
+            self.maximum_bandwidth = iss_bandwidth
+        self.log(
+            f"Negotiated transmission bandwidth {self.maximum_bandwidth}Hz, "
+            f"higher code rates {'on' if self.high_rate else 'off'}"
+        )
 
         self.ctx.event_manager.send_arq_session_new(False, self.id, self.dxcall, 0, self.state.name)
 
@@ -502,6 +518,7 @@ class ARQSessionIRS(arq_session.ARQSession):
             # for the FSK burst ACK: which burst, and the data size of its frames
             self.burst_id = burst_frame["burst_id"]
             self.burst_frame_size = len(burst_frame["data"])
+            self.last_burst_level = burst_frame.get("speed_level")
             self.process_incoming_data(burst_frame)
             # update statistics
             self.update_histograms(self.received_bytes, self.total_length)
@@ -547,8 +564,20 @@ class ARQSessionIRS(arq_session.ARQSession):
         demodulator = getattr(self.ctx.rf_modem, "demodulator", None)
         if demodulator is None:
             return 0
-        modes = {self.get_mode_by_speed_level(level).value for level in (self.speed_level, self.previous_speed_level)}
+        levels = {self.speed_level, self.previous_speed_level}
+        # A high-rate mode and its fallback share preamble and carriers: the
+        # receiver of either syncs now and then on a frame of the other and fails
+        # to decode it (codec2.create_high_rate_config). Once a burst came in one
+        # of them, the failures of the other are mostly that burst
+        if self.last_burst_level in self.SPEED_LEVEL_DICT:
+            levels -= self.get_sibling_levels(self.last_burst_level)
+        modes = {self.get_mode_by_speed_level(level).value for level in levels}
         return demodulator.take_decode_failures(modes)
+
+    def get_sibling_levels(self, level) -> set:
+        """The levels with the same waveform as level at another code rate."""
+        base = self.get_fallback_level(level)
+        return {other for other in self.SPEED_LEVEL_DICT if self.get_fallback_level(other) == base} - {level}
 
     def build_burst_ack(self, **flags):
         """Builds an ARQ burst ACK at the current speed level.
@@ -693,12 +722,32 @@ class ARQSessionIRS(arq_session.ARQSession):
             return self.speed_level
 
         latest_snr = self.snr if self.snr else -10
-        appropriate_speed_level = self.get_appropriate_speed_level(latest_snr, self.maximum_bandwidth)
+        decode_failures = self.take_decode_failures()
+
+        # the ISS has fallen back from the high-rate level asked for, after lost
+        # bursts (ARQSessionISS.transmit_and_wait)
+        if self.is_high_rate_level(self.speed_level) and self.last_burst_level == self.get_fallback_level(
+            self.speed_level
+        ):
+            self.log("The ISS fell back to a lower code rate, holding the high-rate levels off", isWarning=True)
+            self.high_rate_hold = self.HIGH_RATE_HOLD
+        # frames that arrived but could not be decoded at a high-rate level: on
+        # to the lower code rates, which the SNR still allows
+        if decode_failures >= self.DECODE_FAILURES_TO_STEP_DOWN and self.is_high_rate_level(self.speed_level):
+            self.log("Frames fail to decode at a higher code rate, stepping down to a lower one", isWarning=True)
+            self.high_rate_hold = self.HIGH_RATE_HOLD
+            decode_failures = 0
+        high_rate = self.high_rate and self.high_rate_hold == 0
+        if self.high_rate_hold > 0:
+            self.high_rate_hold -= 1
+        appropriate_speed_level = self.get_appropriate_speed_level(
+            latest_snr, self.maximum_bandwidth, high_rate=high_rate
+        )
 
         # frames that arrived but could not be decoded: a fading channel, which the
         # SNR does not show. Step down, and to FSK from datac4
         datac4_level = self.FSK_LEVEL + 1
-        if self.take_decode_failures() >= self.DECODE_FAILURES_TO_STEP_DOWN:
+        if decode_failures >= self.DECODE_FAILURES_TO_STEP_DOWN:
             if self.speed_level <= datac4_level and fsk_modes_enabled(self.ctx):
                 self.log("OFDM frames fail to decode at datac4, falling back to FSK", isWarning=True)
                 self.fall_back_to_fsk()
@@ -740,6 +789,11 @@ class ARQSessionIRS(arq_session.ARQSession):
         # Ensure, appropriate mode is decoded as well
         appropriate_mode = self.get_mode_by_speed_level(appropriate_speed_level).value
         modes_to_decode[appropriate_mode] = True
+
+        # an ISS at a high-rate level falls back to the lower code rate on its own
+        # after lost bursts: decode that one too
+        for level in (self.speed_level, appropriate_speed_level):
+            modes_to_decode[self.get_mode_by_speed_level(self.get_fallback_level(level)).value] = True
 
         self.log(f"Modes to Decode: {list(modes_to_decode.keys())}", isWarning=True)
         # Apply the new decode mode based on the updated and previous speed levels

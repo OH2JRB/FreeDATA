@@ -335,6 +335,8 @@
             "maximumbandwidth_help": "Wähle die maximale Bandbreite, die das Modem nutzen soll",
             "enablefsk": "FSK-Modi aktivieren",
             "enablefsk_help": "ARQ-Sitzungen und P2P-Verbindungen weichen auf den 50-Baud-4FSK-Modus aus, wenn die OFDM-Modi versagen, wie auf Polarlicht-Pfaden. Beide Stationen müssen ihn aktivieren",
+            "enablehighrate": "Höhere Coderaten aktivieren",
+            "enablehighrate_help": "ARQ-Sitzungen nutzen die 250-, 500- und 1700-Hz-Modi mit höherer Coderate, wenn das SNR es erlaubt, und weichen bei Rahmenverlusten auf die Standardmodi aus. Nur wenn beide Stationen es aktiviert haben",
 	        "enabletxautoadjust": "Auto TX Audio Pegel", 
             "rxbuffer": "RX-Puffer in ms",
             "rxbuffer_default": "Standard (200)",

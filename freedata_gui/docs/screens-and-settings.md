@@ -296,6 +296,7 @@ Visible only when `RADIO.control == "rigctld_bundle"` (`d-none` otherwise):
 | TX delay | `remote.MODEM.tx_delay` | select 0-1000 ms in 50 ms steps |
 | Maximum bandwidth | `remote.MODEM.maximum_bandwidth` | select 250 / 500 / 1700 / 2438 Hz |
 | Enable FSK modes | `remote.MODEM.enable_fsk` | switch |
+| Enable higher code rates | `remote.MODEM.enable_high_rate` | switch |
 
 #### [settings_web.vue](../src/components/settings_web.vue) - Web / Explorer
 
@@ -351,7 +352,7 @@ Chat / Broadcast badges: `chat.totalUnreadMessages`, `broadcast.totalUnreadMessa
 | PTT (`bi-broadcast-pin`) | `state.ptt_state` | red when true |
 | Modem busy (`bi-cpu`) | `state.busy_state` | red when true |
 | Frequency (lg+ only) | `state.frequency / 1000` | "N kHz" |
-| Speed level (lg+ only) | `state.speed_level` 0-4 | `bi-reception-0..4` icon |
+| Speed level (lg+ only) | `state.speed_level` 0-7 | `bi-reception-0..4` icon; the high-rate levels 5, 6, 7 show the bars of their fallback levels 1, 2, 3 |
 | Total bytes (lg+ only) | `state.arq_total_bytes` | number |
 | Direction | `state.arq_is_receiving` | "from" / "to" |
 | DX callsign | `state.dxcallsign` | or `-----` |

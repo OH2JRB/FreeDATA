@@ -118,9 +118,9 @@ const state = useStateStore(pinia);
               class="bi"
               :class="{
                 'bi-reception-0': state.speed_level === 0,
-                'bi-reception-1': state.speed_level === 1,
-                'bi-reception-2': state.speed_level === 2,
-                'bi-reception-3': state.speed_level === 3,
+                'bi-reception-1': state.speed_level === 1 || state.speed_level === 5,
+                'bi-reception-2': state.speed_level === 2 || state.speed_level === 6,
+                'bi-reception-3': state.speed_level === 3 || state.speed_level === 7,
                 'bi-reception-4': state.speed_level === 4,
               }"
             />

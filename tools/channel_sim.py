@@ -123,6 +123,9 @@ MODES = [
     codec2.FREEDV_MODE.data_ofdm_500,
     codec2.FREEDV_MODE.data_ofdm_1700,
     codec2.FREEDV_MODE.data_ofdm_2438,
+    codec2.FREEDV_MODE.data_ofdm_250_hr,
+    codec2.FREEDV_MODE.data_ofdm_500_hr,
+    codec2.FREEDV_MODE.data_ofdm_1700_hr,
     codec2.FREEDV_MODE.data_vhf_1,
     codec2.FREEDV_MODE.data_fsk4_50,  # the fsk4_50w candidate below
 ]
@@ -134,6 +137,9 @@ ARQ_MODES = {
     codec2.FREEDV_MODE.data_ofdm_500,
     codec2.FREEDV_MODE.datac1,
     codec2.FREEDV_MODE.data_ofdm_2438,
+    codec2.FREEDV_MODE.data_ofdm_250_hr,
+    codec2.FREEDV_MODE.data_ofdm_500_hr,
+    codec2.FREEDV_MODE.data_ofdm_1700_hr,
 }
 
 

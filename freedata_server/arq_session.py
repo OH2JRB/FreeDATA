@@ -68,14 +68,47 @@ class ARQSession:
             "bandwidth": 2438,
             "slots": FREEDV_MODE_USED_SLOTS.data_ofdm_2438,
         },
-        # 5: {
-        #    'mode': FREEDV_MODE.qam16c2,
-        #    'min_snr': 11,
-        #    'duration_per_frame': 2.8,
-        #    'bandwidth': 2438,
-        #    'slots': FREEDV_MODE_USED_SLOTS.qam16c2,
-        # },
+        # The higher code rates (codec2.create_high_rate_config): above the
+        # level they fall back to ("fallback"), and only with an ISS that has
+        # them (HIGH_RATE_FLAG). Their numbers come after those of the stations
+        # without them, which never send them; SPEED_LEVEL_ORDER ranks them.
+        5: {
+            "mode": FREEDV_MODE.data_ofdm_250_hr,
+            "min_snr": 2,
+            "duration_per_frame": 5.17,
+            "bandwidth": 250,
+            "slots": FREEDV_MODE_USED_SLOTS.data_ofdm_250_hr,
+            "fallback": 1,
+        },
+        6: {
+            "mode": FREEDV_MODE.data_ofdm_500_hr,
+            "min_snr": 5,
+            "duration_per_frame": 3.52,
+            "bandwidth": 500,
+            "slots": FREEDV_MODE_USED_SLOTS.data_ofdm_500_hr,
+            "fallback": 2,
+        },
+        7: {
+            "mode": FREEDV_MODE.data_ofdm_1700_hr,
+            "min_snr": 6,
+            "duration_per_frame": 8.25,
+            "bandwidth": 1700,
+            "slots": FREEDV_MODE_USED_SLOTS.data_ofdm_1700_hr,
+            "fallback": 3,
+        },
     }
+    # the speed levels from the slowest to the fastest (payload bit rate)
+    SPEED_LEVEL_ORDER = (0, 1, 5, 2, 6, 3, 7, 4)
+    # set in the maximum_bandwidth field of ARQ_SESSION_OPEN by an ISS that has
+    # the high-rate levels. That frame has no room left, and the bandwidths take
+    # 12 bits: an IRS without them reads a bandwidth above its own and uses its
+    # own, as it would with any other ISS bandwidth above it
+    HIGH_RATE_FLAG = 0x8000
+    # set per session (__init__, ARQSessionIRS.send_open_ack); class defaults
+    # for sessions built without __init__, as in some tests
+    high_rate = False
+    high_rate_hold = 0
+    last_burst_level = None
     FSK_LEVEL = 0
     # frames per ARQ burst on FSK. The IRS decodes a frame up to a frame length
     # late and answers with a 5.44 s ACK, decoded as late: about 16 s per burst
@@ -125,6 +158,10 @@ class ARQSession:
 
         self.speed_level = 1  # datac4, the lowest level chosen by SNR
         self.previous_speed_level = self.speed_level
+
+        # True when both stations have the high-rate levels and may use them
+        # (the IRS decides, from the ISS's HIGH_RATE_FLAG and its own setting)
+        self.high_rate = False
 
         # True once the session has fallen back to the FSK level: from then on
         # its frames, signalling included, go in FSK_MODE and the speed level stays there
@@ -486,7 +523,16 @@ class ARQSession:
                 return False
         return True
 
-    def get_appropriate_speed_level(self, snr, maximum_bandwidth=None):
+    def is_high_rate_level(self, level) -> bool:
+        """True for a speed level of a higher code rate (one with a "fallback")."""
+        return "fallback" in self.SPEED_LEVEL_DICT.get(level, {})
+
+    def get_fallback_level(self, level):
+        """The level a high-rate level falls back to: the same waveform at the
+        lower code rate. Any other level is its own."""
+        return self.SPEED_LEVEL_DICT.get(level, {}).get("fallback", level)
+
+    def get_appropriate_speed_level(self, snr, maximum_bandwidth=None, high_rate=False):
         """
         Determines the appropriate speed level based on the SNR, channel busy slot, and maximum bandwidth.
 
@@ -494,6 +540,7 @@ class ARQSession:
         - snr (float): The signal-to-noise ratio.
         - channel_busy_slot (list of bool): The busy condition of the channels.
         - maximum_bandwidth (float, optional): The maximum bandwidth. If None, uses the default from the configuration.
+        - high_rate (bool): Whether the high-rate levels may be chosen.
 
         Returns:
         - int: The appropriate speed level.
@@ -508,10 +555,14 @@ class ARQSession:
 
         # The FSK level is left out: an auroral path defeats the OFDM modes at any
         # SNR, so only failures tell that it is needed (fall_back_to_fsk)
-        snr_levels = [level for level, details in self.SPEED_LEVEL_DICT.items() if details["min_snr"] is not None]
+        snr_levels = [
+            level
+            for level in self.SPEED_LEVEL_ORDER
+            if self.SPEED_LEVEL_DICT[level]["min_snr"] is not None and (high_rate or not self.is_high_rate_level(level))
+        ]
 
-        # Iterate through speed levels in reverse order to find the highest appropriate one
-        for level in sorted(snr_levels, reverse=True):
+        # From the fastest level down, the first one the SNR, bandwidth and channel allow
+        for level in reversed(snr_levels):
             details = self.SPEED_LEVEL_DICT[level]
             mode_slots = details["slots"].value
             if (
@@ -522,7 +573,7 @@ class ARQSession:
                 return level
 
         # Return the lowest level if no higher level is found
-        return min(snr_levels)
+        return snr_levels[0]
 
     def reset_session(self):
         """Resets the ARQ session to its initial state.
@@ -544,6 +595,9 @@ class ARQSession:
         self.received_crc = None
         self.delivered_crc = None
         self.maximum_bandwidth = 0
+        self.high_rate = False
+        self.high_rate_hold = 0
+        self.last_burst_level = None
         self.abort = False
         self.fsk = False
         self.pending_frames = {}

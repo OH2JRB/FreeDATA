@@ -12,6 +12,14 @@ def fsk_modes_enabled(ctx) -> bool:
     return bool(config.get("MODEM", {}).get("enable_fsk", False))
 
 
+def high_rate_modes_enabled(ctx) -> bool:
+    """True if ARQ sessions may use the speed levels of higher code rates
+    (MODEM.enable_high_rate, "Enable higher code rates" in the GUI; on for
+    configs from before it existed). Both stations must allow them."""
+    config = getattr(getattr(ctx, "config_manager", None), "config", None) or {}
+    return bool(config.get("MODEM", {}).get("enable_high_rate", True))
+
+
 class CONFIG:
     """
     CONFIG class for handling with config files
@@ -78,6 +86,7 @@ class CONFIG:
             "maximum_bandwidth": int,
             "tx_delay": int,
             "enable_fsk": bool,
+            "enable_high_rate": bool,
         },
         "SOCKET_INTERFACE": {
             "enable": bool,
@@ -113,6 +122,10 @@ class CONFIG:
         bool: "False",
         int: "0",
         str: "",
+    }
+    # settings added to an existing config with another value than default_values
+    setting_defaults = {
+        ("MODEM", "enable_high_rate"): "True",
     }
 
     def __init__(self, ctx, configfile: str):
@@ -220,7 +233,9 @@ class CONFIG:
                 self.log.info(f"[CFG] Adding missing section: {section}")
             for setting, value_type in settings.items():
                 if not self.parser.has_option(section, setting):
-                    default_value = self.default_values.get(value_type, None)
+                    default_value = self.setting_defaults.get(
+                        (section, setting), self.default_values.get(value_type, None)
+                    )
 
                     self.parser.set(section, setting, str(default_value))
                     self.log.info(f"[CFG] Adding missing setting: {section}.{setting}")

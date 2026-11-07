@@ -36,6 +36,12 @@ class FREEDV_MODE(Enum):
     data_ofdm_500 = 21500
     data_ofdm_1700 = 211700
     data_ofdm_2438 = 2124381
+    # the same waveforms as data_ofdm_250, _500 and _1700 with a higher LDPC code
+    # rate and their own unique word; ARQ sessions fall back from them to those
+    # (arq_session.SPEED_LEVEL_DICT, "fallback")
+    data_ofdm_250_hr = 21251
+    data_ofdm_500_hr = 21501
+    data_ofdm_1700_hr = 211701
     data_vhf_1 = 201
     data_fsk4_50 = 202
 
@@ -60,6 +66,9 @@ class FREEDV_MODE_USED_SLOTS(Enum):
     data_ofdm_250 = [False, False, True, False, False]
     data_ofdm_500 = [False, False, True, False, False]
     data_ofdm_1700 = [False, True, True, True, False]
+    data_ofdm_250_hr = [False, False, True, False, False]
+    data_ofdm_500_hr = [False, False, True, False, False]
+    data_ofdm_1700_hr = [False, True, True, True, False]
     data_fsk4_50 = [False, False, True, False, False]
     data_ofdm_2438 = [True, True, True, True, True]
     data_qam_2438 = [True, True, True, True, True]
@@ -398,13 +407,7 @@ class resampler:
 
 def open_instance(mode: int) -> ctypes.c_void_p:
     data_custom = 21
-    if mode in [
-        FREEDV_MODE.data_ofdm_200.value,
-        FREEDV_MODE.data_ofdm_250.value,
-        FREEDV_MODE.data_ofdm_500.value,
-        FREEDV_MODE.data_ofdm_1700.value,
-        FREEDV_MODE.data_ofdm_2438.value,
-    ]:
+    if mode in ofdm_configurations:
         # if mode in [FREEDV_MODE.data_ofdm_500.value, FREEDV_MODE.data_ofdm_2438.value, FREEDV_MODE.data_qam_2438]:
         custom_params = ofdm_configurations[mode]
         return ctypes.cast(
@@ -885,12 +888,69 @@ data_qam_2438_config.config.contents.timing_mx_thresh = 0.10
 data_qam_2438_config.config.contents.tx_uw = create_tx_uw(162, [1, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0])
 """
 
+# ---------------- Higher code rates ---------------#
+# The waveforms of data_ofdm_250, _500 and _1700 with an LDPC code of a higher
+# rate, for ARQ speed levels above those modes (docs/arq-sessions.md, 4.2 "Higher
+# code rates"). codec2 has no longer codes of a high rate, so 250 and 500 take
+# HRAa_1536_512 (rate 3/4, 2048 bits, shortened to their packets: rate 0.65 and
+# 0.74), and 1700 takes H_16200_9720 (rate 0.6, the code of data_ofdm_2438) over
+# a packet of 75 instead of 38 modem frames. Offline (tools/channel_sim.py,
+# 20 frames per cell; bytes per frame with the CRC, 3 kHz SNR at which all frames
+# decoded, AWGN / mid-latitude disturbed):
+#   data_ofdm_250_hr   120 bytes, -3 / 6 dB    datac4         56 bytes, -5 / -3 dB
+#   data_ofdm_500_hr   185 bytes, -1 / 9 dB    data_ofdm_500 121 bytes, -3 / 3 dB
+#   data_ofdm_1700_hr 1211 bytes,  2 / 10 dB   datac1        510 bytes,  2 / 10 dB
+# data_ofdm_2438 gains nothing: a 2048-bit code fits only 6 of its modem frames,
+# and the preamble of each short frame costs more than the code rate wins.
+#
+# Each has a unique word of its own (high_rate_uw), and 1700 a longer one. With
+# the unique word of its sibling, the receiver of either mode syncs on the
+# frames of the other and fails to decode them, and those failures make the IRS
+# step down (Demodulator.take_decode_failures). The 16 bits of data_ofdm_1700
+# are too few: with any 16 or 24 bits the datac1 receiver still synced on about
+# every second data_ofdm_1700_hr frame, with 32 on none.
+
+
+def create_high_rate_config(base, codename, np=None, nuwbits=None):
+    """A copy of an OFDM mode config with another LDPC code and unique word.
+
+    Args:
+        base: The FREEDV_ADVANCED of the mode to copy.
+        codename: The LDPC code.
+        np: Modem frames per packet, if not those of base.
+        nuwbits: Bits of the unique word, if not those of base.
+    """
+    config = create_default_ofdm_config()
+    source, target = base.config.contents, config.config.contents
+    for field, _ in OFDM_CONFIG._fields_:
+        setattr(target, field, getattr(source, field))
+    target.codename = codename.encode("utf-8")
+    if np is not None:
+        target.np = np
+    if nuwbits is not None:
+        target.nuwbits = nuwbits
+    target.tx_uw = create_tx_uw(target.nuwbits, high_rate_uw(target.nuwbits))
+    return config
+
+
+def high_rate_uw(nuwbits):
+    """The unique word of the high-rate modes: the first nuwbits of PRBS9."""
+    return [(byte >> (7 - i)) & 1 for byte in _prbs9((nuwbits + 7) // 8) for i in range(8)][:nuwbits]
+
+
+data_ofdm_250_hr_config = create_high_rate_config(data_ofdm_250_config, "HRAa_1536_512")
+data_ofdm_500_hr_config = create_high_rate_config(data_ofdm_500_config, "HRAa_1536_512")
+data_ofdm_1700_hr_config = create_high_rate_config(data_ofdm_1700_config, "H_16200_9720", np=75, nuwbits=32)
+
 ofdm_configurations = {
     FREEDV_MODE.data_ofdm_200.value: data_ofdm_200_config,
     FREEDV_MODE.data_ofdm_250.value: data_ofdm_250_config,
     FREEDV_MODE.data_ofdm_500.value: data_ofdm_500_config,
     FREEDV_MODE.data_ofdm_1700.value: data_ofdm_1700_config,
     FREEDV_MODE.data_ofdm_2438.value: data_ofdm_2438_config,
+    FREEDV_MODE.data_ofdm_250_hr.value: data_ofdm_250_hr_config,
+    FREEDV_MODE.data_ofdm_500_hr.value: data_ofdm_500_hr_config,
+    FREEDV_MODE.data_ofdm_1700_hr.value: data_ofdm_1700_hr_config,
     # FREEDV_MODE.data_qam_2438.value: data_qam_2438_config,
 }
 fsk_configurations = {
