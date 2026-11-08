@@ -71,6 +71,7 @@
         "cleargrid": "Raster löschen",
         "cleargrid_help": "Alle Elemente aus dem Raster löschen",
         "gridedit": "Raster editieren",
+        "clock_local": "Lokal",
         "managegridwidgets": "Raster-Widgets verwalten",
         "gridwidgetsdescription": "Mit Raster-Widgets kann man die Oberfläche individualisieren. Du kannst zusätzliche Widgets hinzufügen, die Deinen Bedürfnissen entsprechen. Einzelne Widgets lassen sich verschieben und in der Größe verändern!",
         "fillgrid": "Raster mit gängigen Widgets füllen",
