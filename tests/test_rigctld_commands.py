@@ -256,3 +256,58 @@ class TestPendingRelease(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestVfoSetup(unittest.TestCase):
+    r"""A rigctld started with --vfo takes the line after a command without a
+    VFO as that command's VFO: a poll's "f" sent before \chk_vfo swallowed it,
+    and neither got an answer, connect after connect (freedata-b, 2026-11-09)."""
+
+    def test_no_polls_while_the_vfo_is_checked(self):
+        radio = rigctld.radio.__new__(rigctld.radio)
+        radio.connected = True
+        radio.setup_running = True
+        radio.parameters = {"frequency": 7053000}
+        radio.start_connecting = mock.Mock()
+        radio.send_pending_ptt_release = mock.Mock()
+        radio.get_frequency = mock.Mock()
+        self.assertEqual(radio.get_parameters(), {"frequency": 7053000})
+        radio.get_frequency.assert_not_called()
+        radio.send_pending_ptt_release.assert_not_called()
+
+    def test_ptt_waits_for_the_vfo_check(self):
+        radio = rigctld.radio.__new__(rigctld.radio)
+        radio.log = mock.Mock()
+        radio.ptt_mode = "TX"
+        radio.ptt_lock = threading.RLock()
+        radio.connected = True
+        radio.setup_running = True
+        radio.parameters = {"chk_vfo": False, "vfo": False, "ptt": False}
+        radio.send_command = mock.Mock(return_value="RPRT 0")
+
+        def setup_done():
+            time.sleep(0.3)
+            radio.parameters.update(chk_vfo=True, vfo="currVFO")
+            radio.setup_running = False
+
+        threading.Thread(target=setup_done).start()
+        self.assertTrue(radio.set_ptt(True))
+        radio.send_command.assert_called_once_with("T currVFO 1", raw=True, priority=True)
+
+    def test_connect_checks_the_vfo_before_polls_start(self):
+        radio = rigctld.radio.__new__(rigctld.radio)
+        radio.ctx = types.SimpleNamespace(state_manager=mock.Mock())
+        radio.log = mock.Mock()
+        radio.hostname, radio.port, radio.timeout = "127.0.0.1", 0, 3
+        radio.max_connection_attempts = 1
+        radio.shutdown = False
+        radio.stop_event = mock.Mock(**{"wait.return_value": False})
+        seen = []
+        radio.check_vfo = mock.Mock(side_effect=lambda: seen.append(("chk_vfo", radio.setup_running)))
+        radio.get_vfo = mock.Mock(side_effect=lambda: seen.append(("v", radio.setup_running)))
+        radio.send_pending_ptt_release = mock.Mock(side_effect=lambda: seen.append(("release", radio.setup_running)))
+        with mock.patch.object(rigctld.socket, "create_connection"):
+            radio.connect_attempts()
+        self.assertEqual(seen, [("chk_vfo", True), ("v", True), ("release", False)])
+        self.assertTrue(radio.connected)
+        self.assertFalse(radio.setup_running)

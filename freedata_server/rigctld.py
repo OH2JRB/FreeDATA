@@ -168,13 +168,21 @@ class radio:
                     self.connection.close()
                     return
 
-                # success path
+                # success path. No polls until \chk_vfo has told whether
+                # commands need a VFO (setup_running): a rigctld started with
+                # --vfo takes the line after a command without one as its
+                # VFO, so a poll's "f" swallowed the \chk_vfo and neither
+                # was answered, connect after connect
+                self.setup_running = True
                 self.connected = True
                 self.ctx.state_manager.set_radio("radio_status", True)
                 self.log.info(f"[RIGCTLD] Connected to rigctld at {self.hostname}:{self.port}")
 
-                self.check_vfo()
-                self.get_vfo()
+                try:
+                    self.check_vfo()
+                    self.get_vfo()
+                finally:
+                    self.setup_running = False
                 # a PTT release lost with the old connection
                 self.send_pending_ptt_release()
                 return
@@ -239,6 +247,8 @@ class radio:
     connection = None
     priority_waiting = 0
     ptt_release_pending = False
+    # True while connect_attempts runs \chk_vfo and v: no polls meanwhile
+    setup_running = False
     ptt_lock = threading.RLock()
 
     # how long a command waits for the one before it to finish; a PTT change
@@ -507,6 +517,11 @@ class radio:
     def _set_ptt(self, state):
         if not state:
             self.ptt_release_pending = True
+        # right after connecting, the T command needs to know whether rigctld
+        # wants a VFO (setup_running): wait for that, a few seconds at most
+        deadline = time.monotonic() + 5
+        while self.setup_running and time.monotonic() < deadline:
+            time.sleep(0.05)
         if not self.connected:
             return False
         try:
@@ -697,6 +712,11 @@ class radio:
         if not self.connected:
             # in the background: the radio manager polls this every second
             self.start_connecting()
+
+        if self.setup_running:
+            # the connect thread is asking rigctld whether commands need a
+            # VFO; a command without one now would swallow its question
+            return self.parameters
 
         # an unkey that could not be sent goes first
         self.send_pending_ptt_release()
