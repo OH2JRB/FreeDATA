@@ -72,6 +72,7 @@
         "cleargrid": "Clear grid",
         "cleargrid_help": "Clear all items from the grid",
         "gridedit": "grid edit",
+        "clock_local": "Local",
         "managegridwidgets": "Manage grid widgets",
         "gridwidgetsdescription": "Grid widgets allow you to customize the display. You may add additional widgets to suit your needs. You can move and resize the individual widgets!",
         "fillgrid": "Fill grid with common widgets",
