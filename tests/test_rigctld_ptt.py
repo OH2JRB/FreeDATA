@@ -27,7 +27,7 @@ class TestRigctldPtt(unittest.TestCase):
             with self.subTest(ptt_mode=name):
                 radio = make_radio(name)
                 self.assertTrue(radio.set_ptt(True))
-                radio.send_command.assert_called_once_with(f"T {value}", raw=True)
+                radio.send_command.assert_called_once_with(f"T {value}", raw=True, priority=True)
                 self.assertTrue(radio.connected)
                 self.assertTrue(radio.parameters["ptt"])
                 radio.log.warning.assert_not_called()
@@ -35,14 +35,14 @@ class TestRigctldPtt(unittest.TestCase):
     def test_unkey(self):
         radio = make_radio("TX_DATA")
         self.assertTrue(radio.set_ptt(False))
-        radio.send_command.assert_called_once_with("T 0", raw=True)
+        radio.send_command.assert_called_once_with("T 0", raw=True, priority=True)
         self.assertTrue(radio.connected)
         self.assertFalse(radio.parameters["ptt"])
 
     def test_invalid_mode_falls_back_to_tx(self):
         radio = make_radio("NOT_A_MODE")
         self.assertTrue(radio.set_ptt(True))
-        radio.send_command.assert_called_once_with("T 1", raw=True)
+        radio.send_command.assert_called_once_with("T 1", raw=True, priority=True)
         self.assertTrue(radio.connected)
 
     def test_command_error_still_disconnects(self):

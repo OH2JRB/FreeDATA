@@ -1,7 +1,9 @@
+import re
 import socket
 import structlog
 from freedata_server import helpers
 import threading
+import time
 from datetime import datetime
 from enum import IntEnum
 
@@ -66,8 +68,17 @@ class radio:
         # one connect thread at a time (start_connecting)
         self.connect_lock = threading.Lock()
         self.connect_thread = None
-        self.await_response = threading.Event()
-        self.await_response.set()
+        # one command on the socket at a time, from sending it to the end of
+        # its reply: the radio manager polls from its own thread while the
+        # modem keys and unkeys from another (send_command)
+        self.command_lock = threading.Lock()
+        # PTT changes waiting for the lock: polls give way to them
+        self.priority_waiting = 0
+        # an unkey that could not be sent: sent again once connected (set_ptt)
+        self.ptt_release_pending = False
+        # one PTT change at a time, so a pending unkey sent from the poll
+        # thread cannot follow a new keying from the modem
+        self.ptt_lock = threading.RLock()
         # the last error per polled value (poll_failed)
         self.poll_errors = {}
 
@@ -164,6 +175,8 @@ class radio:
 
                 self.check_vfo()
                 self.get_vfo()
+                # a PTT release lost with the old connection
+                self.send_pending_ptt_release()
                 return
 
             except Exception as err:
@@ -222,66 +235,148 @@ class radio:
             "vfo": "---",
         }
 
-    def send_command(self, command, raw=False):
-        """Sends a command to the rigctld server.
+    # set in __init__; class defaults for radios built without it, as in tests
+    connection = None
+    priority_waiting = 0
+    ptt_release_pending = False
+    ptt_lock = threading.RLock()
 
-        This method sends a command to the rigctld server and waits for a
-        response. It handles potential timeouts and other errors during
-        communication. It uses a threading.Event to synchronize command
-        sending and avoid concurrent access to the socket.
+    # how long a command waits for the one before it to finish; a PTT change
+    # waits longer than a whole reply can take (timeout), so it is never dropped
+    COMMAND_WAIT = 1.0
+    PRIORITY_WAIT = 10.0
+    # "Key: value" lines of rigctld's extended replies ("Frequency: 7053000")
+    KEY_VALUE = re.compile(r"^[A-Za-z][A-Za-z ]*: ")
+
+    def send_command(self, command, raw=False, priority=False):
+        """Sends a command to rigctld and returns its reply.
+
+        One command at a time: the lock is held from sending to the end of
+        the reply. The command goes in rigctld's extended response mode ("+"),
+        whose replies end with an "RPRT n" line, so the whole reply is read
+        however rigctld splits it, and nothing of it is left for the next
+        command. The reply is returned as rigctld's plain mode gives it: the
+        values, one per line, or "RPRT n" when there are none or it failed.
 
         Args:
-            command (str): The command to send to rigctld.
-            raw (bool): Return the response as it is, RPRT lines included,
-                so a set command's result code can be read.
+            command (str): The command, as in rigctld's plain mode.
+            raw (bool): Return "RPRT n" replies too, so a set command's result
+                code can be read.
+            priority (bool): A PTT change: waits up to PRIORITY_WAIT for the
+                lock, and polls give way to it meanwhile.
 
         Returns:
-            str or None: The response from rigctld, or None if an error
-            occurred, the response contains 'RPRT' (unless raw), or the
-            response contains 'None' (unless raw).
+            str or None: The reply, or None if not connected, after an error
+            or timeout, or (unless raw) for an "RPRT" or "None" reply.
 
         Raises:
-            TimeoutError: If a timeout occurs while waiting for a response.
+            TimeoutError: The command before it did not finish in time, or
+                (not priority) a PTT change is waiting.
         """
-        if self.connected:
-            # wait if we have another command awaiting its response...
-            # we need to set a timeout for avoiding a blocking state
-            if not self.await_response.wait(timeout=1):  # Check if timeout occurred
-                raise TimeoutError(
-                    f"[RIGCTLD] Timeout waiting for response from rigctld before sending command: [{command}]"
-                )
-
+        if not self.connected:
+            return None
+        if not self.acquire_command_lock(command, priority):
+            raise TimeoutError(
+                f"[RIGCTLD] Timeout waiting for response from rigctld before sending command: [{command}]"
+            )
+        try:
+            if not self.connection:
+                return None
             try:
-                self.await_response.clear()  # Signal that a command is awaiting response
-                if self.connection:
-                    self.connection.sendall(command.encode("utf-8") + b"\n")
-                else:
-                    return None
-
-                response = self.connection.recv(1024)
-                self.await_response.set()  # Signal that the response has been received
-                stripped_result = response.decode("utf-8").strip()
-                if raw:
-                    return stripped_result
-
-                if "RPRT" in stripped_result:
-                    return None
-
-                if "None" in stripped_result:
-                    return None
-
-                return stripped_result
-
+                result = self.exchange(command)
             except socket.timeout:
                 self.log.warning(f"[RIGCTLD] Timeout waiting for response from rigctld: [{command}]")
-                self.connected = False  # Set connected to False if timeout occurs
-                return None  # Return None to indicate timeout
+                self.drop_connection()
+                return None
             except Exception as err:
                 self.log.warning(f"[RIGCTLD] Error sending command [{command}] to rigctld: {err}")
-                self.connected = False
-                return None  # Return None to indicate error
+                self.drop_connection()
+                return None
+        finally:
+            self.command_lock.release()
+
+        if raw:
+            return result
+        if "RPRT" in result or "None" in result:
+            return None
+        return result
+
+    def acquire_command_lock(self, command, priority):
+        """Takes command_lock; False if it did not come in time. A poll waits
+        (up to COMMAND_WAIT) while a PTT change waits, so the change goes first."""
+        if priority:
+            self.priority_waiting += 1
+            try:
+                return self.command_lock.acquire(timeout=self.PRIORITY_WAIT)
             finally:
-                self.await_response.set()  # Ensure await_response is always set in case of exceptions
+                self.priority_waiting -= 1
+        deadline = time.monotonic() + self.COMMAND_WAIT
+        while time.monotonic() < deadline:
+            if self.priority_waiting:
+                time.sleep(0.01)
+                continue
+            if self.command_lock.acquire(timeout=0.05):
+                if not self.priority_waiting:
+                    return True
+                # a PTT change began waiting meanwhile: it goes first
+                self.command_lock.release()
+        return False
+
+    def exchange(self, command):
+        """Sends one command and reads its whole reply (command_lock held).
+
+        Returns:
+            str: The values of the reply, one per line, or "RPRT n".
+
+        Raises:
+            socket.timeout: The reply did not end within timeout.
+        """
+        # \chk_vfo answers with one line, "ChkVFO: n", even in extended mode
+        single_line = command.strip() == "\\chk_vfo"
+        self.connection.sendall(b"+" + command.encode("utf-8") + b"\n")
+        lines = self.read_reply(single_line)
+        if single_line:
+            return lines[0].split(":", 1)[-1].strip()
+
+        code = int(lines[-1].split()[1])
+        # the first line repeats the command ("get_freq: currVFO")
+        values = [line.split(": ", 1)[1] if self.KEY_VALUE.match(line) else line for line in lines[1:-1]]
+        if code != 0 or not values:
+            return f"RPRT {code}"
+        return "\n".join(values)
+
+    def read_reply(self, single_line=False):
+        """Reads reply lines up to the "RPRT n" line (or the first line),
+        within timeout seconds."""
+        deadline = time.monotonic() + self.timeout
+        buffer = b""
+        while True:
+            lines = buffer.decode("utf-8", errors="replace").split("\n")
+            complete = [line.strip() for line in lines[:-1]]
+            if single_line and complete:
+                return complete[:1]
+            for i, line in enumerate(complete):
+                if re.fullmatch(r"RPRT -?\d+", line):
+                    return complete[: i + 1]
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise socket.timeout("reply did not end")
+            self.connection.settimeout(remaining)
+            chunk = self.connection.recv(1024)
+            if not chunk:
+                raise ConnectionError("rigctld closed the connection")
+            buffer += chunk
+
+    def drop_connection(self):
+        """After a timeout or error: closes the socket, so no late reply can
+        be read for a later command; the next poll connects again."""
+        self.connected = False
+        connection, self.connection = self.connection, None
+        if connection:
+            try:
+                connection.close()
+            except OSError:
+                pass
         return ""
 
     # Hamlib's RIG_ENAVAIL: the radio's backend cannot do this (no clock)
@@ -340,15 +435,16 @@ class radio:
         self.log.debug("[RIGCTLD] Radio clock set", set_to=time_string, radio_clock=radio_clock)
         return {"set_to": time_string, "radio_clock": radio_clock}
 
-    def send_set_command(self, what, command):
+    def send_set_command(self, what, command, priority=True):
         """Sends a command that changes the radio and checks rigctld's reply,
-        which is "RPRT 0" when the radio took it.
+        which is "RPRT 0" when the radio took it. It goes ahead of the polls
+        (priority), as the user or the modem asked for it.
 
         Returns:
             bool: True if rigctld reported success. A failure is logged here,
             with the command and the reply.
         """
-        reply = self.send_command(command, raw=True)
+        reply = self.send_command(command, raw=True, priority=priority)
         if self.rprt_code(reply) == 0:
             return True
         self.log.warning(f"[RIGCTLD] rigctld did not set {what}", command=command, reply=reply)
@@ -394,6 +490,23 @@ class radio:
         return command
 
     def set_ptt(self, state):
+        """Keys (state True) or unkeys the radio.
+
+        The command goes ahead of the radio manager's polls (priority). An
+        unkey that could not be sent, also while rigctld is not connected,
+        stays pending and is sent again as soon as rigctld is connected
+        (send_pending_ptt_release): a radio must not stay keyed because of a
+        slow poll or a dropped connection.
+
+        Returns:
+            bool: True if rigctld set it.
+        """
+        with self.ptt_lock:
+            return self._set_ptt(state)
+
+    def _set_ptt(self, state):
+        if not state:
+            self.ptt_release_pending = True
         if not self.connected:
             return False
         try:
@@ -409,19 +522,36 @@ class radio:
                 ptt_mode = PTTMode.RX
 
             command = self.insert_vfo(f"T {int(ptt_mode)}")
-            if not self.send_set_command("PTT", command):
+            if not self.send_set_command("PTT", command, priority=True):
                 return False
 
             # Parameter-Update
             self.parameters["ptt"] = ptt_mode in (PTTMode.TX, PTTMode.TX_MIC, PTTMode.TX_DATA)
+            self.ptt_release_pending = False
 
             # the radio manager logs the change at info
             self.log.debug(f"[RIGCTLD] Setting PTT: {ptt_mode.name} ({int(ptt_mode)})")
             return True
+        except TimeoutError as err:
+            # the radio did not finish the command before it in time; the
+            # connection itself is fine (an unkey stays pending)
+            self.log.warning(f"[RIGCTLD] Error setting PTT: {err}")
+            return False
         except Exception as err:
             self.log.warning(f"[RIGCTLD] Error setting PTT: {err}")
-            self.connected = False
+            self.drop_connection()
             return False
+
+    def send_pending_ptt_release(self):
+        """Sends an unkey that could not be sent before (set_ptt), once
+        rigctld is connected again."""
+        with self.ptt_lock:
+            # checked again under the lock: a keying since has cleared it
+            if not self.ptt_release_pending or not self.connected:
+                return
+            self.log.warning("[RIGCTLD] Sending the PTT release that could not be sent before")
+            if self._set_ptt(False):
+                self.log.info("[RIGCTLD] PTT released")
 
     def set_mode(self, mode):
         """Set the mode.
@@ -567,6 +697,13 @@ class radio:
         if not self.connected:
             # in the background: the radio manager polls this every second
             self.start_connecting()
+
+        # an unkey that could not be sent goes first
+        self.send_pending_ptt_release()
+
+        if self.priority_waiting:
+            # a PTT change waits for the radio: no polls in its way
+            return self.parameters
 
         if self.connected:
             # self.check_vfo()

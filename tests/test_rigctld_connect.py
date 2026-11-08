@@ -32,7 +32,8 @@ def make_ctx(port):
 
 
 class FakeRigctld:
-    """Accepts one client and answers every command with "0"."""
+    """Accepts one client and answers every command with "0", in rigctld's
+    extended response mode (rigctld.radio.send_command)."""
 
     def __init__(self):
         self.server = socket.socket()
@@ -46,7 +47,11 @@ class FakeRigctld:
             conn, _ = self.server.accept()
             with conn:
                 while data := conn.recv(1024):
-                    conn.sendall(b"0\n" * data.count(b"\n"))
+                    for line in data.split(b"\n")[:-1]:
+                        if line == b"+\\chk_vfo":
+                            conn.sendall(b"ChkVFO: 0\n")
+                        else:
+                            conn.sendall(line[1:] + b":\n0\nRPRT 0\n")
         except OSError:
             pass
 
