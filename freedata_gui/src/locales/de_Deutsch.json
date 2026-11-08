@@ -59,7 +59,8 @@
         "settings_help": "Einstellungen",
         "station": "Station",
         "station_help": "Stationsinfo setzen",
-		"broadcast_help": "Broadcast"
+		"broadcast_help": "Broadcast",
+        "heard_help": "Gehörte Stationen"
     },		   
     "grid": {
         "frequencydescription": "Häufig verwendete Frequenzen (alle in USB) sind hier aufgelistet. Klicke einfach auf einen Eintrag oder gebe manuell eine Frequenz in das Textfeld ein, um den Transceiver abzustimmen. Nur bei aktivierter Hamlib-Steuerung.",
@@ -205,6 +206,15 @@
         "revision": "Revision",
 		"startnewbroadcast": "Starte neuen Broadcast",
  	    "deletebroadcastdomain": "Lösche Broadcast-Domäne"
+    },
+    "heardscreen": {
+        "title": "Gehörte Stationen",
+        "description": "Vom Modem gehörte Stationen, eine Zeile pro Station mit dem letzten Empfangszeitpunkt. Zeiten in deiner lokalen Zeit. Zum Sortieren auf eine Spaltenüberschrift klicken.",
+        "empty": "Noch keine Stationen gehört.",
+        "station": "Station",
+        "datetime": "Datum und Uhrzeit",
+        "frequency": "Frequenz",
+        "sort_help": "Nach dieser Spalte sortieren"
     },
     "chat": {
         "startnewchat": "Neuen Chat starten",
