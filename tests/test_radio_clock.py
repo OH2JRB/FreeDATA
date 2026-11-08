@@ -59,18 +59,19 @@ class TestSendCommandRaw(unittest.TestCase):
         radio = rigctld.radio.__new__(rigctld.radio)
         radio.connected = True
         radio.log = mock.Mock()
-        radio.await_response = threading.Event()
-        radio.await_response.set()
+        radio.command_lock = threading.Lock()
+        radio.timeout = 3
         radio.connection = mock.Mock(**{"recv.return_value": reply})
         return radio
 
     def test_raw_keeps_the_result_code(self):
-        radio = self.make_radio(b"RPRT -11\n")
+        radio = self.make_radio(b"set_clock: x\nRPRT -11\n")
         self.assertEqual(radio.send_command("\\set_clock x", raw=True), "RPRT -11")
-        radio.connection.sendall.assert_called_once_with(b"\\set_clock x\n")
+        # in rigctld's extended response mode
+        radio.connection.sendall.assert_called_once_with(b"+\\set_clock x\n")
 
     def test_without_raw_a_result_code_is_none(self):
-        self.assertIsNone(self.make_radio(b"RPRT 0\n").send_command("\\set_clock x"))
+        self.assertIsNone(self.make_radio(b"set_clock: x\nRPRT 0\n").send_command("\\set_clock x"))
 
 
 class TestRigctldSetClock(unittest.TestCase):

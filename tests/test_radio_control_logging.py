@@ -154,7 +154,7 @@ class TestRigctldSetResult(unittest.TestCase):
             with self.subTest(name):
                 radio = make_rigctld("RPRT 0")
                 self.assertTrue(getattr(radio, name)(*args))
-                radio.send_command.assert_called_once_with(command, raw=True)
+                radio.send_command.assert_called_once_with(command, raw=True, priority=True)
                 radio.log.warning.assert_not_called()
                 self.assertTrue(radio.connected)
 
