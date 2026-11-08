@@ -60,7 +60,8 @@
         "station": "Station",
         "station_help": "Set station info",
 	"broadcast_help": "Broadcast",
-        "queue_help": "Message queue"
+        "queue_help": "Message queue",
+        "heard_help": "Heard stations"
     },
     "grid": {
         "frequencydescription": "Commonly used frequencies are listed here, and are all USB. Simply click on an entry or manually enter a frequency in the textbox to tune your rig if rig control is enabled.",
@@ -233,6 +234,15 @@
         "deleteconfirm": "Delete this message to {{destination}}? It will not be sent.",
         "transmitting": "sending",
         "queuedstatus": "queued"
+    },
+    "heardscreen": {
+        "title": "Heard stations",
+        "description": "Stations the modem has heard, one row per station with the latest time it was heard. Times are in your local time. Click a column header to sort.",
+        "empty": "No stations heard yet.",
+        "station": "Station",
+        "datetime": "Date and time",
+        "frequency": "Frequency",
+        "sort_help": "Sort by this column"
     },
     "chat": {
         "startnewchat": "Start a new chat",

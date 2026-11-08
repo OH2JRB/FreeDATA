@@ -38,6 +38,7 @@ There is no `vue-router` (not in `package.json`, not imported anywhere in `src/`
 | Tab pane `#list-grid` (default active) | `dynamic_components.vue` | Home / grid dashboard |
 | Tab pane `#list-chat` | `chat_screen.vue` | P2P chat |
 | Tab pane `#list-queue` | `queue_screen.vue` | Message queue: messages waiting to be sent |
+| Tab pane `#list-heard` | `heard_stations_screen.vue` | Heard stations: callsign, local date and time, frequency; sortable |
 | Tab pane `#list-broadcasts` | `broadcasts_screen.vue` | Broadcast / group chat |
 | Tab pane `#list-settings` | `settings_screen.vue` | Settings |
 | Bottom | `main_footer_navbar` | Status indicators and progress bar |
@@ -55,6 +56,7 @@ graph TD
   Main --> Grid[dynamic_components.vue  #list-grid]
   Main --> Chat[chat_screen.vue  #list-chat]
   Main --> Queue[queue_screen.vue  #list-queue]
+  Main --> Heard[heard_stations_screen.vue  #list-heard]
   Main --> Bc[broadcasts_screen.vue  #list-broadcasts]
   Main --> Set[settings_screen.vue  #list-settings]
   Main --> Foot[main_footer_navbar.vue]
@@ -79,6 +81,7 @@ graph TD
 | Home (`bi-columns-gap`) | `#list-grid` | `loadAllData()` (via list click handler) | disabled if `state.modem_connection !== "connected"` |
 | Chat (`bi-chat-text`) + unread badge | `#list-chat` | `getFreedataMessages()` + `loadAllData()` | same |
 | Message queue (`bi-hourglass-split`) + badge with the number of waiting messages | `#list-queue` | `getFreedataQueue()` + `loadAllData()` | disabled when disconnected |
+| Heard stations (`bi-list-columns-reverse`) | `#list-heard` | `loadAllData()` (via list click handler) | disabled when disconnected |
 | Broadcasts (`bi-broadcast`) + unread badge | `#list-broadcasts` | `getFreedataDomains()` + `loadAllData()` | only rendered if `settings.remote.EXP.enable_groupchat` |
 | Settings (`bi-gear-wide-connected`) | `#list-settings` | `loadAllData()` (via list click handler only) | disabled when disconnected |
 | Station button (`bi-person-circle`, bottom) | `#stationInfoModal` | - | hard-coded `disabled` |
@@ -95,6 +98,23 @@ status. The message being sent comes first and has no buttons. A queued message 
 - **Send last**: `PATCH /freedata/queue/{id}` `{"action": "send_last"}`; disabled on the last row.
 - **Delete**: asks for confirmation, then `DELETE /freedata/queue/{id}`. The server refuses (409, shown as
   an error toast) while the message is being sent.
+
+### Heard stations screen ([heard_stations_screen.vue](../src/components/heard_stations_screen.vue))
+
+A table of `stateStore.heard_stations`, the same list the heard stations widgets on the home grid show. It is
+built in the GUI by `build_HSL()` ([eventHandler.js](../src/js/eventHandler.js)) from the received entries of
+the server's activity list (`activities` in every `state` / `state-change` event):
+one row per station (`origin`) with its newest entry. Columns:
+
+| Column | Source | Shown as |
+|---|---|---|
+| Station | `origin` | callsign badge |
+| Date and time | `timestamp` (seconds since the epoch, UTC) | the browser's local date and time (`toLocaleString`, 24 h) |
+| Frequency | `frequency` (Hz, the radio frequency when the frame came in) | kHz, `-` if unknown |
+
+Clicking the Station or Date and time header sorts by that column; clicking it again reverses the order. The
+default is newest first; switching to Station starts A-Z. The arrow icon and `aria-sort` show the current
+order. Sorting works on a copy, so the widgets' newest-first order is not changed.
 
 ### Settings screen ([settings_screen.vue](../src/components/settings_screen.vue))
 

@@ -125,6 +125,19 @@ const isNetworkTraffic = computed(() => state.is_network_traffic);
     </a>
 
     <a
+      id="list-heard-list"
+      class="list-group-item list-group-item-dark list-group-item-action border-0 rounded-3 mb-2"
+      data-bs-toggle="list"
+      href="#list-heard"
+      role="tab"
+      aria-controls="list-heard"
+      :title="$t('navbar.heard_help')"
+      :class="{ disabled: isNetworkDisconnected }"
+    >
+      <i class="bi bi-list-columns-reverse h3" />
+    </a>
+
+    <a
      v-if="settings.remote.EXP.enable_groupchat"
       id="list-broadcast-list"
       class="list-group-item list-group-item-dark list-group-item-action border-0 rounded-3 mb-2"

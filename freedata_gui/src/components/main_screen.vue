@@ -56,6 +56,15 @@
             </div>
 
             <div
+              id="list-heard"
+              class="tab-pane fade"
+              role="tabpanel"
+              aria-labelledby="list-heard-list"
+            >
+              <heard_stations_view />
+            </div>
+
+            <div
               id="list-broadcasts"
               class="tab-pane fade"
               role="tabpanel"
@@ -89,6 +98,7 @@ import main_modals from './main_modals.vue';
 import settings_view from './settings_screen.vue';
 import broadcasts_view from './broadcasts_screen.vue';
 import queue_view from './queue_screen.vue';
+import heard_stations_view from './heard_stations_screen.vue';
 
 import main_footer_navbar from './main_footer_navbar.vue';
 import main_left_navbar from './main_left_navbar.vue';
@@ -104,6 +114,7 @@ export default {
     settings_view,
     broadcasts_view,
     queue_view,
+    heard_stations_view,
     main_footer_navbar,
     main_left_navbar,
     chat,
