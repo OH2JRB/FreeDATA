@@ -77,6 +77,9 @@ class DISPATCHER:
         FR_TYPE.NORM_DATA.value: {"class": NORMFrameHandler, "name": "NORM DATA"},
         FR_TYPE.NORM_NACK.value: {"class": NORMFrameHandler, "name": "NORM NACK"},
         FR_TYPE.NORM_REPAIR.value: {"class": NORMFrameHandler, "name": "NORM REPAIR"},
+        # logged, listed under activity and sent to the GUI with its SNR, so
+        # the other station sees that a test frame came through
+        FR_TYPE.TEST_FRAME.value: {"class": FrameHandler, "name": "TEST FRAME"},
         # FR_TYPE.IS_WRITING.value: {"class": FrameHandler, "name": "IS_WRITING"},
         # FR_TYPE.FEC.value: {"class": FrameHandler, "name":  "FEC"},
         # FR_TYPE.FEC_WAKEUP.value: {"class": FrameHandler, "name":  "FEC WAKEUP"},

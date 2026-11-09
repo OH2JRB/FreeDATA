@@ -55,6 +55,9 @@ class DataFrameFactory:
         self._load_arq_templates()
         self._load_p2p_connection_templates()
         self._load_norm_templates()
+        # a test frame is its type byte and zeros (build_test); without a
+        # template a received one could not be read at all
+        self.template_list[FR_TYPE.TEST_FRAME.value] = {"frame_length": None}
 
     def _load_broadcast_templates(self):
         # cq frame
