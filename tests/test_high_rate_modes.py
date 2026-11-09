@@ -199,8 +199,10 @@ class TestNegotiation(unittest.TestCase):
         return irs
 
     def test_iss_sets_the_flag(self):
-        self.assertEqual(self.open_frame(True), 2438 | ARQSession.HIGH_RATE_FLAG)
-        self.assertEqual(self.open_frame(False), 2438)
+        # the FSK bits (FSK on in session_ctx) ride along (test_fsk_negotiation)
+        fsk_bits = ARQSession.CAPS_FLAG | ARQSession.FSK_FLAG
+        self.assertEqual(self.open_frame(True), 2438 | ARQSession.HIGH_RATE_FLAG | fsk_bits)
+        self.assertEqual(self.open_frame(False), 2438 | fsk_bits)
 
     def test_flag_fits_the_field(self):
         factory = DataFrameFactory.__new__(DataFrameFactory)
