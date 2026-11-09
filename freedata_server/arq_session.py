@@ -104,9 +104,20 @@ class ARQSession:
     # 12 bits: an IRS without them reads a bandwidth above its own and uses its
     # own, as it would with any other ISS bandwidth above it
     HIGH_RATE_FLAG = 0x8000
+    # in the same field: the ISS has the FSK modes on (FSK_FLAG), and it sends
+    # that bit at all (CAPS_FLAG). The IRS answers the same in the flag byte of
+    # ARQ_SESSION_OPEN_ACK (DataFrameFactory.ARQ_FLAGS "FSK", "CAPS"). A session
+    # falls back to FSK only if the other station has it on, or is an older one
+    # that does not say (peer_fsk None): on 2026-11-08 an ISS fell back to FSK
+    # with an IRS that had it off and went on sending what it could not hear
+    FSK_FLAG = 0x4000
+    CAPS_FLAG = 0x2000
+    CAPABILITY_FLAGS = HIGH_RATE_FLAG | FSK_FLAG | CAPS_FLAG
     # set per session (__init__, ARQSessionIRS.send_open_ack); class defaults
     # for sessions built without __init__, as in some tests
     high_rate = False
+    # whether the other station has the FSK modes on; None until it said so
+    peer_fsk = None
     high_rate_hold = 0
     last_burst_level = None
     FSK_LEVEL = 0
@@ -243,6 +254,27 @@ class ARQSession:
         mode_name = frame.get("mode_name")
         return mode_name in (self.FSK_MODE, self.FSK_MODE.name.upper())
 
+    def fsk_allowed(self) -> bool:
+        """True if the session may go to FSK: on here (config.fsk_modes_enabled)
+        and not off at the other station (peer_fsk)."""
+        return fsk_modes_enabled(self.ctx) and self.peer_fsk is not False
+
+    @classmethod
+    def peer_fsk_from_flags(cls, flags) -> bool | None:
+        """The other station's FSK setting from an open-ack flag dict
+        (DataFrameFactory.ARQ_FLAGS), None from an older IRS without CAPS."""
+        if not flags.get("CAPS"):
+            return None
+        return bool(flags.get("FSK"))
+
+    @classmethod
+    def peer_fsk_from_bandwidth_field(cls, field) -> bool | None:
+        """The ISS's FSK setting from the maximum_bandwidth field of
+        ARQ_SESSION_OPEN, None from an older ISS without CAPS_FLAG."""
+        if not field & cls.CAPS_FLAG:
+            return None
+        return bool(field & cls.FSK_FLAG)
+
     def fall_back_to_fsk(self):
         """Moves the session to the FSK level for good, unless the FSK modes are
         disabled (config.fsk_modes_enabled); callers check self.fsk afterwards.
@@ -251,8 +283,9 @@ class ARQSession:
         SNR and still defeats the OFDM modes. There is no way back up yet: the
         SNR cannot tell when the OFDM modes would work again.
         """
-        if not fsk_modes_enabled(self.ctx):
-            # "Enable FSK modes" is off: the session stays on OFDM
+        if not self.fsk_allowed():
+            # "Enable FSK modes" is off here or at the other station: the
+            # session stays on OFDM
             return
         if not self.fsk:
             self.log(f"Falling back to {self.FSK_MODE.name} for this session", isWarning=True)
@@ -596,6 +629,7 @@ class ARQSession:
         self.delivered_crc = None
         self.maximum_bandwidth = 0
         self.high_rate = False
+        self.peer_fsk = None
         self.high_rate_hold = 0
         self.last_burst_level = None
         self.abort = False

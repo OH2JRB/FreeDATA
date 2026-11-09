@@ -236,7 +236,7 @@ class ARQSessionIRS(arq_session.ARQSession):
                         self.transmission_failed()
                 return
             if self.burst_heard_not_decoded(since):
-                if fsk_modes_enabled(self.ctx):
+                if self.fsk_allowed():
                     self.answer_undecodable_burst()
                 since = time.monotonic()
 
@@ -313,7 +313,9 @@ class ARQSessionIRS(arq_session.ARQSession):
             Tuple[None, None]: Returns None for both data and type_byte as this method doesn't handle data.
         """
         # an ISS with the high-rate levels sets HIGH_RATE_FLAG in the bandwidth field
-        iss_bandwidth = open_frame["maximum_bandwidth"] & ~self.HIGH_RATE_FLAG
+        iss_bandwidth = open_frame["maximum_bandwidth"] & ~self.CAPABILITY_FLAGS
+        # whether the ISS has the FSK modes on (None: an older ISS)
+        self.peer_fsk = self.peer_fsk_from_bandwidth_field(open_frame["maximum_bandwidth"])
         self.high_rate = bool(open_frame["maximum_bandwidth"] & self.HIGH_RATE_FLAG) and high_rate_modes_enabled(
             self.ctx
         )
@@ -324,7 +326,8 @@ class ARQSessionIRS(arq_session.ARQSession):
             self.maximum_bandwidth = iss_bandwidth
         self.log(
             f"Negotiated transmission bandwidth {self.maximum_bandwidth}Hz, "
-            f"higher code rates {'on' if self.high_rate else 'off'}"
+            f"higher code rates {'on' if self.high_rate else 'off'}, "
+            f"FSK at the ISS {'unknown' if self.peer_fsk is None else 'on' if self.peer_fsk else 'off'}"
         )
 
         self.ctx.event_manager.send_arq_session_new(False, self.id, self.dxcall, 0, self.state.name)
@@ -335,7 +338,7 @@ class ARQSessionIRS(arq_session.ARQSession):
             self.set_state(IRS_State.ABORTED)
 
         ack_frame = self.frame_factory.build_arq_session_open_ack(
-            self.id, self.dxcall, self.version, self.snr, flag_abort=self.abort
+            self.id, self.dxcall, self.version, self.snr, flag_abort=self.abort, fsk=fsk_modes_enabled(self.ctx)
         )
 
         self.launch_transmit_and_wait(
@@ -748,7 +751,7 @@ class ARQSessionIRS(arq_session.ARQSession):
         # SNR does not show. Step down, and to FSK from datac4
         datac4_level = self.FSK_LEVEL + 1
         if decode_failures >= self.DECODE_FAILURES_TO_STEP_DOWN:
-            if self.speed_level <= datac4_level and fsk_modes_enabled(self.ctx):
+            if self.speed_level <= datac4_level and self.fsk_allowed():
                 self.log("OFDM frames fail to decode at datac4, falling back to FSK", isWarning=True)
                 self.fall_back_to_fsk()
                 return self.speed_level

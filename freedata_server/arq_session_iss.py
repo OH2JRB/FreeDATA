@@ -319,7 +319,7 @@ class ARQSessionISS(arq_session.ARQSession):
                 heard
                 and isARQBurst
                 and not self.fsk
-                and fsk_modes_enabled(self.ctx)
+                and self.fsk_allowed()
                 and self.state not in [ISS_State.ABORTED, ISS_State.ABORTING]
             ):
                 # the IRS answers, but in OFDM nothing gets here: on with FSK at once
@@ -402,6 +402,10 @@ class ARQSessionISS(arq_session.ARQSession):
         if high_rate_modes_enabled(self.ctx):
             # the IRS may choose the high-rate levels (HIGH_RATE_FLAG)
             maximum_bandwidth |= self.HIGH_RATE_FLAG
+        # whether this station has the FSK modes on (FSK_FLAG, CAPS_FLAG)
+        maximum_bandwidth |= self.CAPS_FLAG
+        if fsk_modes_enabled(self.ctx):
+            maximum_bandwidth |= self.FSK_FLAG
         self.ctx.event_manager.send_arq_session_new(True, self.id, self.dxcall, self.total_length, self.state.name)
         session_open_frame = self.frame_factory.build_arq_session_open(
             self.dxcall, self.id, maximum_bandwidth, self.protocol_version
@@ -486,6 +490,11 @@ class ARQSessionISS(arq_session.ARQSession):
         # check if we received an abort flag
         if irs_frame["flag"]["ABORT"]:
             return self.transmission_aborted(irs_frame=irs_frame)
+
+        # whether the IRS has the FSK modes on (None: an older IRS)
+        self.peer_fsk = self.peer_fsk_from_flags(irs_frame["flag"])
+        if self.peer_fsk is False:
+            self.log("The IRS has the FSK modes off: no FSK fallback in this session")
 
         info_frame = self.frame_factory.build_arq_session_info(
             self.id, self.total_length, self.data_crc, self.snr, self.type_byte

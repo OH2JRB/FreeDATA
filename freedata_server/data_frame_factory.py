@@ -22,6 +22,10 @@ class DataFrameFactory:
         "FINAL": 0,  # Bit-position for indicating the FINAL state
         "ABORT": 1,  # Bit-position for indicating the ABORT request
         "CHECKSUM": 2,  # Bit-position for indicating the CHECKSUM is correct or not
+        # ARQ_SESSION_OPEN_ACK only: the IRS has the FSK modes on (FSK), and it
+        # sends that bit at all (CAPS); without CAPS, an older IRS (arq_session.FSK_FLAG)
+        "FSK": 3,
+        "CAPS": 4,
     }
 
     BEACON_FLAGS = {
@@ -567,10 +571,16 @@ class DataFrameFactory:
         }
         return self.construct(FR_TYPE.ARQ_SESSION_OPEN, payload)
 
-    def build_arq_session_open_ack(self, session_id, destination, version, snr, flag_abort=False):
+    def build_arq_session_open_ack(self, session_id, destination, version, snr, flag_abort=False, fsk=None):
+        """fsk: whether this station has the FSK modes on; None leaves the FSK
+        and CAPS bits out, as an older IRS does."""
         flag = 0b00000000
         if flag_abort:
             flag = helpers.set_flag(flag, "ABORT", True, self.ARQ_FLAGS)
+        if fsk is not None:
+            flag = helpers.set_flag(flag, "CAPS", True, self.ARQ_FLAGS)
+            if fsk:
+                flag = helpers.set_flag(flag, "FSK", True, self.ARQ_FLAGS)
 
         payload = {
             "session_id": session_id.to_bytes(1, "big"),

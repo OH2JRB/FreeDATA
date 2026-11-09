@@ -105,7 +105,7 @@ The modulator ([modulator.py](../modulator.py)) then pads the frame to `bytes_pe
 
 | Dict | Bit 0 | Bit 1 | Bit 2 | Used for |
 |---|---|---|---|---|
-| `ARQ_FLAGS` | `FINAL` | `ABORT` | `CHECKSUM` | `ARQ_SESSION_OPEN_ACK`, `ARQ_SESSION_INFO_ACK`, `ARQ_BURST_ACK` (decoded); `ARQ_SESSION_INFO` carries a flag byte that is always 0 and is not decoded |
+| `ARQ_FLAGS` | `FINAL` (bit 0) | `ABORT` (bit 1) | `CHECKSUM` (bit 2); `FSK` (bit 3) and `CAPS` (bit 4) in `ARQ_SESSION_OPEN_ACK` only (arq-sessions.md, 4.1) | `ARQ_SESSION_OPEN_ACK`, `ARQ_SESSION_INFO_ACK`, `ARQ_BURST_ACK` (decoded); `ARQ_SESSION_INFO` carries a flag byte that is always 0 and is not decoded |
 | `BEACON_FLAGS` | `AWAY_FROM_KEY` | - | - | `BEACON` |
 | `P2P_FLAGS` | `HAS_DATA` | `ANNOUNCE_ARQ` | - | `P2P_CONNECTION_HEARTBEAT`, `_HEARTBEAT_ACK`, `_PAYLOAD` |
 | `NORM_FLAGS` | `LAST_DATA` | - | - | defined but unused. NORM frames use their own layout (see 2.3.5) |
@@ -141,8 +141,8 @@ protocol 1 stations in red, since they cannot exchange ARQ sessions with protoco
 
 | Frame | Size | Layout | Builder |
 |---|---:|---|---|
-| `ARQ_SESSION_OPEN` | 14 | 0:1 type, 1:3 destination_crc, 4:6 origin, 10:1 session_id, 11:2 maximum_bandwidth, 13:1 protocol_version | `build_arq_session_open(destination, session_id, maximum_bandwidth, protocol_version)` |
-| `ARQ_SESSION_OPEN_ACK` | 14 | 0:1 type, 1:1 session_id, 2:6 origin, 8:3 destination_crc, 11:1 version, 12:1 snr, 13:1 flag | `build_arq_session_open_ack(session_id, destination, version, snr, flag_abort)` |
+| `ARQ_SESSION_OPEN` | 14 | 0:1 type, 1:3 destination_crc, 4:6 origin, 10:1 session_id, 11:2 maximum_bandwidth (bits 15, 14, 13: `HIGH_RATE_FLAG`, `FSK_FLAG`, `CAPS_FLAG`), 13:1 protocol_version | `build_arq_session_open(destination, session_id, maximum_bandwidth, protocol_version)` |
+| `ARQ_SESSION_OPEN_ACK` | 14 | 0:1 type, 1:1 session_id, 2:6 origin, 8:3 destination_crc, 11:1 version, 12:1 snr, 13:1 flag | `build_arq_session_open_ack(session_id, destination, version, snr, flag_abort, fsk)` |
 | `ARQ_SESSION_INFO` | 14 | 0:1 type, 1:1 session_id, 2:4 total_length, 6:4 total_crc, 10:1 snr, 11:1 flag, 12:1 type (data type) | `build_arq_session_info(session_id, total_length, total_crc, snr, type)` |
 | `ARQ_SESSION_INFO_ACK` | 14 | 0:1 type, 1:1 session_id, 2:4 offset, 6:1 snr, 7:1 speed_level, 8:1 frames_per_burst, 9:1 flag | `build_arq_session_info_ack(session_id, offset, snr, speed_level, frames_per_burst, flag_final, flag_abort)` |
 | `ARQ_STOP` | 14 | 0:1 type, 1:1 session_id | `build_arq_stop(session_id)` |

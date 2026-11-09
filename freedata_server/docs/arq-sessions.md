@@ -390,6 +390,16 @@ Doppler spread, while the SNR still looks good ([fading-channels.md](fading-chan
 mode `data_fsk4_50` (level 0, 44 bps, 21 bytes of data per frame) still gets through, so sessions fall back to
 it on failures, not on SNR.
 
+Both stations say whether they have the FSK modes on (`MODEM.enable_fsk`), and a session falls back only if the
+other one has them too: `fsk_allowed()` is `fsk_modes_enabled(ctx)` and `peer_fsk` not `False`. The ISS sets
+`CAPS_FLAG` (`0x2000`) and, with FSK on, `FSK_FLAG` (`0x4000`) in the `maximum_bandwidth` field of
+`ARQ_SESSION_OPEN`, next to `HIGH_RATE_FLAG` (4.2); the IRS masks all three off the bandwidth
+(`CAPABILITY_FLAGS`). The IRS answers with the `CAPS` and `FSK` bits of the `ARQ_SESSION_OPEN_ACK` flag byte.
+Without `CAPS` (an older station) `peer_fsk` stays `None` and the session may fall back as before, and so may the
+ISS's signalling before any open-ack has come (it does not know the IRS yet). On 2026-11-08, before this, an ISS
+with FSK on fell back to FSK with an IRS that had it off and went on sending what the IRS could not hear until
+stopped by hand. P2P connections do not exchange this yet.
+
 The FSK modes are used only when `MODEM.enable_fsk` is on ("Enable FSK modes" in the GUI's modem settings;
 off by default, also in configs from before it existed). Off, the demodulator does not decode
 `data_fsk4_50` (`set_decode_mode` leaves it out whatever asks for it), `fall_back_to_fsk()` of ARQ sessions
