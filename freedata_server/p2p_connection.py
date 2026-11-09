@@ -33,6 +33,10 @@ class States(Enum):
 
 
 class P2PConnection:
+    # the other station's FSK setting (note_peer_fsk); set per connection in
+    # __init__, a class default for connections built without it, as in tests
+    peer_fsk = None
+
     # Like ARQ sessions (arq-sessions.md, section 4.1) a connection falls back to
     # the HF FSK mode when its frames go unanswered on a path that defeats the
     # OFDM modes: after this many attempts of a frame, for the rest of the
@@ -126,6 +130,9 @@ class P2PConnection:
         self.state = States.NEW
         self.session_id = self.generate_id()
         self.fsk = False
+        # whether the other station has the FSK modes on: None until it says
+        # (CONNECT_ACK, heartbeats), and from an older station
+        self.peer_fsk = None
 
         self.event_frame_received = threading.Event()
 
@@ -235,6 +242,7 @@ class P2PConnection:
         self.last_data_timestamp = time.time()
         self.event_frame_received.set()
         self.log(f"Received {frame['frame_type']}")
+        self.note_peer_fsk(frame)
         # the other side has fallen back to FSK: follow, so answers reach it
         if frame.get("mode_name") in (self.FSK_MODE, self.FSK_MODE.name.upper()):
             self.fall_back_to_fsk()
@@ -247,10 +255,21 @@ class P2PConnection:
 
         self.log(f"Ignoring unknown transition from state {self.state.name} with frame {frame['frame_type']}")
 
+    def note_peer_fsk(self, frame):
+        """Takes the other station's FSK setting from a frame's P2P flags
+        (CAPS and FSK bits); a frame without CAPS changes nothing."""
+        flags = frame.get("flag")
+        if isinstance(flags, dict) and flags.get("CAPS"):
+            fsk = bool(flags.get("FSK"))
+            if fsk != self.peer_fsk and not fsk:
+                self.log("The other station has the FSK modes off: no FSK fallback in this connection")
+            self.peer_fsk = fsk
+
     def fall_back_to_fsk(self):
         """Sends all further frames of this connection in FSK_MODE, unless the
-        FSK modes are disabled (config.fsk_modes_enabled)."""
-        if not fsk_modes_enabled(self.ctx):
+        FSK modes are disabled here (config.fsk_modes_enabled) or at the other
+        station (peer_fsk False), which could not hear them."""
+        if not fsk_modes_enabled(self.ctx) or self.peer_fsk is False:
             return
         if not self.fsk:
             self.log(f"Falling back to {self.FSK_MODE.name} for this connection", isWarning=True)
@@ -393,7 +412,7 @@ class P2PConnection:
             )
 
         session_open_frame = self.frame_factory.build_p2p_connection_connect_ack(
-            self.destination, self.origin, self.session_id
+            self.destination, self.origin, self.session_id, fsk=fsk_modes_enabled(self.ctx)
         )
         self.launch_twr_irs(session_open_frame, self.ENTIRE_CONNECTION_TIMEOUT, mode=FREEDV_MODE.signalling)
 
@@ -505,7 +524,7 @@ class P2PConnection:
         if self.ctx.state_manager.is_receiving_codec2_signal():
             return
         heartbeat = self.frame_factory.build_p2p_connection_heartbeat(
-            self.session_id, flag_has_data=has_data, flag_announce_arq=announce_arq
+            self.session_id, flag_has_data=has_data, flag_announce_arq=announce_arq, fsk=fsk_modes_enabled(self.ctx)
         )
         self.launch_twr(heartbeat, self.TIMEOUT_HEARTBEAT, 10, mode=FREEDV_MODE.signalling)
 
@@ -522,6 +541,7 @@ class P2PConnection:
             self.session_id,
             flag_has_data=self.flag_has_data,
             flag_announce_arq=self.flag_announce_arq,
+            fsk=fsk_modes_enabled(self.ctx),
         )
         self.launch_twr_irs(heartbeat_ack, self.ENTIRE_CONNECTION_TIMEOUT, mode=FREEDV_MODE.signalling)
 
