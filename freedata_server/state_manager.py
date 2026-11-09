@@ -266,6 +266,22 @@ class StateManager:
         else:
             self.is_modem_busy.set()
 
+    # P2P connection states (p2p_connection.States) in which it is not under way
+    P2P_IDLE_STATES = {"NEW", "DISCONNECTED", "ABORTED", "FAILED"}
+
+    def is_in_session(self):
+        """True while an ARQ session runs or a P2P connection is under way.
+
+        The two stations then take turns on the channel, so nearly all the
+        traffic heard is the other station's (audio.calculate_fft).
+        """
+        if self.getARQ():
+            return True
+        return any(
+            getattr(getattr(session, "state", None), "name", None) not in self.P2P_IDLE_STATES
+            for session in list(self.p2p_connection_sessions.values())
+        )
+
     def getARQ(self):
         """Gets the ARQ status.
 

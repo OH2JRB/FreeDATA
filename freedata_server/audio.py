@@ -458,6 +458,12 @@ def calculate_fft(data, fft_queue, states) -> None:
         # Check if the system is neither transmitting nor receiving
         not_transmitting = not states.isTransmitting()
         not_receiving = not states.is_receiving_codec2_signal()
+        # In an ARQ session or P2P connection the traffic is the other
+        # station's own frames: they counted until a receiver synced on them,
+        # and a slot stays busy twice as long as it was counted, so the speed
+        # level chosen after each burst saw a busy channel (on the air
+        # 2026-11-08). No new traffic is counted then; earlier marks fade.
+        counts_traffic = not_transmitting and not_receiving and not states.is_in_session()
 
         if not_transmitting:
             # Highlight significant frequencies in the dfft array
@@ -492,7 +498,7 @@ def calculate_fft(data, fft_queue, states) -> None:
         # Iterate over each slot range to detect activity
         for slot, (range_start, range_end) in enumerate(SLOT_RANGES):
             # Check if any frequency in the slot exceeds the threshold
-            if np.any(significant_frequencies[range_start:range_end]) and not_transmitting and not_receiving:
+            if np.any(significant_frequencies[range_start:range_end]) and counts_traffic:
                 # Mark that additional delay should be added
                 addDelay = True
 

@@ -281,6 +281,7 @@ Holds mutable runtime state and pushes state snapshots to `state_queue`.
 | `set_channel_busy_condition_traffic(busy)` / `set_channel_busy_condition_codec2(traffic)` | Set the condition event when not busy, otherwise `.clear()` it; then `calculate_channel_busy_state()`. |
 | `calculate_channel_busy_state()` | Sets `channel_busy_event` (= channel available) if both conditions are set, otherwise `.clear()`s it. |
 | `is_receiving_codec2_signal()` | `not channel_busy_condition_codec2.is_set()`. |
+| `is_in_session()` | `True` while an ARQ session runs (`getARQ()`) or a P2P connection is under way (state not NEW, DISCONNECTED, ABORTED or FAILED); `audio.calculate_fft` counts no new traffic as busy then. |
 | `register_/get_/remove_arq_iss_session`, `..._irs_session` | Dict management; `register_*` returns `False` on duplicate id; `get_*` returns `None` for unknown ids. |
 | `check_if_running_arq_session(irs=False)` | Removes outdated sessions (`is_session_outdated()`), returns `True` if any session is not in `ENDED/ABORTED/FAILED`. |
 | `stop_transmission(stop_retries=None)` | IRS: `transmission_aborted()` (kept for resume). ISS: `abort_transmission(send_stop=True, stop_retries=...)`; a session that sends `ARQ_STOP` ends itself and is removed by the schedule manager, any other is `transmission_aborted()` and removed. Sessions already `ABORTING`/`ABORTED` are skipped. |
