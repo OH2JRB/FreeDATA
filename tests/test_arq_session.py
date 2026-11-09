@@ -293,6 +293,20 @@ class TestARQSession(unittest.TestCase):
         finally:
             self.stop_channels(iss, irs)
 
+    def testARQSessionStopTransmissionIRS(self):
+        # the user stops on the receiving side (POST /modem/stop_transmission):
+        # the IRS session is ABORTED at once, and its answers to the ISS's next
+        # frames carry the ABORT flag. Before, an ABORTED IRS ignored them and
+        # the ISS retried into FSK until stopped by hand (on the air, 2026-11-09)
+        iss, irs = self.start_transfer_and_wait_for_data()
+        try:
+            self.ctx_IRS.state_manager.stop_transmission()
+            self.assertEqual(irs.state, irs.state_enum.ABORTED)
+            self.assertEqual(self.wait_for_state(iss, iss.state_enum.ABORTED, 60), iss.state_enum.ABORTED)
+            self.assertFalse(iss.fsk)
+        finally:
+            self.stop_channels(iss, irs)
+
     def check_session_cleanup(self, sessions, make_session, running_state, irs):
         """check_if_running_arq_session() removes sessions that ended long ago
         (is_session_outdated) and still sees the running one."""
