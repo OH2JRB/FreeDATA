@@ -28,16 +28,39 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div
-    class="d-flex flex-column justify-content-center align-items-center border rounded w-100 h-100 text-bg-light lh-sm"
-  >
-    <div :title="$t('grid.clock_local')">
-      <span class="small text-body-secondary me-1">{{ $t('grid.clock_local') }}</span>
-      <strong class="font-monospace">{{ formatLocal(now) }}</strong>
-    </div>
-    <div title="UTC">
-      <span class="small text-body-secondary me-1">UTC</span>
-      <strong class="font-monospace">{{ formatUtc(now) }}</strong>
+  <div class="clock-widget border rounded w-100 h-100 text-bg-light">
+    <div class="clock-lines">
+      <span class="clock-label text-body-secondary">{{ $t('grid.clock_local') }}</span>
+      <strong class="clock-time font-monospace">{{ formatLocal(now) }}</strong>
+      <span class="clock-label text-body-secondary">UTC</span>
+      <strong class="clock-time font-monospace">{{ formatUtc(now) }}</strong>
     </div>
   </div>
 </template>
+
+<style scoped>
+/* The widget is a size container, so the text follows the widget's size:
+   resize the widget in the grid to make the clock bigger or smaller. */
+.clock-widget {
+  container-type: size;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.clock-lines {
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: baseline;
+  column-gap: 0.3em;
+  line-height: 1.15;
+  /* Two lines must fit the height and "Local 00:00:00" the width */
+  font-size: clamp(10px, min(38cqh, 12cqw), 400px);
+}
+
+.clock-label {
+  font-size: 0.7em;
+  text-align: right;
+}
+</style>
