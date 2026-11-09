@@ -107,7 +107,7 @@ The modulator ([modulator.py](../modulator.py)) then pads the frame to `bytes_pe
 |---|---|---|---|---|
 | `ARQ_FLAGS` | `FINAL` (bit 0) | `ABORT` (bit 1) | `CHECKSUM` (bit 2); `FSK` (bit 3) and `CAPS` (bit 4) in `ARQ_SESSION_OPEN_ACK` only (arq-sessions.md, 4.1) | `ARQ_SESSION_OPEN_ACK`, `ARQ_SESSION_INFO_ACK`, `ARQ_BURST_ACK` (decoded); `ARQ_SESSION_INFO` carries a flag byte that is always 0 and is not decoded |
 | `BEACON_FLAGS` | `AWAY_FROM_KEY` | - | - | `BEACON` |
-| `P2P_FLAGS` | `HAS_DATA` | `ANNOUNCE_ARQ` | - | `P2P_CONNECTION_HEARTBEAT`, `_HEARTBEAT_ACK`, `_PAYLOAD` |
+| `P2P_FLAGS` | `HAS_DATA` (bit 0) | `ANNOUNCE_ARQ` (bit 1) | `FSK` (bit 2), `CAPS` (bit 3): the station has the FSK modes on, and says so (arq-sessions.md, 4.1) | `P2P_CONNECTION_HEARTBEAT`, `_HEARTBEAT_ACK`, `_PAYLOAD` (bits 0 and 1 only), `_CONNECT_ACK` (bits 2 and 3) |
 | `NORM_FLAGS` | `LAST_DATA` | - | - | defined but unused. NORM frames use their own layout (see 2.3.5) |
 
 ### 2.3 Byte layouts
@@ -164,7 +164,7 @@ always sent 0.1 dB here. The receiver only keeps the value (`ARQSession.dx_snr`)
 | Frame | Size | Layout | Builder |
 |---|---:|---|---|
 | `P2P_CONNECTION_CONNECT` | 14 | 0:1 type, 1:6 destination, 7:6 origin, 13:1 session_id | `build_p2p_connection_connect(destination, origin, session_id)` |
-| `P2P_CONNECTION_CONNECT_ACK` | 14 | 0:1 type, 1:3 destination_crc, 4:6 origin, 10:1 session_id | `build_p2p_connection_connect_ack(destination, origin, session_id)` |
+| `P2P_CONNECTION_CONNECT_ACK` | 14 | 0:1 type, 1:3 destination_crc, 4:6 origin, 10:1 session_id, 11:1 flag (`P2P_FLAGS` FSK, CAPS; 0 from an older station) | `build_p2p_connection_connect_ack(destination, origin, session_id, fsk)` |
 | `P2P_CONNECTION_HEARTBEAT` | 14 | 0:1 type, 1:1 session_id, 2:1 flag | `build_p2p_connection_heartbeat(session_id, flag_has_data, flag_announce_arq)` |
 | `P2P_CONNECTION_HEARTBEAT_ACK` | 14 | 0:1 type, 1:1 session_id, 2:1 flag | `build_p2p_connection_heartbeat_ack(...)` |
 | `P2P_CONNECTION_PAYLOAD` | `bytes_per_frame(mode) - 2` | 0:1 type, 1:1 session_id, 2:1 sequence_id, 3:1 flag, 4:n data | `build_p2p_connection_payload(freedv_mode, session_id, sequence_id, data, flag_has_data, flag_announce_arq)` |

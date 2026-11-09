@@ -405,7 +405,11 @@ other one has them too: `fsk_allowed()` is `fsk_modes_enabled(ctx)` and `peer_fs
 Without `CAPS` (an older station) `peer_fsk` stays `None` and the session may fall back as before, and so may the
 ISS's signalling before any open-ack has come (it does not know the IRS yet). On 2026-11-08, before this, an ISS
 with FSK on fell back to FSK with an IRS that had it off and went on sending what the IRS could not hear until
-stopped by hand. P2P connections do not exchange this yet.
+stopped by hand. P2P connections do the same with the `FSK` and `CAPS` bits of their own flag byte
+(`P2P_FLAGS`): the answering station sends them in `P2P_CONNECTION_CONNECT_ACK`, both send them in every
+heartbeat and heartbeat ACK (`P2PConnection.note_peer_fsk`), and `fall_back_to_fsk()` does nothing while
+`peer_fsk` is `False`. `P2P_CONNECTION_CONNECT` is full (14 bytes), so the answering station learns the
+caller's setting from its first heartbeat.
 
 The FSK modes are used only when `MODEM.enable_fsk` is on ("Enable FSK modes" in the GUI's modem settings;
 off by default, also in configs from before it existed). Off, the demodulator does not decode
