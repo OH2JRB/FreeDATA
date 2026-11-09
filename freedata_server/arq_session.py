@@ -163,6 +163,7 @@ class ARQSession:
         self.protocol_version = self.ctx.constants.ARQ_PROTOCOL_VERSION
 
         self.snr = []
+        self.recent_snrs = []
 
         self.dxcall = dxcall
         self.dx_snr = []
@@ -389,6 +390,32 @@ class ARQSession:
         """
         self.snr = snr
         self.frequency_offset = frequency_offset
+        if isinstance(snr, (int, float)) and not isinstance(snr, bool):
+            if self.recent_snrs is None:
+                self.recent_snrs = []
+            self.recent_snrs = (self.recent_snrs + [snr])[-self.SNR_HISTORY :]
+
+    # frames whose SNR the speed level goes by (latest_snr)
+    SNR_HISTORY = 3
+    recent_snrs = None
+
+    def latest_snr(self, default=-10):
+        """The SNR for choosing the speed level: the median of the last
+        SNR_HISTORY frames' readings, default before any.
+
+        0 dB is a reading like any other: "self.snr or -10" made it -10 dB,
+        and a frame whose SNR codec2 put near 0 although the frames around it
+        had 12 dB (data_ofdm_250_hr after datac4 traffic, seen on 2026-11-08)
+        dropped the session to the lowest level for a burst. The median lets
+        one such reading pass; a real fade lasts longer, and frames that do
+        not decode step down on their own (calibrate_speed_settings).
+        """
+        if not self.recent_snrs:
+            snr = getattr(self, "snr", None)
+            return snr if isinstance(snr, (int, float)) and not isinstance(snr, bool) else default
+        values = sorted(self.recent_snrs)
+        middle = len(values) // 2
+        return values[middle] if len(values) % 2 else (values[middle - 1] + values[middle]) / 2
 
     def on_frame_received(self, frame):
         """Handles received frames based on the current session state.
@@ -644,6 +671,7 @@ class ARQSession:
         self.peer_fsk = None
         self.high_rate_hold = 0
         self.last_burst_level = None
+        self.recent_snrs = []
         self.abort = False
         self.fsk = False
         self.pending_frames = {}

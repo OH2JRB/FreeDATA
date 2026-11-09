@@ -724,7 +724,7 @@ class ARQSessionIRS(arq_session.ARQSession):
             self.speed_level = self.FSK_LEVEL
             return self.speed_level
 
-        latest_snr = self.snr if self.snr else -10
+        latest_snr = self.latest_snr()
         decode_failures = self.take_decode_failures()
 
         # the ISS has fallen back from the high-rate level asked for, after lost
