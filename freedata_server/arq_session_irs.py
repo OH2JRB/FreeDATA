@@ -107,9 +107,11 @@ class ARQSessionIRS(arq_session.ARQSession):
         },
         IRS_State.ABORTED: {
             FRAME_TYPE.ARQ_STOP.value: "send_stop_ack",
+            # the ISS still sending after this side was stopped: tell it
+            # (answer_aborted), else it retries into FSK until stopped by hand
+            FRAME_TYPE.ARQ_SESSION_INFO.value: "answer_aborted",
+            FRAME_TYPE.ARQ_BURST_FRAME.value: "answer_aborted",
             # FRAME_TYPE.ARQ_SESSION_OPEN.value: 'send_open_ack',
-            # FRAME_TYPE.ARQ_SESSION_INFO.value: 'send_info_ack',
-            # FRAME_TYPE.ARQ_BURST_FRAME.value: 'receive_data',
         },
         IRS_State.RESUME: {
             FRAME_TYPE.ARQ_SESSION_OPEN.value: "send_open_ack",
@@ -391,6 +393,43 @@ class ARQSessionIRS(arq_session.ARQSession):
         )
         if not self.abort:
             self.set_state_unless_aborted(IRS_State.INFO_ACK_SENT)
+        return None, None
+
+    def answer_aborted(self, frame):
+        """Answers an INFO or burst frame that comes after this side was stopped
+        (stop_transmission: transmission_aborted) with the ABORT flag.
+
+        The ISS learns of the stop only from such an answer (ARQSessionISS
+        send_data ends the session on it). An aborted IRS used to ignore its
+        frames, so the ISS retried, stepped down and fell back to FSK until
+        stopped by hand (on the air, 2026-11-09). The answer goes in the mode
+        family the session is in, a burst's at the end of the burst.
+        """
+        if frame["frame_type_int"] == FRAME_TYPE.ARQ_SESSION_INFO.value:
+            answer = self.signalling_frames(
+                self.frame_factory.build_arq_session_info_ack(
+                    self.id,
+                    self.received_bytes,
+                    self.snr,
+                    self.speed_level,
+                    self.frames_per_burst,
+                    flag_abort=True,
+                )
+            )
+            mode = self.get_signalling_mode()
+        else:
+            self.burst_id = frame.get("burst_id", self.burst_id)
+            answer = self.build_burst_ack(flag_abort=True)
+            mode = self.get_signalling_mode(FREEDV_MODE.signalling_ack)
+        self.log(f"Stopped here: answering {frame['frame_type']} with the ABORT flag", isWarning=True)
+
+        def send():
+            threading.Thread(target=self.transmit_frame, args=[answer], kwargs={"mode": mode}, daemon=True).start()
+
+        if frame["frame_type_int"] == FRAME_TYPE.ARQ_BURST_FRAME.value:
+            self.answer_at_burst_end(frame, send)
+        else:
+            send()
         return None, None
 
     def set_state_unless_aborted(self, state):

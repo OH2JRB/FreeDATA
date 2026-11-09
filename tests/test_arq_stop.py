@@ -3,6 +3,7 @@ signalling mode, since signalling_ack frames carry no frame type and are read
 as ARQ_BURST_ACKs (see freedata_server/docs/protocol-frames.md, section 3.1)."""
 
 import threading
+import time
 import types
 import unittest
 from unittest import mock
@@ -81,3 +82,69 @@ class TestStopAck(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestAbortedAnswers(unittest.TestCase):
+    """An IRS stopped by the user (transmission_aborted) answers the ISS's next
+    INFO or burst frame with the ABORT flag (answer_aborted), so the ISS ends
+    the session; it used to ignore them (on the air, 2026-11-09)."""
+
+    def make_aborted(self, fsk=False):
+        irs = make_irs(fsk=fsk)
+        irs.state = IRS_State.ABORTED
+        irs.speed_level = 4 if not fsk else ARQSessionIRS.FSK_LEVEL
+        irs.snr = 10
+        irs.frames_per_burst = 1
+        irs.burst_id = 0
+        irs.burst_frame_size = 0
+        irs.pending_frames = {}
+        irs.burst_ack_timer = None
+        irs.event_frame_received = threading.Event()
+        irs.transmit_frame = mock.Mock()
+        return irs
+
+    def sent(self, irs):
+        deadline = time.time() + 2
+        while not irs.transmit_frame.called and time.time() < deadline:
+            time.sleep(0.01)
+        return irs.transmit_frame.call_args
+
+    def test_burst_answered_with_abort(self):
+        irs = self.make_aborted()
+        burst = {
+            "frame_type": "ARQ_BURST_FRAME",
+            "frame_type_int": FRAME_TYPE.ARQ_BURST_FRAME.value,
+            "burst_info": irs.frame_factory.encode_burst_info(1, 1),
+            "burst_id": 3,
+        }
+        irs.on_frame_received(burst)
+        call = self.sent(irs)
+        self.assertEqual(call.kwargs["mode"], FREEDV_MODE.signalling_ack)
+        ack = irs.frame_factory.deconstruct(bytes(call.args[0]), mode_name="SIGNALLING_ACK")
+        self.assertTrue(ack["flag"]["ABORT"])
+        self.assertEqual(irs.state, IRS_State.ABORTED)
+
+    def test_info_answered_with_abort(self):
+        irs = self.make_aborted()
+        info = {"frame_type": "ARQ_SESSION_INFO", "frame_type_int": FRAME_TYPE.ARQ_SESSION_INFO.value}
+        irs.on_frame_received(info)
+        call = self.sent(irs)
+        self.assertEqual(call.kwargs["mode"], FREEDV_MODE.signalling)
+        ack = irs.frame_factory.deconstruct(bytes(call.args[0]))
+        self.assertEqual(ack["frame_type"], "ARQ_SESSION_INFO_ACK")
+        self.assertTrue(ack["flag"]["ABORT"])
+
+    def test_fsk_session_answers_in_fsk(self):
+        irs = self.make_aborted(fsk=True)
+        burst = {
+            "frame_type": "ARQ_BURST_FRAME",
+            "frame_type_int": FRAME_TYPE.ARQ_BURST_FRAME.value,
+            "burst_info": irs.frame_factory.encode_burst_info(1, 1),
+            "burst_id": 3,
+            "mode_name": "DATA_FSK4_50",
+        }
+        irs.on_frame_received(burst)
+        call = self.sent(irs)
+        self.assertEqual(call.kwargs["mode"], ARQSessionIRS.FSK_MODE)
+        ack = irs.frame_factory.deconstruct(bytes(call.args[0]))
+        self.assertTrue(ack["flag"]["ABORT"])

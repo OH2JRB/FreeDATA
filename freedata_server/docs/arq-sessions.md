@@ -227,7 +227,7 @@ On creation, if a P2P connection with the same session id exists, the IRS links 
 | `BURST_REPLY_SENT` | - | - | `receive_data` | `send_stop_ack` |
 | `ENDED` | - (handler resets, see 3.3) | - | `receive_data` | `send_stop_ack` |
 | `FAILED` | - (handler resets to `NEW`) | - | `receive_data` | `send_stop_ack` |
-| `ABORTED` | - (handler resets to `NEW`) | - | - | `send_stop_ack` |
+| `ABORTED` | - (handler resets to `NEW`) | `answer_aborted` | `answer_aborted` | `send_stop_ack` |
 | `RESUME` | `send_open_ack` | - | `receive_data` | `send_stop_ack` |
 
 Actions:
@@ -252,6 +252,12 @@ otherwise wait 90 s for the ISS and then fail). `send_stop_ack()` sets `ABORTED`
 `transmit_and_wait()` its `FAILED`, and `send_open_ack`/`send_info_ack` their states
 (`set_state_unless_aborted`) under the same lock. The IRS has no general "abort is final" rule like the
 ISS: the frame handler sets an `ABORTED` session back to `NEW` when the ISS re-opens it (section 3.3).
+
+An `ABORTED` IRS answers the ISS's next `ARQ_SESSION_INFO` or `ARQ_BURST_FRAME` with the `ABORT` flag
+(`answer_aborted`): an `ARQ_SESSION_INFO_ACK`, or a burst ACK at the end of the burst, in the session's mode
+family (FSK on FSK). The ISS's `send_data` then ends with `transmission_aborted`. Before, an `ABORTED` IRS
+had no transition for these frames: a user stop on the receiving side never reached the ISS, which went on
+retrying, stepped down and fell back to FSK until stopped by hand (on the air, 2026-11-09, test A5).
 
 `ENDED` + `ARQ_BURST_FRAME` runs `receive_data` again. The `delivered_crc` guard resends the final ACK
 without returning the data, so the data-type handler does not run a second time for the same data.
