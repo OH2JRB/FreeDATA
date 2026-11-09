@@ -295,8 +295,15 @@ class P2PConnection:
         return all(len(f) <= self.FSK_PAYLOAD_SIZE + 4 for f in frames)
 
     def transmit_frame(self, frame: bytearray, mode):
+        """Sends a frame; False if the modem is gone (stopped or restarting),
+        so the caller ends the connection instead of its thread dying."""
         # P2P connections have no speed levels: every caller names the mode
-        self.ctx.rf_modem.transmit(self.get_tx_mode(mode), 1, 1, frame)
+        modem = getattr(self.ctx, "rf_modem", None)
+        if modem is None:
+            self.log("Modem not running: frame not sent, ending the connection", isWarning=True)
+            return False
+        modem.transmit(self.get_tx_mode(mode), 1, 1, frame)
+        return True
 
     def transmit_wait_and_retry(self, frame_or_burst, timeout, retries, mode):
         failures = 0
@@ -307,8 +314,10 @@ class P2PConnection:
                 burst = frame_or_burst
             else:
                 burst = [frame_or_burst]
-            for f in burst:
-                self.transmit_frame(f, mode)
+            if not all(self.transmit_frame(f, mode) is not False for f in burst):
+                self.transmission_in_progress = False
+                self.session_failed()
+                return
             self.event_frame_received.clear()
             wait = self.get_response_timeout(timeout, self.get_tx_mode(mode))
             self.log(f"Waiting {wait} seconds...")
@@ -348,7 +357,9 @@ class P2PConnection:
 
     def transmit_and_wait_irs(self, frame, timeout, mode):
         self.event_frame_received.clear()
-        self.transmit_frame(frame, mode)
+        if self.transmit_frame(frame, mode) is False:
+            self.session_failed()
+            return
         # self.log(f"Waiting {timeout} seconds...")
         # if not self.event_frame_received.wait(timeout):
         #    self.log("Timeout waiting for ISS. Session failed.")

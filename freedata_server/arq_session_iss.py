@@ -286,9 +286,13 @@ class ARQSessionISS(arq_session.ARQSession):
             )
             if len(burst) > 1:
                 # one transmission, so the frames follow each other without PTT gaps
-                self.transmit_frame(burst, tx_mode)
+                sent = self.transmit_frame(burst, tx_mode)
             else:
-                self.transmit_frame(burst[0], tx_mode)
+                sent = self.transmit_frame(burst[0], tx_mode)
+            if sent is False:
+                # the modem is gone (stopped or restarting): no retries
+                self.transmission_failed()
+                return
             self.event_frame_received.clear()
             since = time.monotonic()
             wait = self.get_response_timeout(timeout, tx_mode, frames=len(burst), answer_frames=answer_frames)

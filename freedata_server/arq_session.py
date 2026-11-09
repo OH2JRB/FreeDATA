@@ -339,13 +339,23 @@ class ARQSession:
             frame (bytearray): The frame to be transmitted, or a list of frames
                 to send back to back in one transmission.
             mode (str, optional): The FreeDV mode to use for transmission. Defaults to 'auto'.
+
+        Returns:
+            bool: False if the modem is gone (stopped or restarting, as after
+            a settings change): the frame was not sent, and the caller ends the
+            session. The retry threads used to call None.transmit and die.
         """
+        modem = getattr(self.ctx, "rf_modem", None)
+        if modem is None:
+            self.log("Modem not running: frame not sent, ending the session", isWarning=True)
+            return False
         self.log("Transmitting frame")
         if mode in ["auto"]:
             mode = self.get_mode_by_speed_level(self.speed_level)
 
         self.wait_for_clear_channel()
-        self.ctx.rf_modem.transmit(mode, 1, 1, frame)
+        modem.transmit(mode, 1, 1, frame)
+        return True
 
     def set_state(self, state):
         """Sets the state of the ARQ session.
