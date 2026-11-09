@@ -25,7 +25,7 @@ class P2PConnectionFrameHandler(frame_handler.FrameHandler):
 
         frame = self.details["frame"]
         session_id = frame["session_id"]
-        snr = self.details["snr"]
+        snr = self.session_snr()
         frequency_offset = self.details["frequency_offset"]
 
         if frame["frame_type_int"] == FR.P2P_CONNECTION_CONNECT.value:

@@ -551,7 +551,10 @@ class ARQSession:
             dict: A dictionary containing the calculated session statistics.
         """
         stats = self.calculate_session_statistics(confirmed_bytes, total_bytes)
-        self.snr_histogram.append(self.snr)
+        # a frame without an SNR reading (None) repeats the last one, so the
+        # histograms stay aligned and the average stays a number (stats.py)
+        known = isinstance(self.snr, (int, float)) and not isinstance(self.snr, bool)
+        self.snr_histogram.append(self.snr if known else (self.recent_snrs[-1] if self.recent_snrs else 0))
         self.bpm_histogram.append(stats["bytes_per_minute"])
         self.bps_histogram.append(stats["bits_per_second"])
         self.time_histogram.append(datetime.datetime.now().isoformat())
