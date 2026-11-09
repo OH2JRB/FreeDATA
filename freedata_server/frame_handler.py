@@ -393,6 +393,12 @@ class FrameHandler:
         """
         pass
 
+    def session_snr(self):
+        """The frame's SNR for an ARQ session or P2P connection: None when the
+        frame came without a reading (details snr_known), so the session
+        leaves it out of the SNR it chooses its speed level by."""
+        return self.details["snr"] if self.details.get("snr_known", True) else None
+
     def log(self):
         """Logs the frame type being handled."""
         self.logger.info(f"[Frame Handler] Handling frame {self.details['frame']['frame_type']}")
@@ -417,7 +423,12 @@ class FrameHandler:
         """
 
         self.details["frame"] = frame
-        self.details["snr"] = snr
+        # a frame without an SNR reading (Demodulator.calculate_snr None):
+        # 0 for the frame's other uses, as before (activity, heard stations,
+        # beacons, PSK Reporter, the SNR byte of replies), but marked, so
+        # ARQ sessions and P2P connections do not take it as 0 dB (session_snr)
+        self.details["snr_known"] = snr is not None
+        self.details["snr"] = snr if snr is not None else 0
         self.details["frequency_offset"] = frequency_offset
         self.details["freedv_inst"] = freedv_inst
         self.details["bytes_per_frame"] = bytes_per_frame

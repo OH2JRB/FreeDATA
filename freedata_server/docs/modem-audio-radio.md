@@ -281,7 +281,7 @@ In the channel simulator the end is located within 1 ms on `awgn`, 2 ms on `hl_m
 
 | Function | Source | Output |
 |---|---|---|
-| `calculate_snr` | `freedv_get_modem_stats` | SNR rounded to 0.1 dB, returned as `int` (0 on error) |
+| `calculate_snr` | `freedv_get_modem_stats` | SNR rounded to whole dB (`int`; it used to be cut toward 0, so -0.9 dB read 0), `None` on error (it used to be 0). `FrameHandler.handle` passes 0 to the frame's other uses as before and marks it (`snr_known`); ARQ sessions and P2P connections get `None` (`session_snr`) and leave it out of the SNR their speed level goes by |
 | `get_frequency_offset` | `MODEMSTATS.foff` | `-round(foff)` Hz |
 | `get_scatter` | `MODEMSTATS.rx_symbols` | non-zero points (scaled `//1000`) sent via `event_manager.send_scatter_change`; all points if fewer than 150, else every 10th |
 

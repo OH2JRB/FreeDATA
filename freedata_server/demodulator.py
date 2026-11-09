@@ -249,14 +249,16 @@ class Demodulator:
         for frame in [f for f in data["fsk_pending"] if f["release"] <= early.time]:
             data["fsk_pending"].remove(frame)
             self.log.debug("[MDM] [demod_audio] FSK frame decoded early", mode_name=data["name"])
-            self.ctx.rf_modem.data_queue_received.put({
-                "payload": self.unwhiten(mode, frame["payload"]),
-                "freedv": data["instance"],
-                "bytes_per_frame": data["bytes_per_frame"],
-                "snr": frame["snr"],
-                "frequency_offset": frame["frequency_offset"],
-                "mode_name": data["name"],
-            })
+            self.ctx.rf_modem.data_queue_received.put(
+                {
+                    "payload": self.unwhiten(mode, frame["payload"]),
+                    "freedv": data["instance"],
+                    "bytes_per_frame": data["bytes_per_frame"],
+                    "snr": frame["snr"],
+                    "frequency_offset": frame["frequency_offset"],
+                    "mode_name": data["name"],
+                }
+            )
 
     def take_decode_failures(self, modes) -> int:
         """Returns how many frames of these modes were found but could not be decoded
@@ -443,15 +445,18 @@ class Demodulator:
                 if sd is not None:
                     sd._terminate()
 
-    def calculate_snr(self, freedv: ctypes.c_void_p) -> float:
+    def calculate_snr(self, freedv: ctypes.c_void_p) -> int | None:
         """
         Ask codec2 for data about the received signal and calculate
         the signal-to-noise ratio.
 
         :param freedv: codec2 instance to query
         :type freedv: ctypes.c_void_p
-        :return: Signal-to-noise ratio of the decoded data
-        :rtype: float
+        :return: Signal-to-noise ratio of the decoded data, in whole dB
+            (rounded; it used to be cut toward 0, so -0.9 dB read 0), or None
+            when codec2 gave none: it used to be 0, which the ARQ speed level
+            took for a real 0 dB (FrameHandler.handle)
+        :rtype: int or None
         """
         try:
             modem_stats_snr = ctypes.c_float()
@@ -466,10 +471,10 @@ class Demodulator:
             # snr = np.clip(
             #    snr, -127, 127
             # )  # limit to max value of -128/128 as a possible fix of #188
-            return int(snr)
+            return int(round(snr))
         except Exception as err:
             self.log.error(f"[MDM] calculate_snr: Exception: {err}")
-            return 0
+            return None
 
     def get_scatter(self, freedv: ctypes.c_void_p) -> None:
         """
