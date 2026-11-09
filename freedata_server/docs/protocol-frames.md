@@ -52,7 +52,7 @@ by the code that sends the frame. `signalling` has value 19 (alias `datac13`) an
 | `PING_ACK` | 211 | Ping reply | `PingFrameHandler.send_ack` | `signalling` | base `FrameHandler` |
 | `BEACON` | 250 | Periodic station beacon | `BeaconCommand` | `TxCommand.get_tx_mode()` | `BeaconFrameHandler` |
 | `IDENT` | 254 | Enum value only, no template, builder or handler | - | - | none |
-| `TEST_FRAME` | 255 | Test transmission (type byte + zero fill) | `TestCommand` | `data_ofdm_500` (or `data_vhf_1`) | none (no template) |
+| `TEST_FRAME` | 255 | Test transmission (type byte + zero fill) | `TestCommand` | `datac4` (or `data_vhf_1`), which every station decodes; `data_ofdm_500` before | `FrameHandler`: logged, listed under activity and sent to the GUI with its SNR |
 
 `TxCommand.get_tx_mode()` returns `FREEDV_MODE.data_vhf_1` when `config["EXP"]["enable_vhf"]` is set,
 otherwise `FREEDV_MODE.signalling`. Replies sent by frame handlers use `FrameHandler.get_tx_mode()`, which
@@ -268,7 +268,7 @@ Consequences:
 
 Other `deconstruct()` behaviour:
 
-* A frame type that has no template (`IDENT`, `TEST_FRAME`) raises `AttributeError` (`None.items()`). A
+* A frame type that has no template (`IDENT`; `TEST_FRAME` had none before 2026-11-09) raises `AttributeError` (`None.items()`). A
   byte value not in `FRAME_TYPE` raises `ValueError`. Both exceptions are dropped by the worker, so the
   "unknown burst" warning only appears for `NORM_CMD`, the one type that has a template but no handler.
 * It writes debug `print()` output for every frame and every int field.
@@ -380,7 +380,7 @@ is ignored). Exceptions are logged and return `False`, and the calling API endpo
 | `Norm` ([command_norm.py](../command_norm.py)) | `POST /broadcasts` | `origin`, `domain` (`-0` appended if invalid), `data` (base64, truncated to 15 x 26 = 390 bytes), `priority` (default 1), `type` (`NORMMsgType` name), `gridsquare` | Returns `False` unless `EXP.enable_groupchat`. Starts a thread running `NormTransmissionISS.prepare_and_transmit_data(...)` (`NORM_DATA` bursts). Always returns `False` |
 | `P2PConnectionCommand` ([command_p2p_connection.py](../command_p2p_connection.py)) | socket interface `CONNECT` | `origin`, `destination` (`-0` appended if invalid) | `run()`: `P2PConnection(ctx, origin, destination)`, registers it, `connect()` (sends `P2P_CONNECTION_CONNECT`). Returns the session or `False`. `connect()` on the command is an empty placeholder |
 | `PingCommand` ([command_ping.py](../command_ping.py)) | `POST /ping_ping` | `dxcall` (`-0` appended if invalid). Also calls `DatabaseManager.get_or_create_station(dxcall)` | `PING` |
-| `TestCommand` ([command_test.py](../command_test.py)) | `POST /send_test_frame` | none | `TEST_FRAME` in `data_ofdm_500` (or `data_vhf_1`) |
+| `TestCommand` ([command_test.py](../command_test.py)) | `POST /send_test_frame` | none | `TEST_FRAME` in `datac4` (or `data_vhf_1`) |
 | `TransmitSine` ([command_transmit_sine.py](../command_transmit_sine.py)) | `/tune` in [api/radio.py](../api/radio.py) | none | Overrides `transmit()` with `rf_modem.transmit_sine()`. No frame |
 
 `rf_modem.transmit(mode, repeats, repeat_delay, frames)` is the common sink. ARQ and P2P sessions call it
