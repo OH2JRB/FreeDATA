@@ -371,7 +371,12 @@ every non-final `ARQ_BURST_FRAME`:
    level down (levels 5 to 7 only with `high_rate`, 4.2) and picks
    the first with `snr >= min_snr`, `bandwidth <= maximum_bandwidth`, and
    `check_channel_busy(state_manager.channel_busy_slot, mode_slots)`. That check fails if any slot is both
-   busy and used by the mode. If no level qualifies, it falls back to datac4 (level 1). The FSK level is
+   busy and used by the mode. If busy slots rule out every level, the centre slot is busy, which every
+   mode uses (datac4 only it), so the slowest level would avoid nothing: the choice is then made again by
+   SNR and bandwidth alone. A busy centre slot is mostly the other station's own frames before a receiver
+   syncs on them (the FFT counts traffic only while not transmitting and no receiver has sync), and it made
+   sessions drop to datac4 at 13 dB (on the air 2026-11-08, 500 Hz limit). If no level qualifies even
+   so (low SNR), it falls back to datac4 (level 1). The FSK level is
    never chosen here. On a session that is on FSK, `calibrate_speed_settings()` returns level 0 at once.
 3. The demodulator is set to decode the current, previous and newly selected modes, and the fallback modes
    of the current and selected levels (`rf_modem.demodulator.set_decode_mode({...})`).

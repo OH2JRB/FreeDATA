@@ -356,3 +356,28 @@ class TestConfig(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestBusySlots(unittest.TestCase):
+    """Busy FFT slots steer the level to narrower modes; a busy centre slot,
+    which every mode uses, no longer drops the session to datac4 at good SNR
+    (on the air 2026-11-08 at the 500 Hz limit: 6, 1, 6, 1, 6 at 13 dB)."""
+
+    def level(self, snr, bandwidth, busy, high_rate=True):
+        session = ARQSession.__new__(ARQSession)
+        session.ctx = session_ctx(busy=busy)
+        return session.get_appropriate_speed_level(snr, bandwidth, high_rate=high_rate)
+
+    def test_busy_centre_slot_keeps_the_snr_choice(self):
+        centre = [False, False, True, False, False]
+        self.assertEqual(self.level(13, 500, centre), 6)
+        self.assertEqual(self.level(13, 500, centre, high_rate=False), 2)
+        self.assertEqual(self.level(20, 2438, centre), 4)
+
+    def test_busy_outer_slots_still_choose_a_narrower_mode(self):
+        # 2438 needs the outer slots, datac1 and 1700_hr the inner three
+        self.assertEqual(self.level(20, 2438, [True, False, False, False, False]), 7)
+        self.assertEqual(self.level(20, 2438, [False, True, False, False, False]), 6)
+
+    def test_low_snr_still_the_lowest_level(self):
+        self.assertEqual(self.level(-10, 2438, [False, False, True, False, False]), 1)

@@ -594,16 +594,28 @@ class ARQSession:
             if self.SPEED_LEVEL_DICT[level]["min_snr"] is not None and (high_rate or not self.is_high_rate_level(level))
         ]
 
-        # From the fastest level down, the first one the SNR, bandwidth and channel allow
-        for level in reversed(snr_levels):
+        def allowed(level, mind_busy_slots):
             details = self.SPEED_LEVEL_DICT[level]
-            mode_slots = details["slots"].value
-            if (
+            return (
                 snr >= details["min_snr"]
                 and details["bandwidth"] <= maximum_bandwidth
-                and self.check_channel_busy(self.ctx.state_manager.channel_busy_slot, mode_slots)
-            ):
-                return level
+                and (
+                    not mind_busy_slots
+                    or self.check_channel_busy(self.ctx.state_manager.channel_busy_slot, details["slots"].value)
+                )
+            )
+
+        # From the fastest level down, the first one the SNR, bandwidth and
+        # channel allow. Busy slots steer the choice to narrower modes; when
+        # they rule out every level, the centre slot is busy, which every mode
+        # uses (datac4 only it): the slowest level would avoid nothing, so the
+        # SNR and bandwidth choose alone. A busy centre slot is mostly the
+        # other station's own frames, before a receiver syncs on them; it made
+        # sessions drop to datac4 at good SNR (on the air 2026-11-08, 500 Hz)
+        for mind_busy_slots in (True, False):
+            for level in reversed(snr_levels):
+                if allowed(level, mind_busy_slots):
+                    return level
 
         # Return the lowest level if no higher level is found
         return snr_levels[0]
