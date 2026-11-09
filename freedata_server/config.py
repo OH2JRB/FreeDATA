@@ -12,6 +12,19 @@ def fsk_modes_enabled(ctx) -> bool:
     return bool(config.get("MODEM", {}).get("enable_fsk", False))
 
 
+#  RADIO.ptt_type values FreeDATA offered that Hamlib (rigctld -P) does not
+#  know: rigctld logged "Unrecognised PTT type, using NONE" and the T command
+#  did not key the radio. "USB" was the default; "MICDATA" keying is
+#  RADIO.ptt_mode (T 2), not a PTT type. PTT through the radio's CAT is RIG.
+UNKNOWN_PTT_TYPES = {"USB": "RIG", "MICDATA": "RIG"}
+
+
+def normalize_ptt_type(ptt_type: str) -> str:
+    """The Hamlib PTT type for a RADIO.ptt_type value: RIG for the ones
+    Hamlib does not know (UNKNOWN_PTT_TYPES), any other value unchanged."""
+    return UNKNOWN_PTT_TYPES.get(str(ptt_type).strip().upper(), ptt_type)
+
+
 def high_rate_modes_enabled(ctx) -> bool:
     """True if ARQ sessions may use the speed levels of higher code rates
     (MODEM.enable_high_rate, "Enable higher code rates" in the GUI; on for
@@ -239,6 +252,15 @@ class CONFIG:
 
                     self.parser.set(section, setting, str(default_value))
                     self.log.info(f"[CFG] Adding missing setting: {section}.{setting}")
+
+        # PTT types FreeDATA used to offer that Hamlib does not know: rigctld
+        # took them as NONE and never keyed the radio (normalize_ptt_type)
+        if self.parser.has_option("RADIO", "ptt_type"):
+            old = self.parser.get("RADIO", "ptt_type")
+            new = normalize_ptt_type(old)
+            if new != old:
+                self.parser.set("RADIO", "ptt_type", new)
+                self.log.warning(f"[CFG] RADIO.ptt_type {old} is not a Hamlib PTT type, changed to {new}")
         return self.write_to_file()
 
     def handle_setting(self, section, setting, value, is_writing=False):

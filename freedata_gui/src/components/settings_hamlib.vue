@@ -746,19 +746,16 @@ const settings = ref({
           NONE
         </option>
         <option value="RIG">
-          RIG
+          RIG (CAT)
         </option>
-        <option value="USB">
-          USB
+        <option value="DTR">
+          Serial DTR
         </option>
         <option value="RTS">
           Serial RTS
         </option>
         <option value="PARALLEL">
           Rig PARALLEL
-        </option>
-        <option value="MICDATA">
-          Rig MICDATA
         </option>
         <option value="CM108">
           Rig CM108

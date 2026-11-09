@@ -2,6 +2,7 @@ import re
 import socket
 import structlog
 from freedata_server import helpers
+from freedata_server.config import normalize_ptt_type
 import threading
 import time
 from datetime import datetime
@@ -1014,7 +1015,8 @@ class radio:
         if not should_ignore(config.get("ptt_port")):
             args += ["-p", config["ptt_port"]]
         if not should_ignore(config.get("ptt_type")):
-            args += ["-P", config["ptt_type"]]
+            # a value Hamlib does not know (USB, MICDATA) would mean no PTT at all
+            args += ["-P", normalize_ptt_type(config["ptt_type"])]
 
         # Serial DCD and DTR
         if not should_ignore(config.get("serial_dcd")):

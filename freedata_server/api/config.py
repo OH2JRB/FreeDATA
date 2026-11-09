@@ -41,7 +41,7 @@ modem_log = structlog.get_logger("Modem")
                             "data_bits": 8,
                             "model_id": 1001,
                             "ptt_port": "ignore",
-                            "ptt_type": "USB",
+                            "ptt_type": "RIG",
                             "serial_dcd": "NONE",
                             "serial_dtr": "OFF",
                             "serial_handshake": "ignore",
