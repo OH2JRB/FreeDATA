@@ -375,7 +375,7 @@ Called with RX audio (when not transmitting) and with each played TX block (resa
 1. Pad/truncate to 800 samples, `rfft` -> 401 bins (10 Hz/bin), `dfft = 10*log10(|X|)`.
 2. Threshold = mean(dfft) + 13 dB.
 3. When not transmitting: bins above threshold are set to 100 for display, and `audio_dbfs` (RMS dBFS) is updated at most once per second.
-4. Slot busy: 5 bin ranges `SLOT_RANGES` = (0-65), (65-120), (120-176), (176-231), (231-315), i.e. roughly 0-3150 Hz. A slot is busy when it has an above-threshold bin while neither transmitting nor receiving a codec2 signal; per-slot hold counters add 2 per busy block and decay by 1 (max 200). Result -> `state_manager.set_channel_slot_busy`.
+4. Slot busy: 5 bin ranges `SLOT_RANGES` = (0-65), (65-120), (120-176), (176-231), (231-315), i.e. roughly 0-3150 Hz. A slot is busy when it has an above-threshold bin while neither transmitting nor receiving a codec2 signal, and not in an ARQ session or P2P connection (`StateManager.is_in_session()`: the traffic then is the other station's own frames, counted until a receiver synced on them, which made the speed level see a busy channel after each burst; earlier marks still fade); per-slot hold counters add 2 per busy block and decay by 1 (max 200). Result -> `state_manager.set_channel_slot_busy`.
 5. Channel busy: a global `CHANNEL_BUSY_DELAY` with the same increment/decay drives `set_channel_busy_condition_traffic`.
 6. The FFT queue (`ctx.modem_fft`) is emptied and the first 315 bins are put on it; the websocket manager streams it to clients.
 
