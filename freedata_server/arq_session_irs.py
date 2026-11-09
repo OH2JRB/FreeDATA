@@ -223,7 +223,10 @@ class ARQSessionIRS(arq_session.ARQSession):
             mode: The FreeDV mode to use for transmission.
         """
         self.event_frame_received.clear()
-        self.transmit_frame(frame, mode)
+        if self.transmit_frame(frame, mode) is False:
+            # the modem is gone (stopped or restarting)
+            self.transmission_failed()
+            return
         self.log(f"Waiting {timeout} seconds...")
         since = time.monotonic()
         deadline = since + (timeout * self.FSK_TIMEOUT_FACTOR if self.fsk else timeout)
