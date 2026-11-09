@@ -365,8 +365,10 @@ lower of that and its own `MODEM.maximum_bandwidth`. A value of `0` means "max o
 **Level selection** is done by the IRS only, in `calibrate_speed_settings()` on `ARQ_SESSION_INFO` and on
 every non-final `ARQ_BURST_FRAME`:
 
-1. `latest_snr = self.snr` (SNR of the last received frame, set by the frame handler via `set_details`), or
-   `-10` if not set.
+1. `latest_snr = self.latest_snr()`: the median of the last 3 frames' SNR readings (`recent_snrs`, filled by
+   `set_details` from the frame handler), or `-10` before any. 0 dB counts as a reading; it used to become
+   `-10` (`self.snr or -10`), and one frame with an SNR near 0 among 12 dB frames (codec2's estimate for
+   data_ofdm_250_hr after datac4 traffic, on the air 2026-11-08) dropped the session to the lowest level.
 2. `get_appropriate_speed_level(snr, maximum_bandwidth, high_rate)` walks `SPEED_LEVEL_ORDER` from the fastest
    level down (levels 5 to 7 only with `high_rate`, 4.2) and picks
    the first with `snr >= min_snr`, `bandwidth <= maximum_bandwidth`, and
