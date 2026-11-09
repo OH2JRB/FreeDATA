@@ -3,6 +3,7 @@ Gather information about audio devices.
 """
 
 import multiprocessing
+import re
 import structlog
 import numpy as np
 import queue
@@ -128,6 +129,50 @@ def fetch_audio_devices(input_devices, output_devices):
     return input_devices, output_devices
 
 
+# the ALSA card and device in a PortAudio device name: "USB Audio CODEC: - (hw:1,0)"
+ALSA_HW = re.compile(r"\(hw:(\d+),(\d+)\)")
+# card numbers tried when a saved device is not found (find_renumbered_device)
+MAX_ALSA_CARDS = 32
+
+
+def find_renumbered_device(crc, isInput: bool):
+    """A saved device that ALSA now numbers differently.
+
+    The id (device_crc) covers the device name, and on Linux the name holds
+    the ALSA card number, "(hw:1,0)". Linux numbers USB sound cards in the
+    order they appear, so after a reconnect or a reboot with other USB audio
+    the radio's codec can be hw:2,0, and its saved id is not found. This
+    tries the other card numbers in each present device's name: the device
+    whose name gives the saved id with another card number is the same one.
+
+    Returns:
+        tuple: (native index, name), or None if no device, or more than one,
+        matches.
+    """
+    sd = get_sounddevice()
+    channels = "max_input_channels" if isInput else "max_output_channels"
+    matches = []
+    for index, device in enumerate(sd.query_devices()):
+        name = device.get("name", "")
+        found = ALSA_HW.search(name)
+        if not found or device.get(channels, 0) <= 0:
+            continue
+        for card in range(MAX_ALSA_CARDS):
+            if card == int(found.group(1)):
+                continue
+            renamed = f"{name[: found.start()]}(hw:{card},{found.group(2)}){name[found.end() :]}"
+            if device_crc({"name": renamed, "hostapi": device["hostapi"]}) == crc:
+                matches.append((index, name))
+                break
+    if len(matches) != 1:
+        return None
+    log.warning(
+        f"Audio device {crc} not found; using {matches[0][1]}, the same device under another ALSA card number",
+        isInput=isInput,
+    )
+    return matches[0]
+
+
 def get_device_index_from_crc(crc, isInput: bool):
     """Retrieves the native device index and name from the provided CRC.
 
@@ -158,6 +203,10 @@ def get_device_index_from_crc(crc, isInput: bool):
         for i, dev in enumerate(detected_devices):
             if dev["id"] == crc:
                 return (dev["native_index"], dev["name"])
+
+        renumbered = find_renumbered_device(crc, isInput)
+        if renumbered is not None:
+            return renumbered
 
     except AudioUnavailableError:
         log.warning(f"Audio device {crc} not available, PortAudio could not be loaded")
