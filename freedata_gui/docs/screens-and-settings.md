@@ -273,7 +273,7 @@ Visible only when `RADIO.control == "rigctld_bundle"` (`d-none` otherwise):
 | Stop bits | `remote.RADIO.stop_bits` | select `0` (ignore), 1, 2 |
 | Serial handshake | `remote.RADIO.serial_handshake` | select `ignore`, `None` |
 | PTT device port | `remote.RADIO.ptt_port` | select from `serialStore` |
-| PTT type | `remote.RADIO.ptt_type` | `ignore`, NONE, RIG, USB, RTS, PARALLEL, MICDATA, CM108 |
+| PTT type | `remote.RADIO.ptt_type` | `ignore`, NONE, RIG (CAT), DTR, RTS, PARALLEL, CM108: the Hamlib PTT types. `USB` and `MICDATA`, offered before, are not Hamlib types (rigctld used NONE, so nothing keyed); the server changes them to RIG |
 | PTT mode | `remote.RADIO.ptt_mode` | `ignore`, TX, TX_MIC, TX_DATA |
 | DCD | `remote.RADIO.serial_dcd` | `ignore`, NONE, RIG, DSR, CTS, CD, PARALLEL |
 | DTR | `remote.RADIO.serial_dtr` | `ignore`, OFF, ON |

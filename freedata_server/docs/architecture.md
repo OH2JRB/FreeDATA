@@ -407,7 +407,7 @@ Defined in `CONFIG.config_types`; example values from [config.ini.example](../co
 | | `serial_handshake` | str | `ignore` |
 | | `ptt_port` | str | `ignore` |
 | | `ptt_mode` | str | `TX` |
-| | `ptt_type` | str | `USB` |
+| | `ptt_type` | str | `RIG` (Hamlib PTT type; `USB` and `MICDATA` from older configs become `RIG` when the config is loaded, `config.normalize_ptt_type`) |
 | | `serial_dcd` | str | `NONE` |
 | | `serial_dtr` | str | `OFF` |
 | | `serial_rts` | str | `OFF` |
