@@ -80,7 +80,7 @@ Fill grid (small screen).
 | 21 | SWR widget | [grid_swr_meter.vue](../src/components/grid/grid_swr_meter.vue) | 16,8,4,8 | 16,8,4,8 | Rig | yes | no | SWR bar and `SWR 1:x` | `state.swr_percent`, `state.swr_raw` |
 | 22 | Station Map | [grid_stations_map.vue](../src/components/grid/grid_stations_map.vue) | 6,53,10,92 | 12,56,12,92 | Other | yes | yes | d3 world map with own and heard stations | `state.heard_stations`, `settings.remote.STATION.mygrid` |
 | 24 | Audio Stream | [grid_audio.vue](../src/components/grid/grid_audio.vue) | 16,8,4,24 | 16,8,4,24 | Audio | no | no | Start/Stop button for RX audio monitoring | `useAudioStore().getNextBlock()` |
-| 25 | Clock (local/UTC) | [grid_clock.vue](../src/components/grid/grid_clock.vue) | 20,16,4,11 | 20,16,4,11 | Other | no | no | Local time (`HH:MM:SS`, label from `grid.clock_local`) and UTC, updated every second by a `setInterval` cleared on unmount | none (browser clock) |
+| 25 | Clock (local/UTC) | [grid_clock.vue](../src/components/grid/grid_clock.vue) | 20,16,4,11 | 20,16,4,11 | Other | no | no | Local time (`HH:MM:SS`, label from `grid.clock_local`) and UTC, updated every second by a `setInterval` cleared on unmount. The text scales with the widget size (CSS container query units, minimum 10 px), so resizing the widget enlarges the clock | none (browser clock) |
 
 [grid_button.vue](../src/components/grid/grid_button.vue) is not a widget. It is
 the picker button (see section 3).
