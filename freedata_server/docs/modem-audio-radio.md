@@ -326,6 +326,7 @@ use `loaded_sounddevice()`, which never triggers a load.
 - `fetch_audio_devices` iterates `sd.query_devices()`, skips names starting with `DAX RESERVED` or `DAX IQ` (Flex Radio), and emits `{"id", "name", "api", "native_index"}` for devices with input or output channels.
 - `id` = `device_crc(device)`: hex CRC16 (`helpers.get_crc_16`) of `"<name>.<hostapi>"`. The config stores these IDs (`AUDIO.input_device`, `AUDIO.output_device`), not PortAudio indices.
 - `get_device_index_from_crc(crc, isInput)` re-enumerates in-process and returns `(native_index, name)`; it returns `None` when no device matches or enumeration raises (logged as a warning).
+- On Linux the name holds the ALSA card number (`USB Audio CODEC: - (hw:1,0)`), which follows the order USB sound cards appear, so a radio's codec can come back as another card after a reconnect or a reboot and its saved ID is not found. `find_renumbered_device(crc, isInput)` then tries the other card numbers (0 to 31, same device number) in each present device's name; the one device whose name gives the saved ID that way is used, with a warning. With none or several such devices it returns `None` as before.
 - `test_audio_devices(input_id, output_id)` checks each with `sd.check_input_settings` / `check_output_settings` (1 ch, int16, 48 kHz) and returns `[in_ok, out_ok]`, then re-initializes PortAudio. `ServiceManager` runs this before starting the modem.
 
 ### Streams (`RF.init_audio`)
