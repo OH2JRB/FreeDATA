@@ -364,7 +364,20 @@ class ARQSessionIRS(arq_session.ARQSession):
         Returns:
             Tuple[None, None]: Returns None for both data and type_byte as this method doesn't handle data.
         """
-        # Get session info from ISS
+        # Get session info from ISS. A session that already holds data resumes
+        # only the same data: session ids repeat (1-255, from the data's CRC
+        # or random), so a new transfer can get the id of a session this side
+        # still holds aborted or failed. On the air (2026-11-09) such a new
+        # transfer was told 8428 of its bytes were in, which were another
+        # message's; the final CRC would have failed after the whole transfer
+        if self.received_bytes and (
+            info_frame["total_length"] != self.total_length or info_frame["total_crc"] != self.total_crc
+        ):
+            self.log(
+                f"Session {self.id} held {self.received_bytes} bytes of other data: starting over",
+                isWarning=True,
+            )
+            self.received_bytes = 0
         if self.received_bytes == 0:
             self.received_data = bytearray(info_frame["total_length"])
             self.pending_frames = {}
