@@ -140,6 +140,15 @@ class TestBroadcastAndSessions(NoDelays):
         iss.logger.info.assert_any_call("[NORM] Another station started: waiting for the channel")
         iss.ctx.rf_modem.transmit.assert_called_once()
 
+    def test_waiting_line_logged_once(self):
+        # on the air the busy state flickered during the other station's
+        # bursts and the line was logged 6-8 times in one wait
+        channel = Channel(free=[False, False, False, False, True])
+        iss = make_iss(channel)
+        self.assertTrue(iss.transmit_bursts([b"1"]))
+        started = [c for c in iss.logger.info.call_args_list if "Another station started" in c.args[0]]
+        self.assertEqual(len(started), 1)
+
     def test_busy_channel_sends_after_the_wait(self):
         # a signal that is not FreeDATA (no codec2 traffic): BUSY_WAIT s, as CQ answers
         channel = Channel(busy_for=60)

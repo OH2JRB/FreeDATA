@@ -243,12 +243,15 @@ class NormTransmission:
         state = self.ctx.state_manager
         start = time.time()
         last_freedata = None
+        started_logged = False  # the busy state flickers during another station's bursts: log it once
         while True:
             if state.channel_busy_event.wait(self.BUSY_POLL):
                 threading.Event().wait(self.LISTEN_TIME)
                 if state.channel_busy_event.is_set():
                     return True
-                self.logger.info("[NORM] Another station started: waiting for the channel")
+                if not started_logged:
+                    self.logger.info("[NORM] Another station started: waiting for the channel")
+                    started_logged = True
             now = time.time()
             if state.is_receiving_codec2_signal():
                 if last_freedata is None:
