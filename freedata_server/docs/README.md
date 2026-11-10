@@ -12,6 +12,7 @@ of known issues and oddities that remain in the source.
 
 | Document | Covers |
 |---|---|
+| [use-cases.md](use-cases.md) | What operators and programs do with FreeDATA, step by step: setting up, messages, encryption, stopping, broadcasts, listening, radio control, remote operation, external programs, reporting, testing |
 | [architecture.md](architecture.md) | Startup, `AppContext`, threads and queues, managers (event, state, service, radio, schedule, websocket), configuration keys, events, scheduled jobs, utility modules |
 | [api.md](api.md) | REST endpoint reference, WebSocket streams, validation, how API calls become transmit commands |
 | [modem-audio-radio.md](modem-audio-radio.md) | RX/TX audio paths, codec2 ctypes binding and modes, demodulators, audio devices, CW ID, radio control backends (rigctld, flrig, serial PTT, dummy) |
@@ -51,10 +52,11 @@ queues. Start with [architecture.md](architecture.md).
 
 ## Reading order for new contributors
 
-1. [architecture.md](architecture.md): how the process is wired together.
-2. [protocol-overview.md](protocol-overview.md), then [protocol-frames.md](protocol-frames.md): what goes
+1. [use-cases.md](use-cases.md): what FreeDATA is used for.
+2. [architecture.md](architecture.md): how the process is wired together.
+3. [protocol-overview.md](protocol-overview.md), then [protocol-frames.md](protocol-frames.md): what goes
    over the air.
-3. [arq-sessions.md](arq-sessions.md): reliable transfer on top of those frames.
-4. [message-system.md](message-system.md): the main user feature built on ARQ.
-5. [api.md](api.md) and [modem-audio-radio.md](modem-audio-radio.md) as reference.
-6. [testing.md](testing.md) before changing behaviour: run the suite, then add a test.
+4. [arq-sessions.md](arq-sessions.md): reliable transfer on top of those frames.
+5. [message-system.md](message-system.md): the main user feature built on ARQ.
+6. [api.md](api.md) and [modem-audio-radio.md](modem-audio-radio.md) as reference.
+7. [testing.md](testing.md) before changing behaviour: run the suite, then add a test.
