@@ -42,7 +42,7 @@ flowchart LR
   [architecture.md](architecture.md#3-finding-the-server).
 - **WebSockets** ([event_sock.js](../src/js/event_sock.js)): `/states` and `/events` feed the stores
   through [eventHandler.js](../src/js/eventHandler.js), `/fft` feeds the waterfall, and `/audio_rx`
-  carries RX audio.
+  carries RX audio; it is opened only while the Audio Stream widget plays.
 - **Settings**: `settings.remote` mirrors the server config and is posted to `/config` when a
   setting changes (never before it has been loaded from the server). `settings.local` (dashboard
   layout, theme, language) stays in the browser's `localStorage`.

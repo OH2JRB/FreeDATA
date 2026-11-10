@@ -308,7 +308,11 @@ Produced by `StateManager` ([state_manager.py](../state_manager.py)):
 
 ### 3.4 `/audio_rx` messages
 
-Raw received audio, sent as binary frames. `modem.py` puts the chunks on `audio_rx_queue` (`Queue(maxsize=10)`) via `enqueue_streaming_audio_chunks`, in blocks of `AUDIO_STREAMING_CHUNK_SIZE` (800) samples. It uses `put_nowait`, so blocks are dropped while the queue is full. Each frame is the ndarray's raw bytes. Sample format and rate are defined in [modem.py](../modem.py), not in the API layer.
+The received radio audio, for listening in the browser (the GUI's Audio Stream widget). Each binary frame is 800 samples (100 ms) of 8 kHz, 16-bit signed little-endian, mono PCM: 1600 bytes, 10 frames a second, 128 kbit/s. It is the audio the modem demodulates, resampled from the sound card's 48 kHz, before the auto level and the `rx_audio_level` gain, so its loudness is the radio's USB audio level.
+
+`modem.py` puts the chunks on `audio_rx_queue` (`Queue(maxsize=10)`, 1 s) via `enqueue_streaming_audio_chunks`, in blocks of `AUDIO_STREAMING_CHUNK_SIZE` (800) samples, with `put_nowait`, so blocks are dropped while the queue is full. **Nothing is sent while transmitting** (`state_manager.isTransmitting()`), as for `/fft`: the stream pauses for the TX and resumes after it.
+
+The GUI opens this socket only while the user listens (`openAudioStream` in `event_sock.js`), so with nobody listening the worker only takes the blocks off the queue. Like the other routes it has no authentication; `RequestGuard` applies, and anyone who can reach the API can listen. For remote listening use an SSH tunnel or a VPN rather than opening the API to the network.
 
 ---
 

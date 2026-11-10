@@ -5,7 +5,6 @@ import {
   loadAllData,
 } from "../js/eventHandler.js";
 import { addDataToWaterfall } from "../js/waterfallHandler.js";
-import { addDataToAudio } from "../js/audioStreamHandler.js";
 
 // ----------------- init pinia stores -------------
 import { setActivePinia } from "pinia";
@@ -22,7 +21,10 @@ const state = useStateStore(pinia);
 const FFT_STALL_MS = 10000;
 const FFT_CHECK_MS = 2000;
 
-function connect(endpoint, dispatcher) {
+// handle (optional): { closed, socket } for a socket opened on request, see
+// openAudioStream. It always holds the current socket, and once closed is set
+// the socket is not reconnected.
+function connect(endpoint, dispatcher, handle = null) {
   const { protocol, hostname, port } = window.location;
   const wsProtocol = protocol === "https:" ? "wss:" : "ws:";
   const adjustedPort = port === "8080" ? "5000" : port;
@@ -32,6 +34,9 @@ function connect(endpoint, dispatcher) {
 
   if (endpoint.includes("audio")) {
     socket.binaryType = "arraybuffer";
+  }
+  if (handle) {
+    handle.socket = socket;
   }
 
   let lastMessage = Date.now();
@@ -79,9 +84,24 @@ function connect(endpoint, dispatcher) {
 
     // Reconnect handler
     setTimeout(() => {
-      connect(endpoint, dispatcher);
+      if (handle && handle.closed) return;
+      connect(endpoint, dispatcher, handle);
     }, 1000);
   });
+}
+
+// The RX audio stream (/audio_rx, about 16 kB/s) is opened only while the
+// user listens, not with the other sockets, so a GUI that is not listening
+// costs the link and the server nothing. Returns { close() }.
+export function openAudioStream(dispatcher) {
+  const handle = { closed: false, socket: null };
+  connect("audio_rx", dispatcher, handle);
+  return {
+    close() {
+      handle.closed = true;
+      if (handle.socket) handle.socket.close();
+    },
+  };
 }
 
 // Initial connection attempts to endpoints
@@ -89,5 +109,4 @@ export function initConnections() {
   connect("states", stateDispatcher);
   connect("events", eventDispatcher);
   connect("fft", addDataToWaterfall);
-  connect("audio_rx", addDataToAudio);
 }

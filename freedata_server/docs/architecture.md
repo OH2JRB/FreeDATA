@@ -149,7 +149,7 @@ component. Construction order matters because several managers start threads in 
 | `modem_events` | `Queue()` | Event bus output (see 2.2). |
 | `modem_fft` | `Queue()` | FFT data for the waterfall. |
 | `modem_service` | `Queue()` | Commands for the service manager. |
-| `audio_rx_queue` | `Queue(maxsize=10)` | Streaming RX audio chunks. |
+| `audio_rx_queue` | `Queue(maxsize=10)` | Streaming RX audio chunks (8 kHz int16, 800 samples), not while transmitting. |
 | `event_manager` | `EventManager(self, [self.modem_events])` | Broadcasts only into `modem_events`. |
 | `state_manager` | `StateManager(self.state_queue)` | |
 | `schedule_manager` | `ScheduleManager(self)` | Scheduler thread started later by `start(modem)`. |

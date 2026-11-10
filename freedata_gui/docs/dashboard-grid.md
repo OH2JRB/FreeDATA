@@ -6,7 +6,6 @@ the widgets in [src/components/grid/](../src/components/grid/), the waterfall
 ([waterfallHandler.js](../src/js/waterfallHandler.js),
 [spectrum.js](../src/assets/waterfall/spectrum.js)) and RX audio playback
 ([grid_audio.vue](../src/components/grid/grid_audio.vue),
-[audioStore.js](../src/store/audioStore.js),
 [audioStreamHandler.js](../src/js/audioStreamHandler.js)).
 
 `dynamic_components.vue` is mounted by
@@ -79,7 +78,7 @@ Fill grid (small screen).
 | 20 | Speed/SNR graph | [grid_stats_chart.vue](../src/components/grid/grid_stats_chart.vue) | 0,114,6,30 | 0,114,6,30 | Stats | no | no | ARQ speed (bar) and SNR (line) | `state.arq_speed_list_timestamp/bpm/snr` |
 | 21 | SWR widget | [grid_swr_meter.vue](../src/components/grid/grid_swr_meter.vue) | 16,8,4,8 | 16,8,4,8 | Rig | yes | no | SWR bar and `SWR 1:x` | `state.swr_percent`, `state.swr_raw` |
 | 22 | Station Map | [grid_stations_map.vue](../src/components/grid/grid_stations_map.vue) | 6,53,10,92 | 12,56,12,92 | Other | yes | yes | d3 world map with own and heard stations | `state.heard_stations`, `settings.remote.STATION.mygrid` |
-| 24 | Audio Stream | [grid_audio.vue](../src/components/grid/grid_audio.vue) | 16,8,4,24 | 16,8,4,24 | Audio | no | no | Start/Stop button for RX audio monitoring | `useAudioStore().getNextBlock()` |
+| 24 | Audio Stream (listen to RX) | [grid_audio.vue](../src/components/grid/grid_audio.vue) | 16,8,5,30 | 16,8,5,30 | Audio | no | no | Listen/Stop, mute, volume and status for RX audio monitoring | `openAudioStream`, `RxAudioPlayer`, `state.ptt_state`, `state.is_modem_running` |
 | 25 | Clock (local/UTC) | [grid_clock.vue](../src/components/grid/grid_clock.vue) | 20,16,4,11 | 20,16,4,11 | Other | no | no | Local time (`HH:MM:SS`, label from `grid.clock_local`) and UTC, updated every second by a `setInterval` cleared on unmount. The text scales with the widget size (CSS container query units, minimum 10 px), so resizing the widget enlarges the clock | none (browser clock) |
 
 [grid_button.vue](../src/components/grid/grid_button.vue) is not a widget. It is
@@ -259,51 +258,47 @@ array. Its default is `2` (viridis, shown as "Default" in settings).
 ### Data flow
 
 ```
-server /audio_rx websocket (binary frames, int16 PCM mono)
-  -> event_sock.js connect("audio_rx", addDataToAudio)   binaryType = "arraybuffer"
-  -> audioStreamHandler.addDataToAudio(buf): whole int16 samples copied
-  -> audioStore.addBlock(int16)                            ring buffer, 1024 blocks
-  -> grid_audio.vue loop(): drain getNextBlock() -> Float32 -> AudioBuffer -> schedule
+server /audio_rx websocket (binary frames, 800 samples of 8 kHz int16 PCM mono, 100 ms)
+  -> event_sock.js openAudioStream(push)     opened on Listen, closed on Stop
+  -> RxAudioPlayer.push(buf)                 audioStreamHandler.js
+       pcm16ToFloat32 -> 8000 Hz AudioBuffer -> source.start(scheduleTime(...))
+  -> GainNode (volume, mute, TX) -> speakers
 ```
 
-- `binaryType = "arraybuffer"` is set for any endpoint whose name contains
-  `audio`.
-- [audioStreamHandler.js](../src/js/audioStreamHandler.js) ignores anything
-  that is not an `ArrayBuffer`, drops a trailing odd byte, ignores frames
-  with no complete sample, and copies the samples with
-  `new Int16Array(data.slice(...))` (little-endian, platform byte order)
-  before calling `audio.addBlock(copy)`. Any number of samples is accepted.
-- [audioStore.js](../src/store/audioStore.js) has a fixed ring buffer of
-  `BUFFER_SIZE = 1024` blocks with `writePtr`/`readPtr`/`readyBlocks`. When
-  it is full, the oldest block is overwritten. `getNextBlock()` returns
-  `null` when the buffer is empty. The buffer fills whether or not anyone is
-  listening; `resetBuffer()` empties it.
+- The socket is opened only while listening, so a GUI that does not listen
+  costs the link and the server nothing (about 16 kB/s per listener).
+  `openAudioStream` reconnects after a drop like the other sockets, until
+  its handle is closed.
+- The server sends nothing while transmitting. The widget also sets the
+  gain to 0 while `state.ptt_state` is true, so audio still queued when the
+  PTT goes on is silenced, and shows a TX badge.
+- [audioStreamHandler.js](../src/js/audioStreamHandler.js):
+  - `pcm16ToFloat32(buf)` ignores anything that is not an `ArrayBuffer`,
+    drops a trailing odd byte, returns `null` for a frame with no complete
+    sample, and reads the samples as little-endian int16 / 32768.
+  - `scheduleTime(now, nextStart, duration)`: blocks play back-to-back on
+    the audio clock. After an underrun (or for the first block) playback
+    restarts `START_DELAY_S` (150 ms) ahead to absorb network jitter; a
+    block that would make more than `MAX_QUEUED_S` (0.75 s) scheduled is
+    dropped (counted in `dropped`), which bounds the delay. The sound card
+    and the browser run on different clocks, so now and then a block is
+    dropped or the queue runs dry, which can be heard as a short click.
+  - `RxAudioPlayer` creates the `AudioContext` (at the browser's own rate;
+    the 8000 Hz buffers are resampled by the browser) and a `GainNode`.
+    `start()` must be called from the click, or the browser keeps the output
+    suspended. Volume and mute changes ramp the gain over about 20 ms.
+    `lastBlockAt` is when the last frame arrived.
 - [grid_audio.vue](../src/components/grid/grid_audio.vue):
-  - **Start** calls `audio.resetBuffer()` (drops audio buffered while nobody
-    listened), creates `new AudioContext({sampleRate: 8000})`, resumes it if
-    it is suspended (stopping again if that fails), and starts `loop(ctx)`.
-  - Every 20 ms (`POLL_MS`) the loop drains **all** buffered blocks. Each
-    block is converted with `s / 32768` to Float32, put in a 1-channel
-    8000 Hz `AudioBuffer` and scheduled with `source.start(nextStartTime)`;
-    `nextStartTime` then advances by the buffer duration, so blocks play
-    back-to-back on the audio clock.
-  - After an underrun (or for the first block) playback restarts 100 ms in
-    the future (`START_DELAY_S`) to absorb network jitter. If more than 1 s
-    of audio is already scheduled (`MAX_QUEUED_S`), new blocks are dropped
-    to keep latency bounded. A block that fails to schedule is skipped with a
-    warning instead of ending the loop.
-  - The loop ends when `isPlaying` is false or a newer context replaced the
-    one it was started with.
-  - **Stop** sets `isPlaying=false`, clears the loop timer and closes the
-    context. `onBeforeUnmount` calls Stop, so removing the widget while it
-    plays stops playback.
-
-### Chunk length (800 vs 2400 samples)
-
-The GUI takes the buffer length from each block (`float32.length`), so any
-non-zero number of samples plays, including the server's 800-sample
-(100 ms at 8 kHz) chunks. Odd byte lengths and empty frames are handled in
-`addDataToAudio` (see above).
+  - **Listen** starts the player, then opens the socket. **Stop** closes the
+    socket and the audio context. Removing the widget stops playback.
+  - Mute button and a volume slider of 0 to 400 % (`MAX_VOLUME`, since the
+    radio's USB audio level is often low), both kept in `localStorage`
+    (`rxAudioMuted`, `rxAudioVolume`).
+  - Status line while listening: modem not running, TX (audio paused),
+    waiting for audio (no frame for 1.5 s), muted, or listening.
+  - Plain `AudioBufferSourceNode`s are used instead of an `AudioWorklet`,
+    which the browser allows only in a secure context (HTTPS or localhost),
+    so this also works when the GUI is opened as `http://<station>:5000`.
 
 ## 8. Charts and meters
 
@@ -397,12 +392,6 @@ Waterfall:
 - The bandwidth marker lines are hard-coded positions in bin units, so they
   are only correct for the bin spacing assumed in the source comment. The
   comment itself says "Math not correct".
-
-RX audio:
-
-- The ring buffer still fills (up to 1024 blocks, about 102 s at 800
-  samples) while nobody listens. Start discards it, so it only costs memory.
-- `audioStore.rxStream` is a legacy array that nothing uses.
 
 Heard stations / map:
 
