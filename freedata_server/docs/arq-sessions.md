@@ -808,7 +808,7 @@ ever set.
 | `prepare_and_transmit_data(origin, domain, gridsquare, data, priority, message_type)` | Called from `command_norm.Norm` in a thread: `create_data()`, `add_to_database()`, `transmit_bursts()` |
 | `create_data()` | Splits into 26-byte chunks. One `NORM_DATA` per chunk with `burst_info = (n << 4) / total`, `flag = encode_flags(type, priority, is_last)`, `payload_size = len(full data)`, the same timestamp and checksum |
 | `add_to_database()` | Stores each burst via `DatabaseManagerBroadcasts.process_broadcast_message(direction="transmit", status="assembling", nexttransmission_at=now+1h, expires_at=now+1d, ...)` |
-| `transmit_bursts(bursts)` | Random 0-5 s delay, waits up to 0.5 s on `channel_busy_condition_codec2`, sends each burst |
+| `transmit_bursts(bursts)` | `wait_for_channel()` first: waits up to `SESSION_WAIT` (300 s) for a running ARQ session or P2P connection to end, then a random 0-5 s delay, then up to `BUSY_WAIT` (5 s) on `channel_busy_condition_codec2`. Sends each burst; stops before the next one on Stop or when a session starts. Logs each as `burst n/total` or, after `create_repair`, `repair burst n/total`. Returns `True` when all were sent. Without a modem (`ctx.rf_modem` is `None`, stopped or restarting) it sends nothing and returns `False`; the NACK sender does the same |
 | `create_repair(db_msg, burst_numbers)` | Rebuilds the requested bursts from the stored `payload_data["final"]` as `NORM_REPAIR` frames. Raises on missing fields or out-of-range numbers |
 | `retransmit_data(msg)` | Rebuilds and resends all `NORM_DATA` bursts of a stored message. Used by the API (`api/freedata.py`) and by `ScheduleManager.check_queued_messages` (every 20 s) |
 
@@ -835,14 +835,20 @@ sequenceDiagram
     Note over R: bursts stored per id
     Note over R: ScheduleManager.check_missing_broadcast_bursts (every 20 s):<br/>receive-direction, incomplete, older than 1 min, not expired, next-transmission time reached
     R->>S: NORM_NACK(origin=own call, id, missing burst numbers <= 8)
-    Note over S: NORMFrameHandler: broadcast found by id, direction "transmit", attempts < 30<br/>increment_attempts, create_repair
+    Note over S: NORMFrameHandler: broadcast found by id, direction "transmit", attempts < MAX_ATTEMPTS (20)<br/>increment_attempts, create_repair
     S->>R: NORM_REPAIR bursts
 ```
 
 * The NACK is sent by `NormTransmission(ctx).create_and_transmit_nack_burst(myfullcall, id, missing)`
-  after `increment_attempts_and_update_next_transmission(id)`.
+  after `increment_attempts_and_update_next_transmission(id)`. It goes through the same
+  `wait_for_channel()` as the bursts (random 0-5 s delay, up to 5 s for codec2 traffic to end), so
+  several receivers missing the same burst do not all answer at once; it is not sent while a session
+  runs. The scheduler skips both broadcast jobs while `state_manager.is_in_session()`.
+* The NACK handler (`NORMFrameHandler.answer_nack`) sends the repair from its own thread, so the
+  wait for a clear channel does not hold up the receive worker.
 * The NACK handler answers a NACK only if its id is in the local broadcast DB with
-  `direction == "transmit"` (a broadcast this station sent itself), up to 30 attempts. NACKs for
+  `direction == "transmit"` (a broadcast this station sent itself), while its attempts are under
+  `DatabaseManagerBroadcasts.MAX_ATTEMPTS` (20), the limit scheduled resends use too. NACKs for
   broadcasts that were only received are logged and ignored. The NACK's sender or addressing is not
   checked.
 * `NormTransmission.on_frame_received` references `STATE_TRANSITION`, `event_frame_received` and

@@ -525,8 +525,8 @@ when the scheduler starts.
 | `transmitting_beacon` | 600 | not ARQ busy, `is_beacon_running`, modem running | `command_beacon.BeaconCommand(ctx).run()` |
 | `beacon_cleanup` | 600 | always | `DatabaseManagerBeacon.beacon_cleanup_older_than_days(2)` |
 | `update_transmission_state` | 10 | always | IRS sessions idle > 90 s: removed from the state manager if `ENDED`, otherwise set to `RESUME` (unless already `RESUME`). ISS sessions idle > 90 s in `ABORTED`/`FAILED` are removed. |
-| `check_missing_broadcast_bursts` | 20 | `EXP.enable_groupchat` and modem running | `DatabaseManagerBroadcasts.check_missing_bursts()`; if any, increment attempts and send a NORM NACK burst via `NormTransmission.create_and_transmit_nack_burst()` |
-| `check_queued_messages` | 20 | `EXP.enable_groupchat` and modem running | First queued broadcast -> increment attempts -> `NormTransmissionISS.retransmit_data(msg)` |
+| `check_missing_broadcast_bursts` | 20 | `EXP.enable_groupchat`, modem running and no ARQ session or P2P connection (`norm_may_transmit()`) | `DatabaseManagerBroadcasts.check_missing_bursts()`; if any, increment attempts and send a NORM NACK burst via `NormTransmission.create_and_transmit_nack_burst()` |
+| `check_queued_messages` | 20 | `EXP.enable_groupchat`, modem running and no ARQ session or P2P connection (`norm_may_transmit()`) | First queued broadcast -> increment attempts -> `NormTransmissionISS.retransmit_data(msg)` |
 
 Most jobs catch exceptions and `print()` them.
 
