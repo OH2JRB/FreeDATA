@@ -174,7 +174,7 @@ flowchart LR
   EV --> ES --> EH
   ST --> ES
   FFT --> ES --> WF --> COMP
-  AUD --> ES --> AS --> A
+  AUD --> ES --> AS --> COMP
   EH --> S
   EH -->|loadAllData| API
   API --> MH --> C
@@ -193,21 +193,21 @@ flowchart LR
 
 ## 5. WebSocket connections ([event_sock.js](../src/js/event_sock.js))
 
-`initConnections()` opens four sockets, each with its own dispatcher:
+`initConnections()` opens the first three sockets, each with its own dispatcher. `/audio_rx` is opened by `openAudioStream(dispatcher)` only while the Audio Stream widget plays, and closed (without reconnecting) by the `close()` of the handle it returns:
 
 | Endpoint | Dispatcher | Frame format | Notes |
 |---|---|---|---|
 | `/states` | `stateDispatcher` ([eventHandler.js](../src/js/eventHandler.js)) | JSON text | Modem and radio state snapshots |
 | `/events` | `eventDispatcher` ([eventHandler.js](../src/js/eventHandler.js)) | JSON text | PTT, scatter, modem lifecycle, ARQ, frames, logging, DB changes |
 | `/fft` | `addDataToWaterfall` ([waterfallHandler.js](../src/js/waterfallHandler.js)) | JSON array text | `JSON.parse`, ignored unless an array, then `addData()` on every registered `Spectrum` instance |
-| `/audio_rx` | `addDataToAudio` ([audioStreamHandler.js](../src/js/audioStreamHandler.js)) | binary | `binaryType = "arraybuffer"` (set for any endpoint containing `"audio"`). Wrapped as `Int16Array`, copied, pushed into `audioStore`'s ring buffer |
+| `/audio_rx` | `RxAudioPlayer.push` ([audioStreamHandler.js](../src/js/audioStreamHandler.js)), via `grid_audio.vue` | binary | `binaryType = "arraybuffer"` (set for any endpoint containing `"audio"`). Only while listening; see [dashboard-grid.md](dashboard-grid.md#7-rx-audio-playback) |
 
 Per-socket handlers:
 
 - **open**: logs. Only the `/states` socket then sets `stateStore.modem_connection = "connected"` and calls `loadAllData()`, so a fresh start or a server restart loads the data once, not once per socket.
 - **message**: `dispatcher(event.data)`.
 - **error**: `connectionFailed(endpoint, event)` sets `stateStore.modem_connection = "disconnected"` only for the control sockets (`states`, `events`). Errors on `/fft` or `/audio_rx` are logged and do not change the connection state.
-- **close**: logs the code and calls `connect(endpoint, dispatcher)` again after a fixed 1000 ms. No backoff, no cap; each socket reconnects independently.
+- **close**: logs the code and calls `connect(endpoint, dispatcher)` again after a fixed 1000 ms. No backoff, no cap; each socket reconnects independently. An `/audio_rx` socket whose handle was closed is not reconnected.
 - **fft watchdog**: every 2 s the `/fft` socket checks when it last got data. If the modem runs (`state.is_modem_running`) and nothing came for 10 s (`FFT_STALL_MS`), it closes the socket, which reconnects it. This keeps the waterfall from staying frozen if the server stops sending to an open socket.
 
 `modem_connection` is a display value (navbar, startup check, `getOverallHealth()`). REST calls in `api.js` do not depend on it (see 7.1).
@@ -349,8 +349,6 @@ All stores except settings are Pinia setup stores. "Writers" and "Readers" are f
 | Field / function | Meaning | Writers | Readers |
 |---|---|---|---|
 | `audioInputs`, `audioOutputs` | device lists from `GET /devices/audio`; fallback `skel` entry ("No devices received from modem") on error or empty list | `loadAudioDevices()` (called by `loadAllData`, startup check, modem settings) | settings, startup check |
-| ring buffer (`addBlock`, `getNextBlock`, `resetBuffer`) | 1024-block ring buffer of `Int16Array` RX audio; overwrites the oldest when full | audioStreamHandler.js (`addBlock`) | `grid_audio.vue` (`resetBuffer` on Start, `getNextBlock` while playing) |
-| `rxStream` | legacy array | nobody | *unused* |
 
 ### 6.5 `serialStore` ([serialStore.js](../src/store/serialStore.js))
 

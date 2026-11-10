@@ -39,7 +39,7 @@ flowchart TD
     C --> D[process_rx_audio_block<br/>append to rx_audio_carry_48k,<br/>cut whole 4800-sample blocks]
     D --> E[run_rx_audio_dsp]
     E --> F[resampler.resample48_to_8<br/>4800 -> 800 samples]
-    F --> G[ctx.audio_rx_queue<br/>websocket audio stream,<br/>put_nowait, dropped when full]
+    F --> G[ctx.audio_rx_queue<br/>websocket audio stream /audio_rx,<br/>not while transmitting,<br/>put_nowait, dropped when full]
     F --> H[optional normalize_audio<br/>+ set_audio_volume rx_audio_level]
     H --> I[audio.calculate_fft<br/>if not transmitting]
     I --> J[ctx.modem_fft + channel busy / slot busy state]
@@ -383,7 +383,9 @@ Codec2-based busy detection (`set_channel_busy_condition_codec2`) comes from the
 
 ### RX audio streaming
 
-Each 800-sample 8 kHz block (before AGC/gain) is passed to `enqueue_streaming_audio_chunks`, which zero-pads it to a multiple of `AUDIO_STREAMING_CHUNK_SIZE` (800, so normally no padding) and puts each chunk on `ctx.audio_rx_queue` (`maxsize=10`) with `put_nowait()`. When the queue is full (no consumer draining it) the chunk is dropped rather than stalling the RX DSP. [websocket_manager.py](../websocket_manager.py) drains it to audio websocket clients.
+Each 800-sample 8 kHz block (before AGC/gain) is passed to `enqueue_streaming_audio_chunks`, which zero-pads it to a multiple of `AUDIO_STREAMING_CHUNK_SIZE` (800, so normally no padding) and puts each chunk on `ctx.audio_rx_queue` (`maxsize=10`) with `put_nowait()`. When the queue is full (no consumer draining it) the chunk is dropped rather than stalling the RX DSP. While transmitting nothing is queued: the input then carries whatever the radio returns during TX, and the listener should hear the receiver only. [websocket_manager.py](../websocket_manager.py) drains the queue to the `/audio_rx` websocket clients (see [api.md](api.md) 3.4), which the GUI's Audio Stream widget plays.
+
+Cost: the resampling is done for the modem anyway; the stream adds one 1600-byte websocket send per 100 ms per listener (about 0.04 ms each), and nothing with nobody listening. Delay from the antenna to the browser's speaker is about 0.3 to 0.6 s: the 100 ms DSP block, the `rx_buffer_ms` capture buffer, the network and the player's 150 ms start headroom.
 
 ### TX output
 

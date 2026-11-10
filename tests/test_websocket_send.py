@@ -114,5 +114,42 @@ class TestWebsocketSend(unittest.TestCase):
         self.assertEqual(client.loops, [self.loop])
 
 
+class TestAudioRxEndpoint(unittest.TestCase):
+    """End to end: a block on audio_rx_queue reaches a browser connected to
+    /audio_rx as one binary frame of 8 kHz int16 samples."""
+
+    def test_block_arrives_as_binary_frame(self):
+        from types import SimpleNamespace
+
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+
+        from freedata_server.api import websocket as websocket_api
+        from freedata_server.context import get_ctx
+
+        ctx = SimpleNamespace(
+            modem_events=queue.Queue(),
+            state_queue=queue.Queue(),
+            modem_fft=queue.Queue(),
+            audio_rx_queue=queue.Queue(maxsize=10),
+        )
+        ctx.websocket_manager = websocket_manager.wsm(ctx)
+        app = FastAPI()
+        app.include_router(websocket_api.router)
+        app.dependency_overrides[get_ctx] = lambda: ctx
+        ctx.websocket_manager.startWorkerThreads(app)
+        self.addCleanup(ctx.websocket_manager.shutdown)
+
+        block = (np.arange(800) - 400).astype(np.int16)
+        with TestClient(app) as client, client.websocket_connect("/audio_rx") as ws:
+            deadline = time.time() + 5
+            while not ctx.websocket_manager.audio_rx_client_list and time.time() < deadline:
+                time.sleep(0.01)
+            ctx.audio_rx_queue.put(block)
+            data = ws.receive_bytes()
+            self.assertEqual(len(data), 1600)
+            np.testing.assert_array_equal(np.frombuffer(data, dtype=np.int16), block)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -614,11 +614,16 @@ class RF:
             audio_48k (np.ndarray): RX_DSP_BLOCK_48K 48 kHz int16 samples.
         """
         audio_8k = self.resampler.resample48_to_8(audio_48k)
+        transmitting = self.ctx.state_manager.isTransmitting()
 
-        self.enqueue_streaming_audio_chunks(audio_8k, self.ctx.audio_rx_queue)
+        # The GUI's listener hears the receiver only. While transmitting the
+        # input carries whatever the radio returns during TX (silence or its
+        # monitor), so nothing is streamed, as nothing goes to the FFT.
+        if not transmitting:
+            self.enqueue_streaming_audio_chunks(audio_8k, self.ctx.audio_rx_queue)
 
         # before the auto level, which would hide the power steps it looks for
-        self.demodulator.signal_detector.push(audio_8k, transmitting=self.ctx.state_manager.isTransmitting())
+        self.demodulator.signal_detector.push(audio_8k, transmitting=transmitting)
 
         if self.ctx.config_manager.config["AUDIO"].get("rx_auto_audio_level"):
             audio_8k = audio.normalize_audio(audio_8k)

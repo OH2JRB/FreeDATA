@@ -233,5 +233,37 @@ class TestRxAudioReblocking(unittest.TestCase):
         self.assertGreater(rf.ctx.audio_rx_queue.qsize(), 0, "DSP should have run on the reassembled blocks")
 
 
+class TestRxAudioStream(unittest.TestCase):
+    """The audio streamed to the GUI's listener (/audio_rx)."""
+
+    def dsp_block(self):
+        return (np.random.randn(4800) * 3000).astype(np.int16)
+
+    def test_block_is_streamed_as_8k_int16(self):
+        rf = _rf()
+        rf.ctx.state_manager.setTransmitting(False)
+        rf.run_rx_audio_dsp(self.dsp_block())
+        chunk = rf.ctx.audio_rx_queue.get_nowait()
+        self.assertEqual(chunk.dtype, np.int16)
+        self.assertEqual(len(chunk), rf.AUDIO_STREAMING_CHUNK_SIZE)  # 100 ms at 8 kHz
+        self.assertTrue(rf.ctx.audio_rx_queue.empty())
+
+    def test_nothing_streamed_while_transmitting(self):
+        rf = _rf()
+        rf.ctx.state_manager.setTransmitting(True)
+        rf.run_rx_audio_dsp(self.dsp_block())
+        self.assertTrue(rf.ctx.audio_rx_queue.empty(), "the listener must not hear the radio during TX")
+        rf.ctx.state_manager.setTransmitting(False)
+        rf.run_rx_audio_dsp(self.dsp_block())
+        self.assertEqual(rf.ctx.audio_rx_queue.qsize(), 1, "the stream resumes after TX")
+
+    def test_full_stream_queue_does_not_stall_rx(self):
+        rf = _rf()
+        rf.ctx.state_manager.setTransmitting(False)
+        for _ in range(rf.ctx.audio_rx_queue.maxsize + 5):
+            rf.run_rx_audio_dsp(self.dsp_block())
+        self.assertEqual(rf.ctx.audio_rx_queue.qsize(), rf.ctx.audio_rx_queue.maxsize)
+
+
 if __name__ == "__main__":
     unittest.main()

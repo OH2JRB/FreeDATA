@@ -331,14 +331,14 @@ const gridWidgets = [
   ),
   new gridWidget(
     grid_audio,
-    { x: 16, y: 8, w: 4, h: 24 },
-    "Audio Stream",
+    { x: 16, y: 8, w: 5, h: 30 },
+    "Audio Stream (listen to RX)",
     false,
     true,
     "Audio",
     24,
     false,
-    { x: 16, y: 8, w: 4, h: 24 }
+    { x: 16, y: 8, w: 5, h: 30 }
   ),
   new gridWidget(
     grid_clock,
