@@ -13,9 +13,23 @@
 [![Modem tests](https://github.com/OH2JRB/FreeDATA/actions/workflows/modem_tests.yml/badge.svg)](https://github.com/OH2JRB/FreeDATA/actions/workflows/modem_tests.yml)
 [![GUI tests](https://github.com/OH2JRB/FreeDATA/actions/workflows/gui_tests.yml/badge.svg)](https://github.com/OH2JRB/FreeDATA/actions/workflows/gui_tests.yml)
 
-![FreeDATA_main_screen.png](documentation%2FFreeDATA_main_screen.png)
+## What it does
 
-![FreeDATA_chat_screen.png](documentation%2FFreeDATA_chat_screen.png)
+- **Messages with attachments** to another station over an ARQ session that adapts its speed to the
+  channel, with higher code rates on good paths and an HF FSK fallback on poor ones; queued messages,
+  retries and a CSV message log
+- **Encryption** of messages per station or with a common key (check your licence conditions first)
+- **Group broadcasts** (NORM) to a domain, with automatic repair of lost bursts (experimental)
+- **Channel awareness**: waterfall, heard stations list, CQ, ping, beacons, test frames, PSK Reporter
+  and Explorer reporting
+- **Radio control** through Hamlib rigctld or flrig: frequency, mode, power, tuner, the radio's clock
+- **Listening** to the receive audio in the browser
+- **P2P connections** and a VARA-style TCP interface for other programs
+- A REST and WebSocket **API** for everything the GUI does
+
+[Use cases](freedata_server/docs/use-cases.md) walks through what an operator does with
+FreeDATA, step by step. Developer documentation: [freedata_server/docs](freedata_server/docs/README.md)
+(server, protocols, API) and [freedata_gui/docs](freedata_gui/docs/README.md) (web GUI).
 
 ## Installation
 

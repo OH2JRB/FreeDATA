@@ -103,7 +103,7 @@ click 8.5.0                                      BSD-3-Clause                   
 colorama 0.4.6                                   BSD License                              text [20]
 cryptography 50.0.2                              Apache-2.0 OR BSD-3-Clause               text [21] [22] [23]
 detect-installer 0.2.1                           0BSD                                     text [24]
-dnspython 2.8.0                                  ISC License (ISCL)                       text [25]
+dnspython 2.9.2                                  ISC                                      text [25]
 email-validator 2.3.0                            The Unlicense (Unlicense)                text [26]
 fastapi 0.142.2                                  MIT                                      text [27]
 fastapi-cli 0.0.32                               MIT                                      text [28]
@@ -3337,7 +3337,7 @@ OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 
 ------------------------------------------------------------------------------
-[25] Used by: dnspython 2.8.0
+[25] Used by: dnspython 2.9.2
 ------------------------------------------------------------------------------
 
 ISC License

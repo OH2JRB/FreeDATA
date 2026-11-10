@@ -526,9 +526,10 @@ Stores one row per received beacon (`timestamp`, `snr`, `callsign`). `add_beacon
   - mismatch -> status `failed_checksum`;
   - match -> `payload_data["final"]` = base64 of full payload, `payload_size` set, status `received`;
   - `checksum` `None` -> warning only.
-- **Transmit queue** (`get_first_queued_message`): first marks every `direction == "transmit"` row whose `expires_at <= now` as `expired`; then returns the `transmit` row with `attempts < 20`, `nexttransmission_at <= now` and not expired, ordered by `nexttransmission_at`. Returns the ORM object (not a dict).
+- **Transmit queue** (`get_first_queued_message`): first marks every `direction == "transmit"` row whose `expires_at <= now` as `expired`; then returns the `transmit` row with `attempts < 20`, `nexttransmission_at <= now` and not expired, ordered by `nexttransmission_at`. Returns a snapshot (`SimpleNamespace` of `broadcast_to_dict`), as the session is closed before the caller uses it.
 - **Backoff** (`increment_attempts_and_update_next_transmission`): `attempts += 1`; next delay in minutes from `[2, 5, 10, 15, 30, 60, 120, 240, 360, 720, 1440, 2880]` (2880 beyond the table); at `attempts >= 20` status becomes `max_attempts_reached`.
 - **Missing bursts** (`check_missing_bursts`): for `receive` rows received more than 1 minute ago, not expired, not yet `final`, past `nexttransmission_at` and under `MAX_ATTEMPTS`, returns the first one with missing burst indices; the scheduler then increments attempts/backoff and sends a NACK burst (`NormTransmission.create_and_transmit_nack_burst`).
+- **Sending** is done by the NORM code, not this manager: the scheduler's `check_queued_messages` and `check_missing_broadcast_bursts` run only with `EXP.enable_groupchat` on, the modem running and no ARQ session or P2P connection (`norm_may_transmit`); how each transmission waits for the channel is in [arq-sessions.md](arq-sessions.md), section 9, and [protocol-overview.md](protocol-overview.md). A repair answers a NACK only while the sent broadcast's attempts are under `MAX_ATTEMPTS`.
 
 ---
 

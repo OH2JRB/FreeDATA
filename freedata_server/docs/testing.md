@@ -82,6 +82,23 @@ A full run takes about a minute. Both commands exit non-zero when a test fails.
 | `test_high_rate_modes.py` | The higher code rates: payload, unique words and a clean loopback of `data_ofdm_250_hr`, `_500_hr` and `_1700_hr`; which speed level the IRS chooses; `HIGH_RATE_FLAG` in `ARQ_SESSION_OPEN`; the fallback to the lower code rate on both sides; the failures of a sibling mode left out; `MODEM.enable_high_rate` on by default ([arq-sessions.md](arq-sessions.md), section 4.2) | no |
 | `test_p2p_connection.py` | P2P connections between two test-mode stations: connect and disconnect, payload frames both ways (signalling and datac4, the IRS sending after a heartbeat), 300 bytes in an ARQ session inside the connection, the IRS addressed by a `MYCALL` callsign that is not the station callsign; which `ARQ_SESSION_OPEN` destinations `is_frame_for_me` accepts; the socket interface is a mock | yes (two stations, own channel threads) |
 | `test_session_ids.py` | ARQ sessions and P2P connections never get session id 35 (a burst ACK for it parses as a P2P payload ACK); a P2P connection's worker thread stops once disconnected | no (mock context) |
+| `test_arq_abort_race.py` | A stop that arrives while a session answers the other station is not lost: the answer does not overwrite the ISS's `ABORTING` or the IRS's `ABORTED` | no (mock context) |
+| `test_arq_fsk.py` | ARQ sessions falling back to `data_fsk4_50` (speed level 0): signalling after unanswered OFDM attempts, data after failed `datac4` bursts, both sides staying on it; the ISS's longer waits on FSK | no (mock context) |
+| `test_arq_session_sim.py` | The real-time ARQ session simulator in `tools/arq_session_sim.py`: its audio bus, the streaming channel and one short session on a clean channel | no |
+| `test_bandplan.py` | The bundled IARU band plan data and its lookup helpers | no |
+| `test_encryption_logging.py` | Encryption events reach the server log (stdout and the log file), key material never does | no (subprocess) |
+| `test_frequency_list.py` | The GUI's frequency list: loading the file, the fallback list and the API | yes (`TestClient`) |
+| `test_fsk_early.py` | The early FSK decoder (`fsk_early.py`) passes FSK frames on right after their end, never before ([fading-channels.md](fading-channels.md), section 8) | no |
+| `test_fsk_switch.py` | `MODEM.enable_fsk` through the config API: logged, saved to the config file, modem restarted | yes |
+| `test_install_paths.py` | The bundled `lib/` and `data/` files found from an install, a Nuitka build and the source tree, whatever the working directory | no |
+| `test_message_log.py` | `GET /freedata/messages/log`: completed messages as a CSV download, oldest first, nothing stored on the server | yes |
+| `test_message_queue.py` | The message queue tab: the queue in sending order, deleting a queued message, `send_last` | yes |
+| `test_norm_channel.py` | NORM traffic and the channel: no broadcast, resend, NACK or repair during an ARQ session or P2P connection; the random delay (0-15 s after a session); waiting for `channel_busy_event`, listening 0.5 s, up to 90 s while another FreeDATA station is heard (fake clock); repair log labels; the attempt limit; no `print()`; no modem | no (fake state) |
+| `test_p2p_fsk.py` | P2P connections falling back to `data_fsk4_50` after two unanswered attempts of a frame, and when a frame arrives in FSK | no (mock context) |
+| `test_request_guard.py` | `RequestGuard`: other web sites cannot use the API, the GUI and scripts can | no (`TestClient`, local socket) |
+| `test_shutdown_guard.py` | The exit guard names threads that would keep the server process alive ([architecture.md](architecture.md), section 1.2) | no |
+| `test_signal_detector.py` | `SignalDetector` finds transmissions by their power, and ARQ sessions use it where codec2 reports nothing (on `hl_disturbed` the OFDM modes do not sync) | no |
+| `test_stop_all.py` | The Stop button (`stop_all`): every transmission stops, the transmit queues are emptied, queued and transmitting messages and broadcasts become `aborted`; no NORM burst after the stop | no (mock context) |
 
 ## 3. Test environment isolation
 

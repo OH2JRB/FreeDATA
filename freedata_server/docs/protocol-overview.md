@@ -135,7 +135,21 @@ connection was made to, which may be a `MYCALL` callsign of the socket interface
 A broadcast goes out as `NORM_DATA` bursts, each with up to 26 bytes of the message. A receiver that misses a
 burst asks for it again on its own: every 20 s its scheduler looks for broadcasts that are incomplete and
 more than a minute old, and sends a `NORM_NACK` with the missing burst numbers. The original sender answers
-with `NORM_REPAIR` bursts.
+with `NORM_REPAIR` bursts. The sender also sends the whole broadcast again on its own, first after an hour
+and then at growing intervals, until it expires after a day or has had 20 attempts.
+
+Broadcasts share the channel with ARQ sessions and with other stations' broadcasts, so every NORM
+transmission (data, NACK or repair) first waits:
+
+1. for a running ARQ session or P2P connection to end (up to 300 s; the scheduler does not start NORM
+   traffic during one at all);
+2. a random 0-5 s, or 0-15 s after a session, since both stations of the session release their
+   held-back broadcasts at the same moment;
+3. for a free channel, heard free for 0.5 s more: up to 5 s, or up to 90 s while another FreeDATA station
+   is heard, which is long enough for its whole broadcast. After that it sends anyway.
+
+On the air (2026-11-10) two stations sending broadcasts after the same ARQ session no longer overlap:
+the second waits for the first one's last burst, and both arrive without repairs.
 
 ```mermaid
 sequenceDiagram
