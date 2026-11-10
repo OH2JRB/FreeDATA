@@ -10,7 +10,9 @@
 - sending with the modem stopped called None.transmit;
 - broadcasts held back by a session went out from both of its stations at
   once when it ended (random delays of 0 and 1 s; the codec2 busy check had
-  not yet synced on the other station's burst).
+  not yet synced on the other station's burst);
+- after that fix the second station still gave up waiting after 5 s and keyed
+  up during the first one's last burst (a 3-burst broadcast takes about 17 s).
 """
 
 import base64
@@ -30,13 +32,32 @@ from freedata_server.norm.norm_transmission_iss import NORM_ISS_State, NormTrans
 class Channel:
     """The state_manager parts NORM sending reads: sessions, Stop, the channel busy event."""
 
-    def __init__(self, sessions=(), free=()):
+    def __init__(self, sessions=(), free=(), busy_for=0.0, freedata_for=0.0):
         self.sessions = list(sessions)  # is_in_session() answers, in turn; then False
         self.stop_count = 0
         self.free = list(free)  # channel_busy_event.is_set() answers after listening, in turn; then True
+        # the channel is busy for busy_for s on a fake clock, with another
+        # FreeDATA station heard for the first freedata_for s of it
+        self.clock = 1000.0
+        self.start = self.clock
+        self.busy_for = busy_for
+        self.freedata_for = freedata_for
         self.channel_busy_event = mock.Mock()
-        self.channel_busy_event.wait.return_value = True
+        self.channel_busy_event.wait.side_effect = self.busy_wait
         self.channel_busy_event.is_set.side_effect = lambda: self.free.pop(0) if self.free else True
+
+    def busy_wait(self, timeout):
+        if self.clock - self.start >= self.busy_for:
+            return True
+        self.clock += timeout
+        return False
+
+    def is_receiving_codec2_signal(self):
+        return self.clock - self.start < self.freedata_for
+
+    def clocked(self):
+        """Runs NORM's time.time() on this channel's fake clock."""
+        return mock.patch.object(norm_transmission.time, "time", lambda: self.clock)
 
     def is_in_session(self):
         return self.sessions.pop(0) if self.sessions else False
@@ -92,13 +113,12 @@ class TestBroadcastAndSessions(NoDelays):
         self.assertEqual(iss.ctx.rf_modem.transmit.call_count, 1)
         self.assertIn("A session started: stopped before burst 2/3", logged(iss))
 
-    def test_waits_for_a_free_channel_like_cq(self):
+    def test_waits_for_a_free_channel(self):
         channel = Channel()
         iss = make_iss(channel)
         iss.transmit_bursts([b"1"])
         # channel_busy_event: neither codec2 nor the FFT traffic check reports traffic
-        (timeout,) = channel.channel_busy_event.wait.call_args.args
-        self.assertTrue(4.5 < timeout <= NormTransmission.BUSY_WAIT == 5)
+        channel.channel_busy_event.wait.assert_called_once_with(NormTransmission.BUSY_POLL)
 
     def test_random_delay_up_to_five_seconds(self):
         iss = make_iss(Channel())
@@ -121,11 +141,42 @@ class TestBroadcastAndSessions(NoDelays):
         iss.ctx.rf_modem.transmit.assert_called_once()
 
     def test_busy_channel_sends_after_the_wait(self):
-        channel = Channel()
-        channel.channel_busy_event.wait.return_value = False
+        # a signal that is not FreeDATA (no codec2 traffic): BUSY_WAIT s, as CQ answers
+        channel = Channel(busy_for=60)
         iss = make_iss(channel)
-        self.assertTrue(iss.transmit_bursts([b"1"]))
+        with channel.clocked():
+            self.assertTrue(iss.transmit_bursts([b"1"]))
+        self.assertAlmostEqual(channel.clock - channel.start, NormTransmission.BUSY_WAIT, delta=0.3)
         iss.logger.info.assert_any_call("[NORM] Channel still busy after 5s: sending anyway")
+
+    def test_waits_for_another_broadcast_to_finish(self):
+        # on the air: another station's 3-burst broadcast, about 17 s
+        channel = Channel(busy_for=17, freedata_for=17)
+        iss = make_iss(channel)
+        with channel.clocked():
+            self.assertTrue(iss.transmit_bursts([b"1"]))
+        self.assertAlmostEqual(channel.clock - channel.start, 17, delta=0.3)
+        iss.logger.info.assert_any_call("[NORM] Another FreeDATA station is sending: waiting for it to finish")
+        self.assertNotIn(
+            mock.call("[NORM] Channel still busy after 17s: sending anyway"), iss.logger.info.call_args_list
+        )
+
+    def test_busy_after_the_broadcast_ends(self):
+        # the FFT check stays busy a while after FreeDATA traffic ends: up to
+        # FREEDATA_GAP s more, then sent anyway
+        channel = Channel(busy_for=60, freedata_for=17)
+        iss = make_iss(channel)
+        with channel.clocked():
+            iss.transmit_bursts([b"1"])
+        self.assertAlmostEqual(channel.clock - channel.start, 17 + NormTransmission.FREEDATA_GAP, delta=0.3)
+
+    def test_freedata_wait_has_a_limit(self):
+        channel = Channel(busy_for=300, freedata_for=300)
+        iss = make_iss(channel)
+        with channel.clocked():
+            iss.transmit_bursts([b"1"])
+        self.assertAlmostEqual(channel.clock - channel.start, NormTransmission.BUSY_WAIT_FREEDATA, delta=0.3)
+        iss.logger.info.assert_any_call("[NORM] Channel still busy after 90s: sending anyway")
 
 
 class TestNack(NoDelays):

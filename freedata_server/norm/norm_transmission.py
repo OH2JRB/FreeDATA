@@ -48,6 +48,14 @@ class NormTransmission:
     # a sync first) reports it busy. Once free, it is heard for LISTEN_TIME s
     # more before keying up, to notice a station that has just started.
     LISTEN_TIME = 0.5
+    # A busy channel is waited for up to BUSY_WAIT s, but up to
+    # BUSY_WAIT_FREEDATA s while another FreeDATA station is heard (codec2
+    # traffic within the last FREEDATA_GAP s): a broadcast of 3 bursts takes
+    # about 17 s, one of 15 bursts about 90 s, and on the air (2026-11-10) the
+    # second station keyed up after 5 s during the first one's last burst.
+    BUSY_WAIT_FREEDATA = 90
+    FREEDATA_GAP = 3
+    BUSY_POLL = 0.25
 
     def __init__(self, ctx):
         self.logger = structlog.get_logger(type(self).__name__)
@@ -217,29 +225,39 @@ class NormTransmission:
         self.logger.info(f"[NORM] Random delay before transmit: {random_delay:.1f}s")
         threading.Event().wait(random_delay)
 
-        if not self.wait_for_free_channel():
-            self.logger.info(f"[NORM] Channel still busy after {self.BUSY_WAIT}s: sending anyway")
+        self.wait_for_free_channel()  # sends anyway when the channel stays busy
 
         return state.stop_count == stop_count and not state.is_in_session()
 
     def wait_for_free_channel(self):
-        """Waits up to BUSY_WAIT s for the channel to be free and stay free for LISTEN_TIME s.
+        """Waits for the channel to be free and stay free for LISTEN_TIME s.
 
         Free = state_manager.channel_busy_event set: no codec2 traffic and no
-        traffic seen by the FFT check (audio.calculate_fft).
+        traffic seen by the FFT check (audio.calculate_fft). A busy channel is
+        waited for up to BUSY_WAIT s, or up to BUSY_WAIT_FREEDATA s while
+        another FreeDATA station is heard.
 
         Returns:
-            True if it is free; False if it was still busy after BUSY_WAIT s.
+            True if it is free; False if it was still busy after the wait.
         """
         state = self.ctx.state_manager
-        deadline = time.time() + self.BUSY_WAIT
+        start = time.time()
+        last_freedata = None
         while True:
-            if not state.channel_busy_event.wait(max(0.0, deadline - time.time())):
+            if state.channel_busy_event.wait(self.BUSY_POLL):
+                threading.Event().wait(self.LISTEN_TIME)
+                if state.channel_busy_event.is_set():
+                    return True
+                self.logger.info("[NORM] Another station started: waiting for the channel")
+            now = time.time()
+            if state.is_receiving_codec2_signal():
+                if last_freedata is None:
+                    self.logger.info("[NORM] Another FreeDATA station is sending: waiting for it to finish")
+                last_freedata = now
+            hearing_freedata = last_freedata is not None and now - last_freedata < self.FREEDATA_GAP
+            if now - start >= (self.BUSY_WAIT_FREEDATA if hearing_freedata else self.BUSY_WAIT):
+                self.logger.info(f"[NORM] Channel still busy after {now - start:.0f}s: sending anyway")
                 return False
-            threading.Event().wait(self.LISTEN_TIME)
-            if state.channel_busy_event.is_set():
-                return True
-            self.logger.info("[NORM] Another station started: waiting for the channel")
 
     def create_and_transmit_nack_burst(self, origin, id, burst_numbers):
         """Asks the sender of broadcast id for its missing bursts.
