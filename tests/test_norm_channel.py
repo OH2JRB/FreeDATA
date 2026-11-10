@@ -7,7 +7,10 @@
 - a repair logged origin=None and "burst 1/1" instead of the burst it repaired;
 - received bursts and the scheduler printed debug dumps with print();
 - a repair was answered up to 30 attempts while the database stops at 20;
-- sending with the modem stopped called None.transmit.
+- sending with the modem stopped called None.transmit;
+- broadcasts held back by a session went out from both of its stations at
+  once when it ended (random delays of 0 and 1 s; the codec2 busy check had
+  not yet synced on the other station's burst).
 """
 
 import base64
@@ -25,13 +28,15 @@ from freedata_server.norm.norm_transmission_iss import NORM_ISS_State, NormTrans
 
 
 class Channel:
-    """The state_manager parts NORM sending reads: sessions, Stop, codec2 traffic."""
+    """The state_manager parts NORM sending reads: sessions, Stop, the channel busy event."""
 
-    def __init__(self, sessions=()):
+    def __init__(self, sessions=(), free=()):
         self.sessions = list(sessions)  # is_in_session() answers, in turn; then False
         self.stop_count = 0
-        self.channel_busy_condition_codec2 = mock.Mock()
-        self.channel_busy_condition_codec2.wait.return_value = True
+        self.free = list(free)  # channel_busy_event.is_set() answers after listening, in turn; then True
+        self.channel_busy_event = mock.Mock()
+        self.channel_busy_event.wait.return_value = True
+        self.channel_busy_event.is_set.side_effect = lambda: self.free.pop(0) if self.free else True
 
     def is_in_session(self):
         return self.sessions.pop(0) if self.sessions else False
@@ -53,8 +58,9 @@ def logged(iss):
 class NoDelays(unittest.TestCase):
     def setUp(self):
         for patch in (
-            mock.patch.object(norm_transmission.np.random, "randint", return_value=0),
+            mock.patch.object(norm_transmission.np.random, "uniform", return_value=0.0),
             mock.patch.object(NormTransmission, "SESSION_POLL", 0.01),
+            mock.patch.object(NormTransmission, "LISTEN_TIME", 0.0),
         ):
             patch.start()
             self.addCleanup(patch.stop)
@@ -86,18 +92,40 @@ class TestBroadcastAndSessions(NoDelays):
         self.assertEqual(iss.ctx.rf_modem.transmit.call_count, 1)
         self.assertIn("A session started: stopped before burst 2/3", logged(iss))
 
-    def test_waits_for_codec2_traffic_like_cq(self):
+    def test_waits_for_a_free_channel_like_cq(self):
         channel = Channel()
         iss = make_iss(channel)
         iss.transmit_bursts([b"1"])
-        channel.channel_busy_condition_codec2.wait.assert_called_once_with(NormTransmission.BUSY_WAIT)
-        self.assertEqual(NormTransmission.BUSY_WAIT, 5)
+        # channel_busy_event: neither codec2 nor the FFT traffic check reports traffic
+        (timeout,) = channel.channel_busy_event.wait.call_args.args
+        self.assertTrue(4.5 < timeout <= NormTransmission.BUSY_WAIT == 5)
 
     def test_random_delay_up_to_five_seconds(self):
-        channel = Channel()
-        iss = make_iss(channel)
+        iss = make_iss(Channel())
         iss.transmit_bursts([b"1"])
-        norm_transmission.np.random.randint.assert_called_once_with(0, 6)
+        norm_transmission.np.random.uniform.assert_called_once_with(0, 5)
+
+    def test_wider_random_delay_after_a_session(self):
+        iss = make_iss(Channel(sessions=[True, True]))
+        self.assertTrue(iss.transmit_bursts([b"1"]))
+        norm_transmission.np.random.uniform.assert_called_once_with(0, NormTransmission.RANDOM_DELAY_AFTER_SESSION)
+        self.assertEqual(NormTransmission.RANDOM_DELAY_AFTER_SESSION, 15)
+
+    def test_another_station_starts_while_listening(self):
+        # free, but busy again after listening; then free and still free
+        channel = Channel(free=[False, True])
+        iss = make_iss(channel)
+        self.assertTrue(iss.transmit_bursts([b"1"]))
+        self.assertEqual(channel.channel_busy_event.wait.call_count, 2)
+        iss.logger.info.assert_any_call("[NORM] Another station started: waiting for the channel")
+        iss.ctx.rf_modem.transmit.assert_called_once()
+
+    def test_busy_channel_sends_after_the_wait(self):
+        channel = Channel()
+        channel.channel_busy_event.wait.return_value = False
+        iss = make_iss(channel)
+        self.assertTrue(iss.transmit_bursts([b"1"]))
+        iss.logger.info.assert_any_call("[NORM] Channel still busy after 5s: sending anyway")
 
 
 class TestNack(NoDelays):
@@ -120,8 +148,8 @@ class TestNack(NoDelays):
         channel = Channel()
         norm = self.make(channel)
         self.assertTrue(norm.create_and_transmit_nack_burst("AA1AAA-0", "id1", [2]))
-        norm_transmission.np.random.randint.assert_called_once_with(0, 6)
-        channel.channel_busy_condition_codec2.wait.assert_called_once_with(5)
+        norm_transmission.np.random.uniform.assert_called_once_with(0, 5)
+        channel.channel_busy_event.wait.assert_called_once()
         norm.ctx.rf_modem.transmit.assert_called_once_with(FREEDV_MODE.datac4, 1, 200, b"nack")
 
 
