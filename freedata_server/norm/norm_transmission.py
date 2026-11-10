@@ -31,13 +31,23 @@ class NORMMsgPriority(IntEnum):
 class NormTransmission:
     # before keying up: a random delay of 0 to RANDOM_DELAY_MAX s (several
     # stations answering the same frame spread out), then up to BUSY_WAIT s for
-    # codec2 traffic on the channel to end, as CQ answers and raw ARQ sends do
+    # the channel to be free, as CQ answers and raw ARQ sends do
     RANDOM_DELAY_MAX = 5
     BUSY_WAIT = 5
     # a broadcast waits up to SESSION_WAIT s for a running ARQ session or P2P
     # connection to end; it would otherwise key up in the middle of it
     SESSION_WAIT = 300
     SESSION_POLL = 1
+    # Broadcasts held back by a session are released when it ends, on both of
+    # its stations at once: on the air (2026-11-10) random delays of 0 and 1 s
+    # sent both together. After a session the delay is spread over
+    # RANDOM_DELAY_AFTER_SESSION s instead.
+    RANDOM_DELAY_AFTER_SESSION = 15
+    # The channel counts as free when neither codec2 traffic nor the FFT traffic
+    # check (any signal, seen within a fraction of a second, while codec2 needs
+    # a sync first) reports it busy. Once free, it is heard for LISTEN_TIME s
+    # more before keying up, to notice a station that has just started.
+    LISTEN_TIME = 0.5
 
     def __init__(self, ctx):
         self.logger = structlog.get_logger(type(self).__name__)
@@ -184,9 +194,9 @@ class NormTransmission:
         """Waits until this station may key up for NORM traffic.
 
         Waits for a running ARQ session or P2P connection to end (up to
-        session_wait s, default SESSION_WAIT), then a random 0 to
-        RANDOM_DELAY_MAX s, then up to BUSY_WAIT s for codec2 traffic on the
-        channel to end.
+        session_wait s, default SESSION_WAIT), then a random delay (up to
+        RANDOM_DELAY_MAX s, or RANDOM_DELAY_AFTER_SESSION s when it waited for
+        a session), then up to BUSY_WAIT s for a free channel (wait_for_free_channel).
 
         Returns:
             True to send now; False if a session is still running or Stop was
@@ -194,21 +204,42 @@ class NormTransmission:
         """
         state = self.ctx.state_manager
         deadline = time.time() + (self.SESSION_WAIT if session_wait is None else session_wait)
-        if state.is_in_session():
+        held = state.is_in_session()
+        if held:
             self.logger.info("[NORM] Waiting for the running session to end")
         while state.is_in_session():
             if state.stop_count != stop_count or time.time() >= deadline:
                 return False
             threading.Event().wait(self.SESSION_POLL)
 
-        random_delay = np.random.randint(0, self.RANDOM_DELAY_MAX + 1)
-        self.logger.info(f"[NORM] Random delay before transmit: {random_delay}s")
+        spread = self.RANDOM_DELAY_AFTER_SESSION if held else self.RANDOM_DELAY_MAX
+        random_delay = float(np.random.uniform(0, spread))
+        self.logger.info(f"[NORM] Random delay before transmit: {random_delay:.1f}s")
         threading.Event().wait(random_delay)
 
-        if not state.channel_busy_condition_codec2.wait(self.BUSY_WAIT):
+        if not self.wait_for_free_channel():
             self.logger.info(f"[NORM] Channel still busy after {self.BUSY_WAIT}s: sending anyway")
 
         return state.stop_count == stop_count and not state.is_in_session()
+
+    def wait_for_free_channel(self):
+        """Waits up to BUSY_WAIT s for the channel to be free and stay free for LISTEN_TIME s.
+
+        Free = state_manager.channel_busy_event set: no codec2 traffic and no
+        traffic seen by the FFT check (audio.calculate_fft).
+
+        Returns:
+            True if it is free; False if it was still busy after BUSY_WAIT s.
+        """
+        state = self.ctx.state_manager
+        deadline = time.time() + self.BUSY_WAIT
+        while True:
+            if not state.channel_busy_event.wait(max(0.0, deadline - time.time())):
+                return False
+            threading.Event().wait(self.LISTEN_TIME)
+            if state.channel_busy_event.is_set():
+                return True
+            self.logger.info("[NORM] Another station started: waiting for the channel")
 
     def create_and_transmit_nack_burst(self, origin, id, burst_numbers):
         """Asks the sender of broadcast id for its missing bursts.

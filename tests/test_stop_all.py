@@ -177,16 +177,17 @@ class TestNormBurstsStop(unittest.TestCase):
         norm = NormTransmissionISS.__new__(NormTransmissionISS)
         norm.log = mock.Mock()
         norm.logger = mock.Mock()
-        state = types.SimpleNamespace(
-            stop_count=0, channel_busy_condition_codec2=mock.Mock(), is_in_session=lambda: False
-        )
+        state = types.SimpleNamespace(stop_count=0, channel_busy_event=mock.Mock(), is_in_session=lambda: False)
 
         def transmit(*args):
             state.stop_count += 1  # Stop pressed during the first burst
 
         norm.ctx = types.SimpleNamespace(state_manager=state, rf_modem=mock.Mock())
         norm.ctx.rf_modem.transmit.side_effect = transmit
-        with mock.patch.object(norm_transmission.np.random, "randint", return_value=0):
+        with (
+            mock.patch.object(norm_transmission.np.random, "uniform", return_value=0.0),
+            mock.patch.object(norm_transmission.NormTransmission, "LISTEN_TIME", 0.0),
+        ):
             norm.transmit_bursts([b"1", b"2", b"3"])
         self.assertEqual(norm.ctx.rf_modem.transmit.call_count, 1)
 
