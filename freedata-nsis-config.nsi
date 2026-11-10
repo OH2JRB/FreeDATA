@@ -41,8 +41,8 @@ InstallDirRegKey HKCU "Software\FreeDATA" "Install_Dir"
 !define MUI_ABORTWARNING
 
 ; Installer interface settings
-!define MUI_ICON "documentation\icon.ico"
-!define MUI_UNICON "documentation\icon.ico" ; Icon for the uninstaller
+!define MUI_ICON "tools\Windows\icon.ico"
+!define MUI_UNICON "tools\Windows\icon.ico" ; Icon for the uninstaller
 
 ; Define the welcome page text
 !define MUI_WELCOMEPAGE_TEXT "Welcome to the FreeDATA ${VERSION} Setup Wizard. This wizard will guide you through the installation process."
