@@ -252,28 +252,39 @@ class ScheduleManager:
         except Exception as e:
             self.log.warning("[SCHEDULE] error deleting ARQ session", error=e)
 
+    def norm_may_transmit(self):
+        """Group chat is on, the modem runs and no ARQ session or P2P connection is under way.
+
+        NORM traffic (broadcast resends, NACKs) would otherwise key up in the
+        middle of a session; the next check after it sends instead.
+        """
+        return (
+            self.ctx.config_manager.config["EXP"]["enable_groupchat"]
+            and self.ctx.state_manager.is_modem_running
+            and not self.ctx.state_manager.is_in_session()
+        )
+
     def check_missing_broadcast_bursts(self):
-        if self.ctx.config_manager.config["EXP"]["enable_groupchat"] and self.ctx.state_manager.is_modem_running:
-            missing_bursts = DatabaseManagerBroadcasts(self.ctx).check_missing_bursts()
-            print("missing_bursts", missing_bursts)
-            if missing_bursts:
-                # Increment attempts
-                DatabaseManagerBroadcasts(self.ctx).increment_attempts_and_update_next_transmission(
-                    missing_bursts["id"]
-                )
-                myfullcall = (
-                    self.ctx.config_manager.config["STATION"]["mycall"]
-                    + "-"
-                    + str(self.ctx.config_manager.config["STATION"]["myssid"])
-                )
-                NormTransmission(self.ctx).create_and_transmit_nack_burst(
-                    myfullcall, missing_bursts["id"], missing_bursts["missing_bursts"]
-                )
+        if not self.norm_may_transmit():
+            return
+        missing_bursts = DatabaseManagerBroadcasts(self.ctx).check_missing_bursts()
+        if missing_bursts:
+            # Increment attempts
+            DatabaseManagerBroadcasts(self.ctx).increment_attempts_and_update_next_transmission(missing_bursts["id"])
+            myfullcall = (
+                self.ctx.config_manager.config["STATION"]["mycall"]
+                + "-"
+                + str(self.ctx.config_manager.config["STATION"]["myssid"])
+            )
+            NormTransmission(self.ctx).create_and_transmit_nack_burst(
+                myfullcall, missing_bursts["id"], missing_bursts["missing_bursts"]
+            )
 
     def check_queued_messages(self):
-        if self.ctx.config_manager.config["EXP"]["enable_groupchat"] and self.ctx.state_manager.is_modem_running:
-            msg = DatabaseManagerBroadcasts(self.ctx).get_first_queued_message()
-            if msg:
-                self.log.info("[SCHEDULE] Sending broadcast", id=msg.id)
-                DatabaseManagerBroadcasts(self.ctx).increment_attempts_and_update_next_transmission(msg.id)
-                NormTransmissionISS(self.ctx).retransmit_data(msg)
+        if not self.norm_may_transmit():
+            return
+        msg = DatabaseManagerBroadcasts(self.ctx).get_first_queued_message()
+        if msg:
+            self.log.info("[SCHEDULE] Sending broadcast", id=msg.id)
+            DatabaseManagerBroadcasts(self.ctx).increment_attempts_and_update_next_transmission(msg.id)
+            NormTransmissionISS(self.ctx).retransmit_data(msg)

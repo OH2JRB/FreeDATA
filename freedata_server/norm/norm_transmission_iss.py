@@ -9,8 +9,6 @@ import freedata_server.helpers
 from datetime import datetime, timezone, timedelta
 import base64
 from freedata_server.message_system_db_broadcasts import DatabaseManagerBroadcasts
-import threading
-import numpy as np
 
 
 class NORM_ISS_State(Enum):
@@ -79,9 +77,6 @@ class NormTransmissionISS(NormTransmission):
                 burst_info = self.encode_burst_info(burst_number, total_bursts)
                 checksum = freedata_server.helpers.get_crc_24(full_data)
                 is_last = burst_number == total_bursts
-                print("message type", self.message_type)
-                print("priority", self.priority)
-                print("is_last", is_last)
                 flags = self.encode_flags(self.message_type, self.priority, is_last)
                 burst_frame = self.frame_factory.build_norm_data(
                     origin=self.origin,
@@ -102,6 +97,7 @@ class NormTransmissionISS(NormTransmission):
                 bursts.append(burst_frame)
 
             self.log(f"All bursts created successfully (total={total_bursts})")
+            self.set_burst_labels("burst", list(range(1, total_bursts + 1)), total_bursts)
             return bursts
 
         except Exception as e:
@@ -127,6 +123,8 @@ class NormTransmissionISS(NormTransmission):
                 raise ValueError("Missing required fields")
 
             checksum = bytes.fromhex(checksum_hex)
+            self.origin = db_msg_obj["origin"]
+            self.domain = db_msg_obj["domain"]
             repair_bursts = []
 
             for burst_number in burst_numbers:
@@ -163,35 +161,65 @@ class NormTransmissionISS(NormTransmission):
                 repair_bursts.append(burst_frame)
 
             self.log(f"All repair bursts created successfully (count={len(repair_bursts)})")
+            self.set_burst_labels("repair burst", list(burst_numbers), total_bursts)
             return repair_bursts
 
         except Exception as e:
             self.log(f"Error in create_repair: {e}", isWarning=True)
             raise
 
+    def set_burst_labels(self, kind, burst_numbers, total_bursts):
+        """What transmit_bursts logs for each burst: "<kind> <number>/<total>"."""
+        self.burst_kind = kind
+        self.burst_numbers = burst_numbers
+        self.total_bursts = total_bursts
+
     def transmit_bursts(self, bursts):
+        """Sends the bursts once the channel is clear (wait_for_channel).
+
+        Stops before the next burst when Stop is pressed (stop_all) or an ARQ
+        session or P2P connection starts; a broadcast is then sent again by the
+        scheduled resend, a repair when the receiver asks again.
+
+        Returns:
+            True if every burst was sent.
+        """
         try:
             if not bursts:
                 self.log("No bursts to transmit", isWarning=True)
-                return
+                return False
 
-            # a Stop during the delay or between bursts ends the transmission (stop_all)
+            kind = getattr(self, "burst_kind", "burst")
+            numbers = getattr(self, "burst_numbers", None) or list(range(1, len(bursts) + 1))
+            total = getattr(self, "total_bursts", None) or len(bursts)
+
+            if getattr(self.ctx, "rf_modem", None) is None:
+                self.log(f"Not sent: the modem is not running ({len(bursts)} {kind}s)", isWarning=True)
+                return False
+
             stop_count = self.ctx.state_manager.stop_count
-            random_delay = np.random.randint(0, 6)
-            self.log(f"Random delay before transmit: {random_delay}s")
-            threading.Event().wait(random_delay)
+            if not self.wait_for_channel(stop_count):
+                self.log(
+                    f"Not sent: a session is still running or Stop was pressed ({len(bursts)} {kind}s)", isWarning=True
+                )
+                return False
 
-            self.log("Waiting for channel busy condition")
-            self.ctx.state_manager.channel_busy_condition_codec2.wait(0.5)
-
-            for i, burst in enumerate(bursts, 1):
+            for burst, number in zip(bursts, numbers):
                 if self.ctx.state_manager.stop_count != stop_count:
-                    self.log(f"Stopped before burst {i}/{len(bursts)}", isWarning=True)
-                    return
-                self.ctx.rf_modem.transmit(FREEDV_MODE.datac4, 1, 200, burst)
-                self.log(f"Transmitted burst {i}/{len(bursts)} (size={len(burst)})")
+                    self.log(f"Stopped before {kind} {number}/{total}", isWarning=True)
+                    return False
+                if self.ctx.state_manager.is_in_session():
+                    self.log(f"A session started: stopped before {kind} {number}/{total}", isWarning=True)
+                    return False
+                modem = self.ctx.rf_modem
+                if modem is None:  # stopped or restarting, as after a settings change
+                    self.log(f"The modem stopped: stopped before {kind} {number}/{total}", isWarning=True)
+                    return False
+                modem.transmit(FREEDV_MODE.datac4, 1, 200, burst)
+                self.log(f"Transmitted {kind} {number}/{total} (size={len(burst)})")
 
-            self.log("All bursts transmitted successfully")
+            self.log(f"All {kind}s transmitted successfully")
+            return True
 
         except Exception as e:
             self.log(f"Error in transmit_bursts: {e}", isWarning=True)

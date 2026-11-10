@@ -1,4 +1,4 @@
-import base64
+import threading
 
 from freedata_server.modem_frametypes import FRAME_TYPE as FR
 from freedata_server import frame_handler
@@ -9,10 +9,6 @@ from freedata_server.norm.norm_transmission_iss import NormTransmissionISS
 
 class NORMFrameHandler(frame_handler.FrameHandler):
     def follow_protocol(self):
-        # self.logger.debug(f"[NORM] handling burst:{self.details}")
-
-        # origin = self.details["frame"]["origin"]
-        # print(origin)
         frame = self.details["frame"]
 
         if frame["frame_type_int"] == FR.NORM_DATA.value:
@@ -22,38 +18,45 @@ class NORMFrameHandler(frame_handler.FrameHandler):
             NormTransmissionIRS(self.ctx, frame)
 
         elif frame["frame_type_int"] == FR.NORM_NACK.value:
-            try:
-                print(str(frame["id"]))
-                print(frame["id"].decode("utf-8"))
-                broadcast = DatabaseManagerBroadcasts(self.ctx).get_broadcast_per_id(frame["id"].decode("utf-8"))
-                if broadcast is not None:
-                    # only repair broadcasts we have sent ourselves, not ones we only received
-                    if broadcast.get("direction") != "transmit":
-                        self.logger.info(
-                            "[NORM] ignoring NACK for broadcast not originated by us",
-                            id=broadcast["id"],
-                            nack_origin=frame.get("origin"),
-                        )
-                        return
-                    if broadcast["attempts"] >= 30:
-                        print("maximum attempts reached...")
-                        return
-                    DatabaseManagerBroadcasts(self.ctx).increment_attempts(broadcast["id"])
-                    _data = base64.b64decode(broadcast["payload_data"]["final"])
-                    print(broadcast)
-                    print("oring", broadcast["origin"])
-                    print("domain", broadcast["domain"])
-                    # print("gridsquare", broadcast["gridsquare"])
-                    # print("payload_data", broadcast["payload_data"]["final"])
-                    # print("priority", broadcast["priority"])
-                    # print("message_type", broadcast["msg_type"])
-                    # print("frame:", frame)
-                    # print("missing bursts:", frame["burst_numbers"])
-                    # NormTransmissionISS(self.ctx, broadcast["origin"], broadcast["domain"], broadcast["gridsquare"], data, priority=broadcast["priority"], message_type=broadcast["msg_type"], send_only_bursts=frame["burst_numbers"]).prepare_and_transmit()
-                    repair_bursts = NormTransmissionISS(self.ctx).create_repair(broadcast, frame["burst_numbers"])
-                    NormTransmissionISS(self.ctx).transmit_bursts(repair_bursts)
-            except Exception as e:
-                print(e)
+            self.answer_nack(frame)
         else:
             self.logger.warning("DISCARDING FRAME", frame=frame)
             return
+
+    def answer_nack(self, frame):
+        """Sends the bursts a receiver asks for, if the broadcast is our own.
+
+        The repair waits for a clear channel (NormTransmission.wait_for_channel),
+        so it runs in its own thread rather than holding up the receive worker.
+        """
+        try:
+            broadcast_id = frame["id"].decode("utf-8")
+            db = DatabaseManagerBroadcasts(self.ctx)
+            broadcast = db.get_broadcast_per_id(broadcast_id)
+            if broadcast is None:
+                self.logger.debug("[NORM] NACK for a broadcast we do not have", id=broadcast_id)
+                return
+            # only repair broadcasts we have sent ourselves, not ones we only received
+            if broadcast.get("direction") != "transmit":
+                self.logger.info(
+                    "[NORM] ignoring NACK for broadcast not originated by us",
+                    id=broadcast["id"],
+                    nack_origin=frame.get("origin"),
+                )
+                return
+            # repairs and scheduled resends share the attempts counter and its limit
+            if (broadcast["attempts"] or 0) >= db.MAX_ATTEMPTS:
+                self.logger.info("[NORM] NACK not answered: maximum attempts reached", id=broadcast["id"])
+                return
+            db.increment_attempts(broadcast["id"])
+            self.logger.info(
+                "[NORM] NACK received",
+                id=broadcast["id"],
+                nack_origin=frame.get("origin"),
+                missing=frame["burst_numbers"],
+            )
+            iss = NormTransmissionISS(self.ctx)
+            repair_bursts = iss.create_repair(broadcast, frame["burst_numbers"])
+            threading.Thread(target=iss.transmit_bursts, args=(repair_bursts,), name="NORM repair", daemon=True).start()
+        except Exception as e:
+            self.logger.warning("[NORM] could not answer NACK", error=str(e))

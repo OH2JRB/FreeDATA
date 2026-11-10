@@ -9,12 +9,10 @@ class NormTransmissionIRS(NormTransmission):
     MAX_PAYLOAD_SIZE = 26
 
     def __init__(self, ctx, frame):
-        self.ctx = ctx
+        super().__init__(ctx)
 
         if not self.ctx.config_manager.config["EXP"]["enable_groupchat"]:
             return
-
-        print("burst:", frame)
 
         is_last, msg_type, priority = self.decode_flags(frame["flag"])
         burst_number, total_bursts = self.decode_burst_info(frame["burst_info"])
@@ -26,7 +24,6 @@ class NormTransmissionIRS(NormTransmission):
 
         if is_last:  #
             end = self.MAX_PAYLOAD_SIZE - ((total_bursts * self.MAX_PAYLOAD_SIZE) - payload_size)
-            print(end)
             payload_data = payload_data[:end]
 
         # payload_data = payload_data[:payload_size]
@@ -36,26 +33,21 @@ class NormTransmissionIRS(NormTransmission):
         self.gridsquare = frame["gridsquare"]
         self.checksum = frame["checksum"]
         self.timestamp = frame["timestamp"]
-        print("####################################")
-        print("payload_size:", payload_size)
-        print("payload_data:", payload_data)
-        print("origin", self.origin)
-        print("domain", self.domain)
-        print("gridsquare", self.gridsquare)
-        print("is_last", is_last)
-        print("msg_type", msg_type)
-        print("priority", priority)
-        print("burst_number", burst_number)
-        print("total_bursts", total_bursts)
-        print("checksum", self.checksum)
-        print("timestamp", self.timestamp)
 
         payload_b64 = base64.b64encode(payload_data).decode("ascii")
-        print("payload_b64", payload_b64)
 
         self.id = self.create_broadcast_id(self.timestamp, self.domain, self.checksum)
-        print("id", self.id)
-        print("len-id", len(self.id))
+        self.logger.debug(
+            "[NORM] burst received",
+            id=self.id,
+            origin=self.origin,
+            domain=self.domain,
+            burst=f"{burst_number}/{total_bursts}",
+            msg_type=msg_type.name,
+            priority=priority,
+            is_last=is_last,
+            payload_size=payload_size,
+        )
 
         expires_at = datetime.now(timezone.utc) + timedelta(days=1)
         expires_at = expires_at.timestamp()
@@ -83,4 +75,4 @@ class NormTransmissionIRS(NormTransmission):
         )
 
         if not success:
-            print("Failed to process burst in database.")
+            self.logger.warning("[NORM] could not store the burst in the database", id=self.id)

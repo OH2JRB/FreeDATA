@@ -2,9 +2,11 @@
 
 
 import structlog
+import threading
 import time
 from enum import IntEnum
 import hashlib
+import numpy as np
 from freedata_server.codec2 import FREEDV_MODE
 from freedata_server.data_frame_factory import DataFrameFactory
 
@@ -27,6 +29,16 @@ class NORMMsgPriority(IntEnum):
 
 
 class NormTransmission:
+    # before keying up: a random delay of 0 to RANDOM_DELAY_MAX s (several
+    # stations answering the same frame spread out), then up to BUSY_WAIT s for
+    # codec2 traffic on the channel to end, as CQ answers and raw ARQ sends do
+    RANDOM_DELAY_MAX = 5
+    BUSY_WAIT = 5
+    # a broadcast waits up to SESSION_WAIT s for a running ARQ session or P2P
+    # connection to end; it would otherwise key up in the middle of it
+    SESSION_WAIT = 300
+    SESSION_POLL = 1
+
     def __init__(self, ctx):
         self.logger = structlog.get_logger(type(self).__name__)
         self.ctx = ctx
@@ -168,6 +180,54 @@ class NormTransmission:
         digest = hashlib.blake2b(base_str, digest_size=length // 2).hexdigest()  # 1 hex char = 4 bits
         return f"{digest}"
 
+    def wait_for_channel(self, stop_count, session_wait=None):
+        """Waits until this station may key up for NORM traffic.
+
+        Waits for a running ARQ session or P2P connection to end (up to
+        session_wait s, default SESSION_WAIT), then a random 0 to
+        RANDOM_DELAY_MAX s, then up to BUSY_WAIT s for codec2 traffic on the
+        channel to end.
+
+        Returns:
+            True to send now; False if a session is still running or Stop was
+            pressed (stop_count changed) meanwhile.
+        """
+        state = self.ctx.state_manager
+        deadline = time.time() + (self.SESSION_WAIT if session_wait is None else session_wait)
+        if state.is_in_session():
+            self.logger.info("[NORM] Waiting for the running session to end")
+        while state.is_in_session():
+            if state.stop_count != stop_count or time.time() >= deadline:
+                return False
+            threading.Event().wait(self.SESSION_POLL)
+
+        random_delay = np.random.randint(0, self.RANDOM_DELAY_MAX + 1)
+        self.logger.info(f"[NORM] Random delay before transmit: {random_delay}s")
+        threading.Event().wait(random_delay)
+
+        if not state.channel_busy_condition_codec2.wait(self.BUSY_WAIT):
+            self.logger.info(f"[NORM] Channel still busy after {self.BUSY_WAIT}s: sending anyway")
+
+        return state.stop_count == stop_count and not state.is_in_session()
+
     def create_and_transmit_nack_burst(self, origin, id, burst_numbers):
+        """Asks the sender of broadcast id for its missing bursts.
+
+        Returns:
+            True if the NACK was sent; False if a session was running or Stop
+            was pressed, in which case the next scheduled check asks again.
+        """
+        if getattr(self.ctx, "rf_modem", None) is None:
+            self.logger.info(f"[NORM] NACK for {id} not sent: the modem is not running")
+            return False
+        if not self.wait_for_channel(self.ctx.state_manager.stop_count, session_wait=0):
+            self.logger.info(f"[NORM] NACK for {id} not sent: a session is running or Stop was pressed")
+            return False
         burst = self.frame_factory.build_norm_nack(origin, id, burst_numbers)
-        self.ctx.rf_modem.transmit(FREEDV_MODE.datac4, 1, 200, burst)
+        modem = self.ctx.rf_modem
+        if modem is None:  # stopped while waiting for the channel
+            self.logger.info(f"[NORM] NACK for {id} not sent: the modem stopped")
+            return False
+        modem.transmit(FREEDV_MODE.datac4, 1, 200, burst)
+        self.logger.info(f"[NORM] NACK sent for {id}, missing bursts {list(burst_numbers)}")
+        return True
