@@ -172,22 +172,57 @@ class ScheduleManager:
         except Exception as e:
             self.log.warning("[SCHEDULE] PSK Reporter upload failed", error=e)
 
+    # A channel kept busy only by signals that are not FreeDATA's (a carrier,
+    # another digital mode, local noise) stops the queue for at most this long.
+    # On the air on 2026-11-12 a steady signal near 7.0547 MHz, heard only by
+    # one station, kept its channel busy for good and a queued message never
+    # went out, while a message sent directly goes after a 10 s check.
+    QUEUE_BUSY_MAX_WAIT = 60
+
+    queue_busy_since = None
+
+    def queue_channel_free(self):
+        """True if the queue may send now as far as the channel goes.
+
+        A free channel (channel_busy_event set) always is. Codec2 traffic,
+        another FreeDATA station, always holds the queue. A channel busy only
+        from other signals holds it for QUEUE_BUSY_MAX_WAIT seconds in a row,
+        then lets it send; SendMessageCommand still checks for codec2 traffic
+        for 10 s before keying up."""
+        state = self.ctx.state_manager
+        if state.channel_busy_event.is_set():  # set == channel available
+            self.queue_busy_since = None
+            return True
+        if state.is_receiving_codec2_signal():
+            self.queue_busy_since = None
+            return False
+        now = time.time()
+        if self.queue_busy_since is None:
+            self.queue_busy_since = now
+            return False
+        return now - self.queue_busy_since >= self.QUEUE_BUSY_MAX_WAIT
+
     def check_for_queued_messages(self):
         """Checks for and sends queued messages.
 
         This method checks for queued messages in the database and transmits
         the first queued message if the freedata_server is running, not currently
-        transmitting other data (ARQ or Codec2), and a queued message is
-        available. It handles potential exceptions during message retrieval
-        and transmission.
+        transmitting other data (ARQ or Codec2), the channel allows it
+        (queue_channel_free) and a queued message is available. It handles
+        potential exceptions during message retrieval and transmission.
         """
         if (
             not self.ctx.state_manager.getARQ()
-            and self.ctx.state_manager.channel_busy_event.is_set()  # set == channel available
             and self.ctx.state_manager.is_modem_running
+            and self.queue_channel_free()
         ):
             try:
                 if first_queued_message := DatabaseManagerMessages(self.ctx).get_first_queued_message():
+                    if self.queue_busy_since is not None:
+                        self.log.warning(
+                            "[SCHEDULE] Channel busy from non-FreeDATA signals, sending queued message anyway",
+                            busy_for=round(time.time() - self.queue_busy_since),
+                        )
                     command = command_message_send.SendMessageCommand(self.ctx, first_queued_message)
                     command.transmit()
             except Exception as e:
