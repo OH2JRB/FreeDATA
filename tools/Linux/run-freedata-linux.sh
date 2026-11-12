@@ -15,6 +15,11 @@
 # We expect the config.ini file to be at $HOME/.config/FreeDATA/config.ini
 # If it isn't found, we copy config.ini.example there
 #
+# 1.10: 12 Nov 2026
+#	Start the server in its own session (setsid): Ctrl-C in the terminal
+#	reached the server and the rigctld it started directly, and the trap
+#	below sent the server a second SIGINT, which made it skip its own
+#	shutdown; rigctld died before FreeDATA could release PTT
 # 1.9:  09 May 2025 (deej)
 #	Add a check to make sure the FD server terminated properly
 # 1.8:  22 May 2024 (DJ2LS)
@@ -91,7 +96,12 @@ then
 	cp $serverdir/config.ini.example $HOME/.config/FreeDATA/config.ini
 fi
 
-FREEDATA_CONFIG=$HOME/.config/FreeDATA/config.ini FREEDATA_DATABASE=$HOME/.config/FreeDATA/freedata-messages.db python3 $serverdir/server.py > FreeDATA-server.log 2>&1 &
+# In its own session, so a Ctrl-C in this terminal reaches only this script,
+# whose trap (ctrl_c) sends the server one SIGINT; the server then stops its
+# sessions, the modem and the rigctld it started, in that order. setsid does
+# not fork here (the server is not a process group leader), so $! is the
+# server's PID.
+FREEDATA_CONFIG=$HOME/.config/FreeDATA/config.ini FREEDATA_DATABASE=$HOME/.config/FreeDATA/freedata-messages.db setsid python3 $serverdir/server.py > FreeDATA-server.log 2>&1 &
 serverpid=$!
 echo "Process ID of FreeDATA server is" $serverpid
 

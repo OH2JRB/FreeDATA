@@ -99,7 +99,7 @@ A full run takes about a minute. Both commands exit non-zero when a test fails.
 | `test_norm_channel.py` | NORM traffic and the channel: no broadcast, resend, NACK or repair during an ARQ session or P2P connection; the random delay (0-15 s after a session); waiting for `channel_busy_event`, listening 0.5 s, up to 90 s while another FreeDATA station is heard (fake clock); repair log labels; the attempt limit; no `print()`; no modem | no (fake state) |
 | `test_p2p_fsk.py` | P2P connections falling back to `data_fsk4_50` after two unanswered attempts of a frame, and when a frame arrives in FSK | no (mock context) |
 | `test_request_guard.py` | `RequestGuard`: other web sites cannot use the API, the GUI and scripts can | no (`TestClient`, local socket) |
-| `test_shutdown_guard.py` | The exit guard names threads that would keep the server process alive ([architecture.md](architecture.md), section 1.2) | no |
+| `test_shutdown_guard.py` | The exit guard names threads that would keep the server process alive, and a second SIGINT right after the first does not force the exit (`Server`: one Ctrl-C arrives twice through a launcher; a later one still forces it) ([architecture.md](architecture.md), section 1.2) | no |
 | `test_signal_detector.py` | `SignalDetector` finds transmissions by their power, and ARQ sessions use it where codec2 reports nothing (on `hl_disturbed` the OFDM modes do not sync) | no |
 | `test_stop_all.py` | The Stop button (`stop_all`): every transmission stops, the transmit queues are emptied, queued and transmitting messages and broadcasts become `aborted`; no NORM burst after the stop | no (mock context) |
 

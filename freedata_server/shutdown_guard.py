@@ -14,8 +14,42 @@ import threading
 import time
 
 import structlog
+import uvicorn
 
 log = structlog.get_logger("shutdown_guard")
+
+
+class Server(uvicorn.Server):
+    """uvicorn's Server, but a second SIGINT within DUPLICATE_SIGINT_SECONDS of
+    the first does not force the exit.
+
+    uvicorn takes a second SIGINT as "force quit": it skips the lifespan
+    shutdown, so FreeDATA's own shutdown (AppContext.shutdown: sessions,
+    scheduler, modem, radio) never runs, and the non-daemon scheduler thread
+    then holds the process until exit_if_threads_hang. Ctrl-C in a terminal
+    sends one SIGINT to the whole process group, and launchers forward it as
+    well (run-freedata-linux.sh's trap), so one Ctrl-C arrives twice. On the air
+    on 2026-11-12 (tests S1 and S2) both stops went this way. A Ctrl-C pressed
+    again later still forces the exit.
+    """
+
+    DUPLICATE_SIGINT_SECONDS = 2.0
+
+    first_exit_signal_time = None
+
+    def handle_exit(self, sig, frame):
+        now = time.monotonic()
+        if (
+            sig == signal.SIGINT
+            and self.should_exit
+            and self.first_exit_signal_time is not None
+            and now - self.first_exit_signal_time < self.DUPLICATE_SIGINT_SECONDS
+        ):
+            log.info("[SHUTDOWN] Second stop signal right after the first, shutting down normally")
+            return
+        if not self.should_exit:
+            self.first_exit_signal_time = now
+        super().handle_exit(sig, frame)
 
 
 def _raise_keyboard_interrupt(signum, frame):
