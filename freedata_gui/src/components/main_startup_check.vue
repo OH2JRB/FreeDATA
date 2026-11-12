@@ -364,7 +364,7 @@
 
 <script setup>
 import { Modal } from 'bootstrap/dist/js/bootstrap.esm.min.js';
-import { onMounted, ref } from 'vue';
+import { onBeforeUnmount, onMounted, ref } from 'vue';
 
 // Pinia setup
 import { setActivePinia } from 'pinia';
@@ -409,8 +409,34 @@ onMounted(() => {
     }
   });
 
-  new Modal('#modemCheck', {}).show();
+  // Open the dialog on startup only when something needs attention. The
+  // server state and the settings arrive over the network after the page
+  // loads, so decide after a short wait instead of right away. The navbar
+  // button still opens the dialog at any time.
+  startupCheckTimer = setTimeout(() => {
+    startupCheckTimer = null;
+    if (!allChecksGreen()) {
+      new Modal('#modemCheck', {}).show();
+    }
+  }, STARTUP_CHECK_DELAY_MS);
 });
+
+onBeforeUnmount(() => {
+  if (startupCheckTimer) clearTimeout(startupCheckTimer);
+});
+
+// How long after page load the startup check decides whether to open the dialog
+const STARTUP_CHECK_DELAY_MS = 5000;
+let startupCheckTimer = null;
+
+// True when the network, modem and radio control badges would all be green
+function allChecksGreen() {
+  return (
+    state.modem_connection === 'connected' &&
+    state.is_modem_running === true &&
+    getRigControlStatus() === true
+  );
+}
 
 /*
 const copyToClipboard = () => {

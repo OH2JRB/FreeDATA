@@ -134,7 +134,7 @@ Rendered inside `main_modals`, id `#modemCheck`, static backdrop (cannot be clos
 
 On mount, in this order:
 1. `getSysInfo()` (a single `GET /version`) fills `state.api_version`, `modem_version`, `os_info`, `python_info`. If the request fails (all fields `"N/A"`) and values were already loaded (for example by `loadAllData()`), they are not overwritten.
-2. `new Modal('#modemCheck').show()` - the modal is **opened on every page load**, regardless of health.
+2. After 5 s (`STARTUP_CHECK_DELAY_MS`, so the `/states` frame and the config have time to arrive) the modal opens **only if a check is not green**: the network is not `"connected"`, the modem is not running, or radio control is offline (the same tests as the badges below). When all three are green it stays closed.
 
 It can be reopened at any time via the health button in the left navbar.
 
@@ -157,7 +157,7 @@ What the user sees on failure: the modal just shows red badges ("disconnected", 
 
 | Modal id | Opened by | What it does | API |
 |---|---|---|---|
-| `#modemCheck` | auto on mount; left-navbar health button | Startup/system check (section 2) | `GET /version`, `/modem/start`, `/modem/stop`, `GET /radio` (Test Hamlib), `POST /config` |
+| `#modemCheck` | on page load when a check is not green (section 2); left-navbar health button | Startup/system check (section 2) | `GET /version`, `/modem/start`, `/modem/stop`, `GET /radio` (Test Hamlib), `POST /config` |
 | `#dxStationInfoModal` | `chat_screen.vue`, `grid/grid_active_heard_stations.vue` | Read-only list of `station.stationInfo.info` for a remote station, plus a "preview" note | (data loaded by the opener) |
 | `#deleteChatModal` | graph button in the `chat_screen.vue` header (also reloads the beacon data of the selected callsign with `loadBeaconData()`) | Beacon SNR histogram (Bar chart from `chat.beaconLabelArray` / `beaconDataArray`) and "Delete chat" button -> `deleteCallsignFromDB(chat.selectedCallsign)` | via [messagesHandler.js](../src/js/messagesHandler.js) |
 | `#deleteBroadcastModal` | graph button in the `broadcasts_screen.vue` header (opens the modal only) | Header shows `broadcast.selectedDomain`; "Delete broadcast domain" -> `deleteBroadcastDomainFromDB(broadcast.selectedDomain)` | via [broadcastsHandler.js](../src/js/broadcastsHandler.js) |
@@ -387,9 +387,8 @@ Observed in code; not runtime-verified unless stated.
 
 1. **Every non-GUI setting change restarts the modem.** `POST /config` queues a restart whenever a section other than `GUI` changed (server side, [config.py](../../freedata_server/api/config.py)); GUI-only keys no longer restart. There is no debounce or batching; each `@change` posts the full config, and the resulting `restarted` event runs `loadAllData()` again.
 2. **Config reloads are frequent.** `getRemote()` no longer POSTs, but it still runs through `loadAllData()` on every `/states` (re)connect, on modem `started`/`restarted` and on every left-navbar click, so the full config (and messages, devices, radio status) is re-fetched each time.
-3. **Startup check modal always opens** on every page load, even when everything is healthy.
-4. **Unreachable or dead UI**: the station info button in the left navbar is hard-coded `disabled`, so `#stationInfoModal` cannot be opened from the UI. The Hamlib "Rigctld command" field is disabled and never filled, and its copy button has no handler.
-5. **Shared keys across tabs**: `RADIO.ptt_port`, `serial_dtr` and `serial_rts` are edited both in Hamlib and in Serial PTT, with different labels (`OFF`/`ON` vs `LOW`/`HIGH`). `RADIO.serial_port` / `ptt_port` each have both a select and a free-text input bound to the same key.
-6. **Invalid callsign revert depends on the server.** `validateCall()` reverts an invalid callsign by calling `getRemote()`. If that GET fails, the invalid value stays in the store; the next save is then rejected by the server (400, shown as a toast) and the config is reloaded.
-7. **Number-field handling is duplicated.** `rememberNumber` / `onNumberChange` are copied into four components (`settings_modem.vue`, `settings_hamlib.vue`, `settings_flrig.vue`, `settings_chat.vue`) instead of living in a shared helper. Other numeric values are selects or ranges and are not covered.
-8. **`wf_theme` type**: stored as a string from the select but defaults to the number `2`.
+3. **Unreachable or dead UI**: the station info button in the left navbar is hard-coded `disabled`, so `#stationInfoModal` cannot be opened from the UI. The Hamlib "Rigctld command" field is disabled and never filled, and its copy button has no handler.
+4. **Shared keys across tabs**: `RADIO.ptt_port`, `serial_dtr` and `serial_rts` are edited both in Hamlib and in Serial PTT, with different labels (`OFF`/`ON` vs `LOW`/`HIGH`). `RADIO.serial_port` / `ptt_port` each have both a select and a free-text input bound to the same key.
+5. **Invalid callsign revert depends on the server.** `validateCall()` reverts an invalid callsign by calling `getRemote()`. If that GET fails, the invalid value stays in the store; the next save is then rejected by the server (400, shown as a toast) and the config is reloaded.
+6. **Number-field handling is duplicated.** `rememberNumber` / `onNumberChange` are copied into four components (`settings_modem.vue`, `settings_hamlib.vue`, `settings_flrig.vue`, `settings_chat.vue`) instead of living in a shared helper. Other numeric values are selects or ranges and are not covered.
+7. **`wf_theme` type**: stored as a string from the select but defaults to the number `2`.
