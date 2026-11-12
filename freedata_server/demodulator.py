@@ -249,16 +249,14 @@ class Demodulator:
         for frame in [f for f in data["fsk_pending"] if f["release"] <= early.time]:
             data["fsk_pending"].remove(frame)
             self.log.debug("[MDM] [demod_audio] FSK frame decoded early", mode_name=data["name"])
-            self.ctx.rf_modem.data_queue_received.put(
-                {
-                    "payload": self.unwhiten(mode, frame["payload"]),
-                    "freedv": data["instance"],
-                    "bytes_per_frame": data["bytes_per_frame"],
-                    "snr": frame["snr"],
-                    "frequency_offset": frame["frequency_offset"],
-                    "mode_name": data["name"],
-                }
-            )
+            self.ctx.rf_modem.data_queue_received.put({
+                "payload": self.unwhiten(mode, frame["payload"]),
+                "freedv": data["instance"],
+                "bytes_per_frame": data["bytes_per_frame"],
+                "snr": frame["snr"],
+                "frequency_offset": frame["frequency_offset"],
+                "mode_name": data["name"],
+            })
 
     def take_decode_failures(self, modes) -> int:
         """Returns how many frames of these modes were found but could not be decoded
