@@ -40,7 +40,7 @@ Download a release from this fork's [Releases](https://github.com/OH2JRB/FreeDAT
 
 Other ways to install:
 
-- **Linux, including Raspberry Pi:** [tools/Linux/install-freedata-linux.sh](tools/Linux/install-freedata-linux.sh) builds codec2 and Hamlib for the machine and installs from this fork
+- **Linux, including Raspberry Pi:** [tools/Linux/install-freedata-linux.sh](tools/Linux/install-freedata-linux.sh) builds codec2 and Hamlib for the machine and installs from this fork; run it again to update, which also refreshes `run-freedata-linux.sh` and the installer itself
 - **macOS:** [tools/macOS](tools/macOS)
 - **Docker:** `ghcr.io/oh2jrb/freedata`, see [README.docker.md](README.docker.md)
 
