@@ -348,7 +348,7 @@ stateDiagram-v2
 
 | Job | Interval | Behaviour |
 |---|---|---|
-| `check_for_queued_messages` | 15 s | If no ARQ, channel available (`channel_busy_event` set), modem running: take `get_first_queued_message()`, construct `SendMessageCommand(ctx, first_queued_message)` and call `transmit()` |
+| `check_for_queued_messages` | 15 s | If no ARQ, modem running and the channel allows it (`queue_channel_free`: free, i.e. `channel_busy_event` set, or busy only from signals that are not codec2 traffic for `QUEUE_BUSY_MAX_WAIT` = 60 s in a row, after which it logs "sending queued message anyway"; codec2 traffic from another FreeDATA station always holds the queue): take `get_first_queued_message()`, construct `SendMessageCommand(ctx, first_queued_message)` and call `transmit()` |
 | `beacon_cleanup` | 600 s | `beacon_cleanup_older_than_days(2)` |
 | `check_missing_broadcast_bursts` | 20 s | Broadcast NACK handling (section 7) |
 | `check_queued_messages` | 20 s | Broadcast (re)transmission (section 7) |

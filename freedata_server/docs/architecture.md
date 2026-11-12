@@ -519,7 +519,7 @@ when the scheduler starts.
 
 | Job | Interval (s) | Condition | Action |
 |---|---|---|---|
-| `check_for_queued_messages` | 15 | `not getARQ()`, `channel_busy_event.is_set()` (channel available), modem running | `DatabaseManagerMessages.get_first_queued_message()` -> `SendMessageCommand(ctx, msg).transmit()` |
+| `check_for_queued_messages` | 15 | `not getARQ()`, modem running, `queue_channel_free()`: channel available (`channel_busy_event` set), or busy only from non-codec2 signals for `QUEUE_BUSY_MAX_WAIT` (60 s) in a row; codec2 traffic always holds the queue | `DatabaseManagerMessages.get_first_queued_message()` -> `SendMessageCommand(ctx, msg).transmit()` |
 | `explorer_publishing` | 60 | `STATION.enable_explorer` and modem running | `explorer.Explorer(ctx).push()` |
 | `pskreporter_upload` | 60 | `ctx.pskreporter.enabled`; `flush()` itself uploads at most every 300 s | `ctx.pskreporter.flush()` sends pending spots to PSK Reporter |
 | `transmitting_beacon` | 600 | not ARQ busy, `is_beacon_running`, modem running | `command_beacon.BeaconCommand(ctx).run()` |
