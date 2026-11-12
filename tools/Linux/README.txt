@@ -22,6 +22,11 @@ bash install-freedata-linux.sh
 or to install from the develop FreeDATA branch, run:
 bash install-freedata-linux.sh develop
 
+To update, run the install script again in the same directory. At the end
+it replaces run-freedata-linux.sh and itself with the versions it just
+downloaded; a copy that differed is kept as run-freedata-linux.sh.old or
+install-freedata-linux.sh.old.
+
 
 To run the FreeDATA software:
 

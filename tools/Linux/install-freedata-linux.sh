@@ -45,6 +45,11 @@
 #
 #
 # Changelog:
+# 2.16:	12 Nov 2026
+#	Copy run-freedata-linux.sh and this script from the downloaded version
+#	into the install directory at the end, keeping a differing copy as
+#	<name>.old; before, fixes to them never reached an existing install
+#
 # 2.15:	3 Nov 2026
 #	Check the SHA-256 of the nvm installer and the Hamlib tarball before
 #	using them; for a Hamlib version other than the default, against the
@@ -527,3 +532,35 @@ python -m pip install . || pip_failed
 
 # Return to the directory we started in
 cd ..
+
+# The run script and this install script are downloaded once, next to the
+# FreeDATA directory (README.txt), and nothing updated them since: a fix to
+# either never reached an existing install (the run script's setsid of
+# 12 Nov 2026 did not). Copy both from the version just downloaded. A copy
+# that differs (local changes, or simply older) is kept as <name>.old.
+# Each goes in by renaming a new file over it, so this script can replace
+# itself while bash still reads the old file.
+echo "*************************************************************************"
+echo "Updating the run and install scripts in this directory"
+echo "*************************************************************************"
+for script in run-freedata-linux.sh install-freedata-linux.sh
+do
+	new="FreeDATA/tools/Linux/$script"
+	if [ ! -f "$new" ];
+	then
+		continue
+	fi
+	if [ -f "$script" ] && cmp -s "$new" "$script";
+	then
+		echo "$script is up to date"
+		continue
+	fi
+	if [ -f "$script" ];
+	then
+		cp -p "$script" "$script.old"
+		echo "$script updated, the previous one is kept as $script.old"
+	else
+		echo "$script added"
+	fi
+	cp "$new" "$script.new" && chmod +x "$script.new" && mv -f "$script.new" "$script"
+done
