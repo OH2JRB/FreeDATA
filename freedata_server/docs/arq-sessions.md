@@ -620,6 +620,15 @@ socket. Responses from the passive side
 (`CONNECT_ACK`, `PAYLOAD_ACK`, `HEARTBEAT_ACK`, `DISCONNECT_ACK`) are sent once via `launch_twr_irs` with
 no wait.
 
+A retry loop stops before each attempt, and when its retries run out, if `stop_retrying(generation)`
+gives a reason: the connection is closed (`CLOSED_STATES`: `DISCONNECTED`, `ABORTED`, `FAILED`), or a
+newer frame has taken over (each `launch_twr` starts a new `twr_generation`, as in the ISS). Only the
+newest loop resets `transmission_in_progress`. Before this, a heartbeat sent just before `DISCONNECT`
+went on retrying, in FSK, every ~32 s after the connection had closed, through a modem stop and start,
+until the server was restarted (on-air test P4, 2026-11-12). `received_disconnect` and
+`received_disconnect_ack` send `DISCONNECTED` on the command socket only on the way into `DISCONNECTED`;
+a repeated `DISCONNECT` is still answered with a `DISCONNECT_ACK`.
+
 ### 7.2 Worker loop (every 100 ms, both sides)
 
 | Condition | Action |
