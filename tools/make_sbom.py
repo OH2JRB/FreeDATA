@@ -220,10 +220,22 @@ def python_sbom(env, output):
     return json.loads(Path(output).read_text(encoding="utf-8"))
 
 
-def gui_sbom(output):
+def gui_sbom(output, spec_version):
+    """The GUI's SBOM in the same CycloneDX version as the Python one, since combine() merges it into that."""
     npx = shutil.which("npx") or "npx"
     subprocess.run(
-        [npx, "cyclonedx-npm", "--omit", "dev", "--output-format", "JSON", "--output-file", str(output)],
+        [
+            npx,
+            "cyclonedx-npm",
+            "--omit",
+            "dev",
+            "--spec-version",
+            spec_version,
+            "--output-format",
+            "JSON",
+            "--output-file",
+            str(output),
+        ],
         cwd=GUI,
         check=True,
     )
@@ -340,7 +352,7 @@ def main():
             python = make_python_env(env)
         versions = native_versions(args.hamlib_version, python)
         python_bom = python_sbom(env, Path(tmp) / "python.cdx.json")
-        gui_bom = gui_sbom(Path(tmp) / "gui.cdx.json")
+        gui_bom = gui_sbom(Path(tmp) / "gui.cdx.json", python_bom["specVersion"])
 
     bom = combine(python_bom, gui_bom, native_components(args.platform, versions), version)
     unclear = tidy_licenses(bom["components"])
