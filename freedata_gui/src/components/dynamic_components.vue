@@ -637,7 +637,7 @@ function quickfillSM() {
 }
 onMounted(() => {
   grid = GridStack.init({
-    float: true,
+    mode: "float", // widgets stay where placed (gridstack 14 replaced float: true)
     cellHeight: "5px",
     minRow: 50,
     margin: 5,
