@@ -22,7 +22,7 @@ RUN npm run build
 ################################################################################
 # Build server
 ################################################################################
-FROM python:3.13-slim-trixie AS server
+FROM python:3.15-slim-trixie AS server
 
 # Hamlib release and the SHA-256 of its source tarball (from the release
 # page), and the codec2 commit to build: change them together
@@ -69,7 +69,7 @@ RUN python3 -m venv /app/venv && \
 ################################################################################
 # Final image
 ################################################################################
-FROM python:3.13-slim-trixie
+FROM python:3.15-slim-trixie
 
 ENV PATH="/app/FreeDATA-hamlib/bin:/app/venv/bin:$PATH"
 
