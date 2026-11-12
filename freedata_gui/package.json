@@ -29,6 +29,7 @@
   "homepage": "https://freedata.app",
   "dependencies": {
     "@popperjs/core": "^2.11.8",
+    "@vue/devtools-api": "^8.2.1",
     "bootstrap": "^5.3.9",
     "bootstrap-icons": "^1.13.2",
     "chart.js": "^4.6.1",
@@ -40,7 +41,7 @@
     "i18next-vue": "^5.4.0",
     "js-image-compressor": "^2.0.0",
     "marked": "^18.2.0",
-    "pinia": "^3.0.4",
+    "pinia": "^4.1.0",
     "qth-locator": "^2.1.0",
     "topojson-client": "^3.1.0",
     "uuid": "^14.0.3",
