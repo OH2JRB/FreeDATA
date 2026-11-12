@@ -91,13 +91,22 @@ file) or threads that hung at shutdown.
   `helpers.browsable_host(host)`: `127.0.0.1` for `0.0.0.0`, `[::1]` for `::`) and, if
   `GUI.auto_run_browser` is true (default `True` when missing), starts a daemon thread that waits 2 s
   and calls `webbrowser.open(url)`.
-- `uvicorn.run(app, host=host, port=port, log_config=None, log_level="info")` - `log_config=None`
-  keeps the structlog/stdlib configuration from `setup_logging`.
-- Before `uvicorn.run()`, `stop_signals_raise_keyboard_interrupt()` makes SIGTERM (and SIGBREAK on
+- `Server(uvicorn.Config(app, host=host, port=port, log_config=None, log_level="info")).run()`, as
+  `uvicorn.run()` does, returning uvicorn's `STARTUP_FAILURE` (3) if the server never started -
+  `log_config=None` keeps the structlog/stdlib configuration from `setup_logging`.
+  `shutdown_guard.Server` is uvicorn's `Server` except that a second SIGINT within
+  `DUPLICATE_SIGINT_SECONDS` (2 s) of the first is ignored instead of forcing the exit: uvicorn's
+  forced exit skips the lifespan shutdown, so `AppContext.shutdown()` (sessions, scheduler, modem,
+  radio) never ran and the scheduler thread held the process until the exit guard below. One Ctrl-C
+  in a terminal reaches the server twice when a launcher forwards it too (`run-freedata-linux.sh`'s
+  trap), as on the air on 2026-11-12 (tests S1 and S2). A Ctrl-C pressed again later still forces
+  the exit. `run-freedata-linux.sh` also starts the server with `setsid`, so the terminal's Ctrl-C
+  reaches only the script, and the bundled rigctld is not killed before FreeDATA can release PTT.
+- Before `Server.run()`, `stop_signals_raise_keyboard_interrupt()` makes SIGTERM (and SIGBREAK on
   Windows) raise `KeyboardInterrupt` like SIGINT. After its shutdown uvicorn restores the previous
   handlers and raises the stop signal again; `main()` catches the `KeyboardInterrupt`, so Ctrl+C
   ends with exit code 0 instead of a traceback or the abrupt default SIGTERM/SIGBREAK exit.
-- After `uvicorn.run()` returns, `exit_if_threads_hang(timeout=3.0)`
+- After `Server.run()` returns, `exit_if_threads_hang(timeout=3.0)`
   ([shutdown_guard.py](../shutdown_guard.py)) joins the live non-daemon threads other than the
   main thread, 3 s in total. If none is left, `main()` returns and the process exits normally:
   `atexit` handlers run, logs are flushed and the exit code is 0. If a thread is still alive, it

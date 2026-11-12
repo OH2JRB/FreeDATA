@@ -15,7 +15,7 @@ from freedata_server.constants import CONFIG_ENV_VAR, DEFAULT_CONFIG_FILE, DEFAU
 from freedata_server.context import AppContext
 from freedata_server import helpers
 from freedata_server.request_guard import RequestGuard
-from freedata_server.shutdown_guard import exit_if_threads_hang, stop_signals_raise_keyboard_interrupt
+from freedata_server.shutdown_guard import Server, exit_if_threads_hang, stop_signals_raise_keyboard_interrupt
 
 from freedata_server.api.general import router as general_router
 from freedata_server.api.config import router as config_router
@@ -26,6 +26,7 @@ from freedata_server.api.freedata import router as freedata_router
 from freedata_server.api.websocket import router as websocket_router
 
 import uvicorn
+from uvicorn.main import STARTUP_FAILURE
 
 
 # --- Resolve config path FIRST (no logger needed yet) ---
@@ -193,14 +194,20 @@ def main():
             threading.Thread(target=open_browser_after_delay, args=(url, 2), daemon=True).start()
 
     stop_signals_raise_keyboard_interrupt()
+    # as uvicorn.run, with a Server that does not take a repeated Ctrl-C for a
+    # forced exit (shutdown_guard.Server)
+    server = Server(uvicorn.Config(app, host=host, port=port, log_config=None, log_level="info"))
     try:
-        uvicorn.run(app, host=host, port=port, log_config=None, log_level="info")
+        server.run()
     except KeyboardInterrupt:
         # uvicorn raises the stop signal again once it has shut down
         pass
 
     # a thread that still blocks must not keep the process alive
     exit_if_threads_hang(timeout=3.0)
+    if not server.started:
+        # as uvicorn.run: the server could not start (port in use, say)
+        return STARTUP_FAILURE
 
 
 if __name__ == "__main__":
