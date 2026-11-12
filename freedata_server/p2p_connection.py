@@ -305,9 +305,32 @@ class P2PConnection:
         modem.transmit(self.get_tx_mode(mode), 1, 1, frame)
         return True
 
-    def transmit_wait_and_retry(self, frame_or_burst, timeout, retries, mode):
+    # A closed connection sends nothing more: its retry loops stop (stop_retrying).
+    # On the air on 2026-11-12 a heartbeat sent just before DISCONNECT went on
+    # retrying, in FSK, every ~32 s after the connection had closed, through a
+    # modem restart, until the server was restarted.
+    CLOSED_STATES = (States.DISCONNECTED, States.ABORTED, States.FAILED)
+
+    twr_generation = 0  # the newest transmit_wait_and_retry loop (launch_twr)
+
+    def stop_retrying(self, generation):
+        """Why a transmit_wait_and_retry loop must stop now, or None: the
+        connection is closed, or a newer frame (generation from launch_twr) has
+        taken over, as the DISCONNECT does from a heartbeat still unanswered."""
+        if self.state in self.CLOSED_STATES:
+            return f"connection {self.state.name}"
+        if generation is not None and generation != self.twr_generation:
+            return "a newer frame took over"
+        return None
+
+    def transmit_wait_and_retry(self, frame_or_burst, timeout, retries, mode, generation=None):
         failures = 0
         while retries > 0:
+            if reason := self.stop_retrying(generation):
+                self.log(f"Not sending again: {reason}")
+                if generation is None or generation == self.twr_generation:
+                    self.transmission_in_progress = False
+                return
             self.event_frame_received = threading.Event()
             self.transmission_in_progress = True
             if isinstance(frame_or_burst, list):
@@ -334,6 +357,11 @@ class P2PConnection:
                     retries = max(retries, self.RETRIES_FSK)
 
         # retries exhausted
+        if self.stop_retrying(generation):
+            # closed or taken over meanwhile: the connection's end is someone else's
+            if generation is None or generation == self.twr_generation:
+                self.transmission_in_progress = False
+            return
         self.transmission_in_progress = False
         self.log("Retries exhausted", isWarning=True)
         if self.state is States.DISCONNECTING:
@@ -348,9 +376,10 @@ class P2PConnection:
             self.session_failed()
 
     def launch_twr(self, frame_or_burst, timeout, retries, mode):
+        self.twr_generation += 1
         twr = threading.Thread(
             target=self.transmit_wait_and_retry,
-            args=[frame_or_burst, timeout, retries, mode],
+            args=[frame_or_burst, timeout, retries, mode, self.twr_generation],
             daemon=True,
         )
         twr.start()
@@ -647,11 +676,14 @@ class P2PConnection:
 
     def received_disconnect(self, frame):
         self.log("DISCONNECTED...............")
+        already = self.state is States.DISCONNECTED
         self.set_state(States.DISCONNECTED)
 
         self.abort_arq()
 
-        if self.ctx.socket_interface_manager:
+        # a repeated DISCONNECT (the other side missed our ACK) is answered
+        # again, but the client was told already
+        if self.ctx.socket_interface_manager and not already:
             self.ctx.socket_interface_manager.command_server.command_handler.socket_respond_disconnected()
         self.is_ISS = False
         disconnect_ack_frame = self.frame_factory.build_p2p_connection_disconnect_ack(self.session_id)
@@ -659,8 +691,9 @@ class P2PConnection:
 
     def received_disconnect_ack(self, frame):
         self.log("DISCONNECTED...............")
+        already = self.state is States.DISCONNECTED
         self.set_state(States.DISCONNECTED)
-        if self.ctx.socket_interface_manager:
+        if self.ctx.socket_interface_manager and not already:
             self.ctx.socket_interface_manager.command_server.command_handler.socket_respond_disconnected()
 
     def transmit_arq(self, data):
