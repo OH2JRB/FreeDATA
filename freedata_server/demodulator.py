@@ -450,7 +450,9 @@ class Demodulator:
 
         :param freedv: codec2 instance to query
         :type freedv: ctypes.c_void_p
-        :return: Signal-to-noise ratio of the decoded data, in whole dB
+        :return: Signal-to-noise ratio of the decoded data in a 3 kHz noise
+            bandwidth for every mode (the FSK modes' reading is converted,
+            codec2.snr_correction_db), in whole dB
             (rounded; it used to be cut toward 0, so -0.9 dB read 0), or None
             when codec2 gave none: it used to be 0, which the ARQ speed level
             took for a real 0 dB (FrameHandler.handle)
@@ -461,7 +463,7 @@ class Demodulator:
             modem_stats_sync = ctypes.c_int()
 
             codec2.api.freedv_get_modem_stats(freedv, ctypes.byref(modem_stats_sync), ctypes.byref(modem_stats_snr))
-            modem_stats_snr = modem_stats_snr.value
+            modem_stats_snr = modem_stats_snr.value + codec2.snr_correction_db(freedv)
             modem_stats_sync = modem_stats_sync.value
 
             snr = round(modem_stats_snr, 1)

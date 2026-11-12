@@ -174,6 +174,7 @@ BPF prototypes come from `codec2_filter_coeff.generate_filter_coefficients(Fs, b
 | `freedv_set_frames_per_burst`, `freedv_set_sync` | demodulator setup / sync reset (OFDM modes only) |
 | `freedv_close` | closing FSK instances replaced by the receiver restart |
 | `freedv_get_modem_stats` | SNR |
+| `freedv_get_mode`, `freedv_get_modem_symbol_rate` | converting the FSK modes' SNR to 3 kHz (`snr_correction_db`) |
 | `freedv_get_modem_extended_stats` (`MODEMSTATS` struct) | frequency offset (`foff`) and scatter (`rx_symbols`) |
 | `fdmdv_48_to_8_short`, `fdmdv_8_to_48_short` | `resampler` |
 
@@ -281,7 +282,7 @@ In the channel simulator the end is located within 1 ms on `awgn`, 2 ms on `hl_m
 
 | Function | Source | Output |
 |---|---|---|
-| `calculate_snr` | `freedv_get_modem_stats` | SNR rounded to whole dB (`int`; it used to be cut toward 0, so -0.9 dB read 0), `None` on error (it used to be 0). `FrameHandler.handle` passes 0 to the frame's other uses as before and marks it (`snr_known`); ARQ sessions and P2P connections get `None` (`session_snr`) and leave it out of the SNR their speed level goes by |
+| `calculate_snr` | `freedv_get_modem_stats` | SNR in a 3 kHz noise bandwidth for every mode: the OFDM modes give it so, the FSK_LDPC modes give it in about the symbol rate and get `codec2.snr_correction_db` = -10·log10(3000/Rs) added (-17.8 dB for `data_fsk4_50`, -11.8 dB for `data_vhf_1`; they used to read that much too high). Rounded to whole dB (`int`; it used to be cut toward 0, so -0.9 dB read 0), `None` on error (it used to be 0). `FrameHandler.handle` passes 0 to the frame's other uses as before and marks it (`snr_known`); ARQ sessions and P2P connections get `None` (`session_snr`) and leave it out of the SNR their speed level goes by |
 | `get_frequency_offset` | `MODEMSTATS.foff` | `-round(foff)` Hz |
 | `get_scatter` | `MODEMSTATS.rx_symbols` | non-zero points (scaled `//1000`) sent via `event_manager.send_scatter_change`; all points if fewer than 150, else every 10th |
 

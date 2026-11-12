@@ -5,6 +5,7 @@ Python interface to the C-language codec2 library.
 import ctypes
 import functools
 import glob
+import math
 import os
 import sys
 from enum import Enum
@@ -190,6 +191,35 @@ api.freedv_get_rx_status.restype = ctypes.c_int
 
 api.freedv_get_modem_stats.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p]  # type: ignore
 api.freedv_get_modem_stats.restype = None
+
+api.freedv_get_mode.argtypes = [ctypes.c_void_p]  # type: ignore
+api.freedv_get_mode.restype = ctypes.c_int
+
+api.freedv_get_modem_symbol_rate.argtypes = [ctypes.c_void_p]  # type: ignore
+api.freedv_get_modem_symbol_rate.restype = ctypes.c_int
+
+# codec2's FREEDV_MODE_FSK_LDPC, the mode of the FSK instances (open_instance)
+FREEDV_MODE_FSK_LDPC = 9
+# SNR readings are in this noise bandwidth, as codec2 gives them for the OFDM modes
+SNR_NOISE_BANDWIDTH_HZ = 3000
+
+
+def snr_correction_db(freedv) -> float:
+    """What to add to freedv_get_modem_stats' SNR to have it in a 3 kHz noise
+    bandwidth, like the OFDM modes give it.
+
+    codec2's FSK_LDPC receiver gives the power of the strongest tone over that
+    of the other tones (fsk.c SNRest), which is the SNR in a bandwidth of about
+    the symbol rate, and does not convert it: data_fsk4_50 (50 baud) read
+    17.8 dB and data_vhf_1 (200 baud) 11.8 dB too high, 10*log10(3000/Rs).
+    0 for the OFDM modes, whose reading is in 3 kHz already."""
+    if not freedv or api.freedv_get_mode(freedv) != FREEDV_MODE_FSK_LDPC:
+        return 0.0
+    symbol_rate = api.freedv_get_modem_symbol_rate(freedv)
+    if symbol_rate <= 0:
+        return 0.0
+    return -10.0 * math.log10(SNR_NOISE_BANDWIDTH_HZ / symbol_rate)
+
 
 api.freedv_get_n_tx_postamble_modem_samples.argtypes = [ctypes.c_void_p]  # type: ignore
 api.freedv_get_n_tx_postamble_modem_samples.restype = ctypes.c_int

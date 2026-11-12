@@ -58,6 +58,7 @@ A full run takes about a minute. Both commands exit non-zero when a test fails.
 | `test_test_frame.py` | Test frames sent in datac4 and handled by the receiving station (template, handler, event with SNR) | no |
 | `test_p2p_fsk_negotiation.py` | P2P connections saying whether they have the FSK modes on (CONNECT_ACK and heartbeat flags), and no FSK fallback when the other station has them off | no |
 | `test_snr_no_reading.py` | A frame without an SNR reading: `calculate_snr` rounds and gives `None` on error; ARQ sessions leave it out, the frame's other uses keep 0 | no |
+| `test_fsk_snr.py` | The FSK modes' SNR converted to a 3 kHz noise bandwidth like the OFDM modes' (`codec2.snr_correction_db`; codec2 gives it in about the symbol rate, so `data_fsk4_50` read 17.8 dB and `data_vhf_1` 11.8 dB high), and `calculate_snr` reading the channel SNR through `tools/channel_sim.py` | no |
 | `test_ptt_type.py` | `RADIO.ptt_type` values Hamlib does not know (`USB`, `MICDATA`) becoming `RIG`, in the config file when it is loaded and in rigctld's arguments; the template's default | no |
 | `test_busy_detection_session.py` | No new busy traffic counted during an ARQ session or P2P connection (`calculate_fft`, `is_in_session`); marks from before it fade | no |
 | `test_retry_without_modem.py` | ARQ and P2P retry threads when the modem is gone (stopped or restarting): the session ends through its failure path instead of the thread dying on `None.transmit` | no |
