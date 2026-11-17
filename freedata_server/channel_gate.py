@@ -24,7 +24,10 @@ seconds, the transmission is dropped (returns False). A channel busy only from
 other signals (noise, a carrier, another mode) is waited for other_busy_wait
 seconds, then the transmission goes out anyway, as the message queue does
 (schedule_manager.queue_channel_free): a steady signal must not block sending
-for good.
+for good. Those seconds count from the last FreeDATA signal heard: they used to
+count from the start of the wait, so after a long session the channel's fading
+busy state was cut short (on the air 2026-11-17, test G2: sent 17 s after
+the session ended, "busy from other signals for 30s").
 """
 
 import random
@@ -132,6 +135,9 @@ def _wait(state, what, freedata_max_wait, holdoff, random_delay_max, listen_time
         stop_count = state.stop_count
     start = _now()
     clear_since = None
+    # since when the channel has been busy from other signals only: FreeDATA
+    # traffic resets it, short clear spells (a flickering signal) do not
+    other_since = None
     logged = False
 
     while True:
@@ -168,8 +174,15 @@ def _wait(state, what, freedata_max_wait, holdoff, random_delay_max, listen_time
                     f"[GATE] {what}: FreeDATA traffic for {now - start:.0f}s, not sent to avoid transmitting over it"
                 )
                 return DROPPED
-            if not freedata and now - start >= other_busy_wait:
-                log.info(f"[GATE] {what}: channel busy from other signals for {now - start:.0f}s, sending anyway")
+            if freedata:
+                other_since = None
+            elif other_since is None:
+                other_since = now
+            elif now - other_since >= other_busy_wait:
+                log.info(
+                    f"[GATE] {what}: channel busy from other signals for {now - other_since:.0f}s"
+                    f" (after {now - start:.0f}s in all), sending anyway"
+                )
                 return SEND_ANYWAY
 
         _sleep(POLL)
