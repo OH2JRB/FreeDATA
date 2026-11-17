@@ -33,6 +33,9 @@ class StateManager:
         self.channel_busy_event = threading.Event()
         self.channel_busy_condition_traffic = threading.Event()
         self.channel_busy_condition_codec2 = threading.Event()
+        # time.monotonic() when a FreeDATA (codec2) signal was last heard, None
+        # before the first one; channel_gate holds new transmissions off after it
+        self.last_codec2_traffic = None
         # nothing received yet, so start with a free channel. Otherwise waiters on these
         # conditions (e.g. is_receiving_codec2_signal) block forever until the first
         # FFT/demodulator update, which never comes if the modem isn't running.
@@ -568,6 +571,7 @@ class StateManager:
         if not traffic:
             self.channel_busy_condition_codec2.set()
         else:
+            self.last_codec2_traffic = time.monotonic()
             self.channel_busy_condition_codec2.clear()
         self.calculate_channel_busy_state()
 

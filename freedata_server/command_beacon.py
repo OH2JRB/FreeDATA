@@ -8,6 +8,10 @@ class BeaconCommand(TxCommand):
     status (away from key or not).
     """
 
+    # the scheduler thread runs it: on a channel with FreeDATA traffic, skip
+    # this beacon rather than hold the scheduler; the next one comes anyway
+    CHANNEL_MAX_WAIT_SETTING = "beacon_max_wait"
+
     def build_frame(self):
         """Builds a beacon frame.
 

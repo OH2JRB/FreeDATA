@@ -1,8 +1,8 @@
 import threading
 
+from freedata_server import channel_gate
 from freedata_server import data_frame_factory
 from freedata_server import frame_handler
-import numpy as np
 
 
 class CQFrameHandler(frame_handler.FrameHandler):
@@ -34,17 +34,26 @@ class CQFrameHandler(frame_handler.FrameHandler):
             snr=self.details["snr"],
         )
 
-        self.send_ack()
+        # in its own thread: waiting for a clear channel must not hold up the
+        # receive worker, which decodes every other frame
+        threading.Thread(target=self.send_ack, name="CQ reply", daemon=True).start()
         self.check_for_queued_message()
 
     def send_ack(self):
         factory = data_frame_factory.DataFrameFactory(self.ctx)
         qrv_frame = factory.build_qrv(self.details["snr"])
 
-        # wait some random time and wait if we have an ongoing codec2 transmission
-        # on our channel. This should prevent some packet collision
-        random_delay = np.random.randint(0, 6)
-        threading.Event().wait(random_delay)
-        self.ctx.state_manager.channel_busy_condition_codec2.wait(5)
+        # Several stations may answer the same CQ: wait for a clear channel and
+        # a random delay. The CQ itself was just heard, so the FreeDATA holdoff
+        # is short here (CHANNEL.cq_reply_holdoff); a reply still not sent
+        # after CHANNEL.cq_reply_max_wait s of FreeDATA traffic is dropped.
+        if not channel_gate.wait_for_clear_channel(
+            self.ctx,
+            "CQ reply",
+            max_wait_setting="cq_reply_max_wait",
+            holdoff_setting="cq_reply_holdoff",
+            random_delay_setting="cq_reply_random_delay",
+        ):
+            return
 
         self.transmit(qrv_frame)

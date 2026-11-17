@@ -54,6 +54,8 @@ class P2PConnectionCommand(TxCommand):
             P2PConnection or bool: The P2PConnection object if successful, False otherwise.
         """
         try:
+            if not self.wait_for_clear_channel():
+                return False
             session = P2PConnection(self.ctx, self.origin, self.destination)
             if session.session_id:
                 self.ctx.state_manager.register_p2p_connection_session(session)

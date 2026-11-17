@@ -101,6 +101,20 @@ class CONFIG:
             "enable_fsk": bool,
             "enable_high_rate": bool,
         },
+        # listen before talk for transmissions that start something new
+        # (channel_gate); the times are in seconds
+        "CHANNEL": {
+            "enable_listen_before_talk": bool,
+            "listen_time": int,
+            "freedata_holdoff": int,
+            "random_delay": int,
+            "freedata_max_wait": int,
+            "other_busy_wait": int,
+            "beacon_max_wait": int,
+            "cq_reply_holdoff": int,
+            "cq_reply_max_wait": int,
+            "cq_reply_random_delay": int,
+        },
         "SOCKET_INTERFACE": {
             "enable": bool,
             "host": str,
@@ -139,6 +153,16 @@ class CONFIG:
     # settings added to an existing config with another value than default_values
     setting_defaults = {
         ("MODEM", "enable_high_rate"): "True",
+        ("CHANNEL", "enable_listen_before_talk"): "True",
+        ("CHANNEL", "listen_time"): "2",
+        ("CHANNEL", "freedata_holdoff"): "8",
+        ("CHANNEL", "random_delay"): "3",
+        ("CHANNEL", "freedata_max_wait"): "60",
+        ("CHANNEL", "other_busy_wait"): "30",
+        ("CHANNEL", "beacon_max_wait"): "10",
+        ("CHANNEL", "cq_reply_holdoff"): "1",
+        ("CHANNEL", "cq_reply_max_wait"): "15",
+        ("CHANNEL", "cq_reply_random_delay"): "5",
     }
 
     def __init__(self, ctx, configfile: str):
