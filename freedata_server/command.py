@@ -3,6 +3,7 @@ import queue
 from freedata_server.codec2 import FREEDV_MODE
 import structlog
 from freedata_server.arq_data_type_handler import ARQDataTypeHandler
+from freedata_server import channel_gate
 
 
 class TxCommand:
@@ -12,6 +13,12 @@ class TxCommand:
     transmit commands, including logging, parameter handling, frame building,
     and transmission via the modem.
     """
+
+    # wait for a clear channel before keying up (channel_gate); False for a
+    # transmission the operator starts on purpose regardless, such as the tune tone
+    LISTEN_BEFORE_TALK = True
+    # [CHANNEL] setting: s FreeDATA traffic is waited for before the command gives up unsent
+    CHANNEL_MAX_WAIT_SETTING = "freedata_max_wait"
 
     def __init__(self, ctx, apiParams: dict = {}):
         """Initializes a new TxCommand instance.
@@ -155,6 +162,14 @@ class TxCommand:
         frame = self.build_frame()
         self.ctx.rf_modem.transmit(self.get_tx_mode(), 1, 0, frame)
 
+    def wait_for_clear_channel(self):
+        """True when this command may key up now (channel_gate.wait_for_clear_channel)."""
+        if not self.LISTEN_BEFORE_TALK:
+            return True
+        return channel_gate.wait_for_clear_channel(
+            self.ctx, self.get_name(), max_wait_setting=self.CHANNEL_MAX_WAIT_SETTING
+        )
+
     def run(self):
         """Runs the command.
 
@@ -168,6 +183,8 @@ class TxCommand:
         """
         self.emit_event()
         self.logger.info(self.log_message())
+        if not self.wait_for_clear_channel():
+            return False
         self.transmit()
 
     def test(self, event_queue: queue.Queue):

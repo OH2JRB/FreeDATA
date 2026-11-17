@@ -58,6 +58,18 @@ maximum_bandwidth = 2438
 enable_fsk = False
 enable_high_rate = True
 
+[CHANNEL]
+enable_listen_before_talk = True
+listen_time = 2
+freedata_holdoff = 8
+random_delay = 3
+freedata_max_wait = 60
+other_busy_wait = 30
+beacon_max_wait = 10
+cq_reply_holdoff = 1
+cq_reply_max_wait = 15
+cq_reply_random_delay = 5
+
 [SOCKET_INTERFACE]
 enable = False
 host = 127.0.0.1

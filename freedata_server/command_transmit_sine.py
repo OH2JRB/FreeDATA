@@ -8,6 +8,9 @@ class TransmitSine(TxCommand):
     which can be used for testing and calibration.
     """
 
+    # the operator tunes on purpose, now
+    LISTEN_BEFORE_TALK = False
+
     def transmit(self):
         """Transmits a sine wave.
 

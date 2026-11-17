@@ -3,8 +3,6 @@ from freedata_server import api_validations
 import base64
 from freedata_server.arq_session_iss import ARQSessionISS
 from freedata_server.arq_data_type_handler import ARQ_SESSION_TYPES
-import numpy as np
-import threading
 
 
 class ARQRawCommand(TxCommand):
@@ -56,11 +54,8 @@ class ARQRawCommand(TxCommand):
             self.emit_event()
             self.logger.info(self.log_message())
 
-            # wait some random time and wait if we have an ongoing codec2 transmission
-            # on our channel. This should prevent some packet collision
-            random_delay = np.random.randint(0, 6)
-            threading.Event().wait(random_delay)
-            self.ctx.state_manager.channel_busy_condition_codec2.wait(5)
+            if not self.wait_for_clear_channel():
+                return False
 
             prepared_data, type_byte = self.arq_data_type_handler.prepare(self.data, self.type)
 
