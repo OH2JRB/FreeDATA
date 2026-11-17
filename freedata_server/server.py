@@ -10,7 +10,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from freedata_server.log_handler import setup_logging
+from freedata_server.log_handler import log_to_temp_requested, setup_logging, temp_log_filename
 from freedata_server.constants import CONFIG_ENV_VAR, DEFAULT_CONFIG_FILE, DEFAULT_APP_DIR, API_VERSION
 from freedata_server.context import AppContext
 from freedata_server import helpers
@@ -72,7 +72,8 @@ config_file = resolve_config_path()
 # --- Logging setup: log file MUST be in the same directory as the config file ---
 config_dir = os.path.dirname(config_file)
 log_file = os.path.join(config_dir, "freedata_server.log")
-logger = setup_logging(filename=log_file, level="INFO")
+temp_log_file = temp_log_filename() if log_to_temp_requested(sys.argv[1:]) else ""
+logger = setup_logging(filename=log_file, level="INFO", temp_filename=temp_log_file)
 logger.info("Using config", file=config_file, log_file=log_file)
 
 # --- AppContext startup ---

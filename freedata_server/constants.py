@@ -25,6 +25,9 @@ def _default_app_dir() -> str:
 
 
 CONFIG_ENV_VAR = "FREEDATA_CONFIG"
+# set to 1/true/yes/on (or start the server with --log-to-temp) to log also
+# into a date-and-time named file in the system temp directory
+LOG_TO_TEMP_ENV_VAR = "FREEDATA_LOG_TO_TEMP"
 DEFAULT_CONFIG_FILE = "config.ini"
 DEFAULT_APP_DIR = _default_app_dir()
 MODEM_VERSION = "0.30.3"
