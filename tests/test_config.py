@@ -17,7 +17,8 @@ class TestConfigMethods(unittest.TestCase):
         # Copy example ini to a temp file so we don't overwrite the source
         base = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "freedata_server"))
         example_path = os.path.join(base, "config.ini.example")
-        cls.temp_ini = tempfile.NamedTemporaryFile(delete=False, suffix=".ini").name
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".ini") as tmp:
+            cls.temp_ini = tmp.name
         shutil.copy(example_path, cls.temp_ini)
         cls.ctx = DummyCtx()
         cls.config = config.CONFIG(cls.ctx, cls.temp_ini)
