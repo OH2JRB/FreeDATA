@@ -70,8 +70,9 @@ class ARQSessionIRS(arq_session.ARQSession):
     # HIGH_RATE_HOLD answers, whatever the SNR says
     HIGH_RATE_HOLD = 5
 
-    # A signal at least this share of the expected burst's frame long, with
-    # nothing decoded DECODE_ALLOWANCE seconds after its end: on a path that
+    # A signal at least this share of the expected burst's frame long (all
+    # signal since the own answer counted together, burst_heard_not_decoded),
+    # with nothing decoded DECODE_ALLOWANCE seconds after its end: on a path that
     # defeats OFDM (30 Hz of Doppler spread) the OFDM modes do not even sync,
     # so only the SignalDetector shows that the burst came. The IRS then falls
     # back to FSK and answers in FSK (answer_undecodable_burst)
@@ -271,9 +272,22 @@ class ARQSessionIRS(arq_session.ARQSession):
             return False
         frame_duration = codec2.get_frame_duration(self.get_mode_by_speed_level(self.speed_level).value)
         now = time.monotonic()
-        return any(
-            end - start >= self.HEARD_FRAME_SHARE * frame_duration and now - end >= self.DECODE_ALLOWANCE
-            for start, end in detector.segments(since)
+        segments = detector.segments(since)
+        if not segments:
+            return False
+        # the signal heard since the own answer is taken as one burst: a dip of
+        # the received level splits a burst into segments, and judging the
+        # first one alone fell back to FSK while the rest of the burst was still
+        # coming, at 13-14 dB SNR (on the air 2026-11-17, data_ofdm_2438 and
+        # data_ofdm_500_hr). The burst is over only once the channel has been
+        # quiet DECODE_ALLOWANCE s and a whole frame has passed since it began
+        first_start = segments[0][0]
+        last_end = segments[-1][1]
+        heard = sum(end - start for start, end in segments)
+        return (
+            heard >= self.HEARD_FRAME_SHARE * frame_duration
+            and now - last_end >= self.DECODE_ALLOWANCE
+            and now - first_start >= frame_duration
         )
 
     def answer_undecodable_burst(self):
