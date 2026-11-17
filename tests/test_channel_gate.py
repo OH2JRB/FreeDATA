@@ -153,6 +153,20 @@ class TestWaitForClearChannel(GateTestCase):
         self.assertTrue(self.gate())
         self.assertAlmostEqual(self.elapsed(), D["other_busy_wait"], delta=0.2)
 
+    def test_other_signals_counted_from_the_end_of_freedata_traffic(self):
+        # on the air (G2): a 25 s session, then the channel stayed busy from
+        # other signals; the ping went out 17 s after the session, as the
+        # 30 s had counted from the start of the wait
+        self.state.freedata(True)
+
+        def session_ends():
+            self.state.freedata(False)
+            self.state.other(True)
+
+        self.clock.at(25, session_ends)
+        self.assertTrue(self.gate())
+        self.assertAlmostEqual(self.elapsed(), 25 + D["freedata_holdoff"] + D["other_busy_wait"], delta=0.3)
+
     def test_other_signal_that_ends_waits_for_listen_time(self):
         self.state.other(True)
         self.clock.at(5, lambda: self.state.other(False))
