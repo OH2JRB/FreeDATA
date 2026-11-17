@@ -352,14 +352,14 @@ stateDiagram-v2
 |---:|---|---:|---:|---:|---|
 | 0 | `data_fsk4_50` | none (only after failures, 4.1) | 5.44 | 500 (about 550) | `[F, F, T, F, F]` |
 | 1 | `datac4` | -10 | 5.17 | 250 | `[F, F, T, F, F]` |
-| 2 | `data_ofdm_500` | 0 | 3.19 | 500 | `[F, F, T, F, F]` |
-| 3 | `datac1` | 3 | 4.18 | 1700 | `[F, T, T, T, F]` |
-| 4 | `data_ofdm_2438` | 8.5 | 5.5 | 2438 | `[T, T, T, T, T]` |
+| 2 | `data_ofdm_500` | 1 | 3.19 | 500 | `[F, F, T, F, F]` |
+| 3 | `datac1` | 4 | 4.18 | 1700 | `[F, T, T, T, F]` |
+| 4 | `data_ofdm_2438` | 8 | 5.5 | 2438 | `[T, T, T, T, T]` |
 | 5 | `data_ofdm_250_hr` | 2 | 5.17 | 250 | `[F, F, T, F, F]` |
-| 6 | `data_ofdm_500_hr` | 5 | 3.52 | 500 | `[F, F, T, F, F]` |
+| 6 | `data_ofdm_500_hr` | 7 | 3.52 | 500 | `[F, F, T, F, F]` |
 | 7 | `data_ofdm_1700_hr` | 6 | 8.25 | 1700 | `[F, T, T, T, F]` |
 
-Levels 5 to 7 are the higher code rates (4.2), used only when both stations have them. Their numbers come
+The `min_snr` values were measured (4.3). Levels 5 to 7 are the higher code rates (4.2), used only when both stations have them. Their numbers come
 after the others so that a station without them never meets one; `SPEED_LEVEL_ORDER`
 `(0, 1, 5, 2, 6, 3, 7, 4)` ranks all levels by payload bit rate. Until protocol version 2 the levels were
 numbered from `datac4` = 0.
@@ -432,7 +432,7 @@ The triggers:
 |---|---|
 | A signalling frame (`ARQ_SESSION_OPEN`, `ARQ_SESSION_INFO`) unanswered `RETRIES_BEFORE_FSK` (2) times | ISS `transmit_wait_and_retry` |
 | Two failed bursts at datac4 | ISS `transmit_wait_and_retry` |
-| `DECODE_FAILURES_TO_STEP_DOWN` (2) frames found but not decoded (rx status 10, `Demodulator.take_decode_failures`) in the current mode since the last answer, at datac4. At a higher level this steps down to datac4 and keeps the level there for `STEP_DOWN_HOLD` (3) answers | IRS `calibrate_speed_settings` |
+| `DECODE_FAILURES_TO_STEP_DOWN` (2) frames found but not decoded (rx status 10, `Demodulator.take_decode_failures`) in the current mode since the last answer, at datac4. At a higher level this steps down one level (`next_slower_level`: `data_ofdm_2438` > `datac1` > `data_ofdm_500` > `datac4`) and keeps the level there or below for `STEP_DOWN_HOLD` (3) answers; failures there step down again. It used to step straight to datac4, so a session that had gone above `data_ofdm_500` never came back to it | IRS `calibrate_speed_settings` |
 | A burst heard (`SignalDetector`) for at least `HEARD_FRAME_SHARE` (0.6) of its frame length, with nothing decoded `DECODE_ALLOWANCE` (1 s) after it: the OFDM modes do not even sync on `hl_disturbed`. The IRS answers in FSK (`answer_undecodable_burst`) | IRS `transmit_and_wait` (`burst_heard_not_decoded`) |
 | An answer heard (`SignalDetector`, at least `HEARD_ANSWER_SECONDS`, 0.5 s) but not decoded | ISS `transmit_wait_and_retry` (`answer_heard`) |
 | Any ARQ frame received in `data_fsk4_50` | `ARQSession.on_frame_received`, both sides |
@@ -518,7 +518,7 @@ rate, so:
 Measured offline with `tools/channel_sim.py` (20 frames per cell; 3 kHz SNR at which all frames decoded,
 AWGN / mid-latitude disturbed): `data_ofdm_250_hr` -3 / 6 dB against `datac4` -5 / -3 dB;
 `data_ofdm_500_hr` -1 / 9 dB against `data_ofdm_500` -3 / 3 dB; `data_ofdm_1700_hr` 2 / 10 dB, the same as
-`datac1`. `min_snr` follows: 2, 5 and 6 dB. With the bandwidth they need, levels 2 and 3 are faster than 5
+`datac1`. `min_snr` followed: 2, 5 and 6 dB (now 2, 7 and 6, 4.3). With the bandwidth they need, levels 2 and 3 are faster than 5
 and 6, so 5 is chosen only when the bandwidth is limited to 250 Hz, 6 only at 500 Hz (or when the slots of
 `datac1` are busy), and 7 below the `min_snr` of `data_ofdm_2438` or when it cannot be used.
 `data_ofdm_2438` has no high-rate level: a 2048-bit code fits only 6 of its modem frames, and the preamble of
@@ -549,6 +549,42 @@ whole table whatever its own setting. The protocol version stays 2.
 
 `MODEM.enable_high_rate` ("Enable higher code rates" in the GUI) is on by default, also when it is added to
 a config from before it existed (`CONFIG.setting_defaults`).
+
+### 4.3 Measured `min_snr`
+
+Users reported that `data_ofdm_500` was seldom used on the air. With the old values a session chose it only
+for a reported SNR from 0 to below 3 dB, and frames that failed to decode stepped the session straight down
+to datac4, past it. At its old `min_snr` of 3 dB, `datac1` decoded only 40-66 % of its frames on the
+mid-latitude fading channels, so those step-downs were common.
+
+`tools/speed_level_sweep.py` (2026-11-17) sends 30 frames per cell of each ARQ mode through
+`tools/channel_sim.py`, as single bursts with 500 ms gaps, at whole-dB true SNRs, and records the share
+decoded and the SNR the receiver reported for them (`freedv_get_modem_stats` plus `snr_correction_db`, as
+`Demodulator.calculate_snr`). True SNR (3 kHz) at which at least 90 % of the frames decoded:
+
+| Mode | Payload bps | AWGN | `mid_moderate` | `mid_disturbed` | Reported there (fading) | `min_snr` old → new |
+|---|---:|---:|---:|---:|---:|---|
+| `datac4` | 80 | -8 | -3 | -4 | about -3 | -10 (last resort) |
+| `data_ofdm_250_hr` | 175 | -4 | 6 | 4 | about 3 | 2 |
+| `data_ofdm_500` | 255 | -4 | 2 | 1 | about 1 | 0 → 1 |
+| `data_ofdm_500_hr` | 391 | -2 | 9 | 8 | about 7 | 5 → 7 |
+| `datac1` | 927 | 2 | 5 | 5 | about 4 | 3 → 4 |
+| `data_ofdm_1700_hr` | 1142 | 2 | 9 | 7 | about 6 (read in `datac1`) | 6 |
+| `data_ofdm_2438` | 1797 | 4 | 9 | 8 | about 8 | 8.5 → 8 |
+
+`min_snr` is compared with the reported SNR of the mode the session is in, which differs from the true SNR:
+`datac1` and `data_ofdm_2438` read low at higher SNRs (`datac1` 5.9 dB at a true 9 dB on fading), the
+narrow modes close to the true value. A session therefore climbs from `datac1` to `data_ofdm_1700_hr` at a
+true SNR of about 9 dB, where that mode decodes 90 % on fading.
+
+`data_ofdm_250_hr` is slower than `data_ofdm_500` and decodes worse on fading, so it stays a level only for a
+250 Hz bandwidth limit. Reported SNRs within about 1 dB of a threshold can switch between two neighbouring
+levels from answer to answer; the session moves only between those two.
+
+```
+python -I tools/speed_level_sweep.py sweep.json            # all ARQ modes, 5 to 10 minutes per mode
+python -I tools/speed_level_sweep.py sweep.json --frames 10 --modes data_ofdm_500 datac1
+```
 
 ## 5. Data integrity
 

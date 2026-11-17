@@ -30,6 +30,12 @@ class ARQSession:
     # signalling goes in it too, on both sides.
     FSK_MODE = FREEDV_MODE.data_fsk4_50
 
+    # min_snr: the reported SNR (Demodulator.calculate_snr, median over
+    # latest_snr) from which a level is chosen. Measured on 2026-11-17 with
+    # tools/speed_level_sweep.py (docs/speed-levels.md): about where the mode
+    # decodes 90 % of its frames on the mid-latitude fading channels, as the
+    # receiver reports that SNR. datac1 was at 3 dB, where only 40-66 % of
+    # its frames decoded on fading channels.
     SPEED_LEVEL_DICT = {
         0: {
             "mode": FREEDV_MODE.data_fsk4_50,
@@ -49,21 +55,21 @@ class ARQSession:
         },
         2: {
             "mode": FREEDV_MODE.data_ofdm_500,
-            "min_snr": 0,
+            "min_snr": 1,
             "duration_per_frame": 3.19,
             "bandwidth": 500,
             "slots": FREEDV_MODE_USED_SLOTS.data_ofdm_500,
         },
         3: {
             "mode": FREEDV_MODE.datac1,
-            "min_snr": 3,
+            "min_snr": 4,
             "duration_per_frame": 4.18,
             "bandwidth": 1700,
             "slots": FREEDV_MODE_USED_SLOTS.datac1,
         },
         4: {
             "mode": FREEDV_MODE.data_ofdm_2438,
-            "min_snr": 8.5,
+            "min_snr": 8,
             "duration_per_frame": 5.5,
             "bandwidth": 2438,
             "slots": FREEDV_MODE_USED_SLOTS.data_ofdm_2438,
@@ -82,7 +88,7 @@ class ARQSession:
         },
         6: {
             "mode": FREEDV_MODE.data_ofdm_500_hr,
-            "min_snr": 5,
+            "min_snr": 7,
             "duration_per_frame": 3.52,
             "bandwidth": 500,
             "slots": FREEDV_MODE_USED_SLOTS.data_ofdm_500_hr,
@@ -604,6 +610,25 @@ class ARQSession:
         """The level a high-rate level falls back to: the same waveform at the
         lower code rate. Any other level is its own."""
         return self.SPEED_LEVEL_DICT.get(level, {}).get("fallback", level)
+
+    def slower_level(self, a, b):
+        """The slower of two speed levels (SPEED_LEVEL_ORDER; the numbers are not in speed order)."""
+        return min(a, b, key=self.SPEED_LEVEL_ORDER.index)
+
+    def next_slower_level(self, level):
+        """The next slower OFDM level at the lower code rates, for a step down
+        after decode failures: data_ofdm_2438 > datac1 > data_ofdm_500 > datac4.
+        A high-rate level counts as its fallback level. datac4 stays datac4
+        (from there the step is to FSK, fall_back_to_fsk)."""
+        level = self.get_fallback_level(level)
+        ladder = [
+            lvl
+            for lvl in self.SPEED_LEVEL_ORDER
+            if self.SPEED_LEVEL_DICT[lvl]["min_snr"] is not None and not self.is_high_rate_level(lvl)
+        ]
+        if level not in ladder:
+            return ladder[0]
+        return ladder[max(ladder.index(level) - 1, 0)]
 
     def get_appropriate_speed_level(self, snr, maximum_bandwidth=None, high_rate=False):
         """

@@ -54,11 +54,16 @@ class ARQSessionIRS(arq_session.ARQSession):
     FSK_TIMEOUT_FACTOR = 4
 
     # frames found but not decoded (Demodulator.take_decode_failures) in the
-    # current mode since the last answer, after which the IRS steps down: to
-    # datac4, or from datac4 to FSK. It then keeps the level at datac4 or below
-    # for STEP_DOWN_HOLD answers, whatever the SNR says
+    # current mode since the last answer, after which the IRS steps down one
+    # level (next_slower_level: data_ofdm_2438 > datac1 > data_ofdm_500 >
+    # datac4), or from datac4 to FSK. It then keeps the level at that one or
+    # below for STEP_DOWN_HOLD answers, whatever the SNR says. It used to step
+    # straight down to datac4, so a session that had gone above data_ofdm_500
+    # never came back to it on a marginal channel
     DECODE_FAILURES_TO_STEP_DOWN = 2
     STEP_DOWN_HOLD = 3
+    # the level a step down keeps the session at or below (step_down_hold)
+    step_down_cap = 1
     # At a high-rate level the IRS steps down to its fallback level instead
     # (the same waveform at the lower code rate), and also when the ISS has
     # fallen back to it after lost bursts. The high-rate levels then stay out for
@@ -810,11 +815,16 @@ class ARQSessionIRS(arq_session.ARQSession):
                 self.log("OFDM frames fail to decode at datac4, falling back to FSK", isWarning=True)
                 self.fall_back_to_fsk()
                 return self.speed_level
-            self.log("OFDM frames fail to decode, stepping down to datac4", isWarning=True)
+            self.step_down_cap = self.next_slower_level(self.speed_level)
+            self.log(
+                f"OFDM frames fail to decode, stepping down to level {self.step_down_cap}"
+                f" ({self.get_mode_by_speed_level(self.step_down_cap).name})",
+                isWarning=True,
+            )
             self.step_down_hold = self.STEP_DOWN_HOLD
         if self.step_down_hold > 0:
             self.step_down_hold -= 1
-            appropriate_speed_level = min(appropriate_speed_level, datac4_level)
+            appropriate_speed_level = self.slower_level(appropriate_speed_level, self.step_down_cap)
         modes_to_decode = {}
 
         # Log the latest SNR, current, appropriate speed levels, and the previous speed level

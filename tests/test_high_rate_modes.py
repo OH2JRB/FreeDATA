@@ -161,6 +161,16 @@ class TestSpeedLevels(unittest.TestCase):
             with self.subTest(snr=snr, bandwidth=bandwidth):
                 self.assertEqual(self.level(snr, bandwidth), level)
 
+    def test_data_ofdm_500_window(self):
+        # measured thresholds (docs/arq-sessions.md, 4.3): data_ofdm_500 from
+        # 1 dB, datac1 from 4 dB, where it decodes 90 % of its frames on fading channels
+        for high_rate in (True, False):
+            with self.subTest(high_rate=high_rate):
+                self.assertEqual(self.level(0, 2438, high_rate=high_rate), 1)
+                for snr in (1, 2, 3):
+                    self.assertEqual(self.level(snr, 2438, high_rate=high_rate), 2)
+                self.assertEqual(self.level(4, 2438, high_rate=high_rate), 3)
+
     def test_250_hr_only_when_limited_to_250(self):
         for snr in range(-10, 30):
             self.assertNotEqual(self.level(snr, 500), 5)
@@ -271,7 +281,7 @@ class TestIrsFallback(unittest.TestCase):
         irs.high_rate_hold = 0
         irs.last_burst_level = speed_level
         irs.speed_level = irs.previous_speed_level = speed_level
-        irs.snr = 7  # between 1700_hr (6) and data_ofdm_2438 (8.5)
+        irs.snr = 7  # between 1700_hr (6) and data_ofdm_2438 (8)
         irs.maximum_bandwidth = bandwidth
         irs.step_down_hold = 0
         irs.log = mock.Mock()

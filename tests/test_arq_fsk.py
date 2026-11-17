@@ -476,13 +476,30 @@ class TestIrsDetection(unittest.TestCase):
         )
         return irs
 
-    def test_failures_at_a_high_level_step_down_to_datac4(self):
+    def test_failures_at_a_high_level_step_down_one_level(self):
         irs = self.make_irs(4, [2])
-        self.assertEqual(irs.calibrate_speed_settings(), DATAC4_LEVEL)
+        self.assertEqual(irs.calibrate_speed_settings(), 3)  # data_ofdm_2438 -> datac1
         # and it stays there for a while, although the SNR is high
         for _ in range(ARQSessionIRS.STEP_DOWN_HOLD - 1):
-            self.assertEqual(irs.calibrate_speed_settings(), DATAC4_LEVEL)
+            self.assertEqual(irs.calibrate_speed_settings(), 3)
         self.assertEqual(irs.calibrate_speed_settings(), 4)
+
+    def test_failures_again_step_down_through_data_ofdm_500(self):
+        # on the air a session that had gone above data_ofdm_500 used to drop
+        # straight to datac4, so data_ofdm_500 was seldom used
+        irs = self.make_irs(4, [2, 2, 2])
+        self.assertEqual(irs.calibrate_speed_settings(), 3)  # datac1
+        self.assertEqual(irs.calibrate_speed_settings(), 2)  # data_ofdm_500
+        self.assertEqual(irs.calibrate_speed_settings(), DATAC4_LEVEL)
+
+    def test_next_slower_level(self):
+        irs = self.make_irs(4, [])
+        self.assertEqual(
+            [irs.next_slower_level(level) for level in (4, 3, 2, 1, 7, 6, 5)],
+            [3, 2, 1, 1, 2, 1, 1],
+        )
+        self.assertEqual(irs.slower_level(6, 3), 6)  # data_ofdm_500_hr is slower than datac1
+        self.assertEqual(irs.slower_level(2, 5), 5)
 
     def test_failures_at_datac4_fall_back_to_fsk(self):
         irs = self.make_irs(DATAC4_LEVEL, [2])
