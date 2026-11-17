@@ -117,6 +117,53 @@ class TestIrsHearsUndecodableBurst(unittest.TestCase):
         heard(detector, 5.0, end=now - 0.2)  # the decoder may still deliver it
         self.assertFalse(self.make_irs(detector).burst_heard_not_decoded(since=now - 8))
 
+    def test_not_while_the_burst_is_still_coming(self):
+        # on the air 2026-11-17: a dip split a data_ofdm_2438 burst, and the IRS
+        # fell back to FSK 1 s after the first part, while the rest still came
+        detector = SignalDetector()
+        start = time.monotonic() - 5.1  # 3.5 s heard, 0.5 s dip, 1.1 s more so far
+        detector.push(noise(3.0), now=start)
+        detector.push(noise(3.5, 3000.0, seed=1), now=start + 3.5)
+        detector.push(noise(0.5, seed=2), now=start + 4.0)
+        detector.push(noise(1.1, 3000.0, seed=3), now=start + 5.1)
+        self.assertEqual(len(detector.segments(since=start - 1)), 2)
+        irs = self.make_irs(detector)
+        self.assertFalse(irs.burst_heard_not_decoded(since=start - 1))
+        # the old check, each part alone: the first part was 1.6 s over, so it fired
+        frame = codec2.get_frame_duration(FREEDV_MODE.data_ofdm_2438.value)
+        now = time.monotonic()
+        self.assertTrue(
+            any(
+                e - s >= irs.HEARD_FRAME_SHARE * frame and now - e >= irs.DECODE_ALLOWANCE
+                for s, e in detector.segments(since=start - 1)
+            )
+        )
+
+    def test_not_before_a_frame_has_passed(self):
+        # the first part of a burst, then a dip longer than DECODE_ALLOWANCE
+        detector = SignalDetector()
+        start = time.monotonic() - 4.8
+        detector.push(noise(3.0), now=start)
+        detector.push(noise(3.5, 3000.0, seed=1), now=start + 3.5)
+        detector.push(noise(1.3, seed=2), now=start + 4.8)
+        self.assertFalse(self.make_irs(detector).burst_heard_not_decoded(since=start - 1))
+
+    def test_split_burst_counted_whole_once_over(self):
+        # a burst split by a dip, over and not decoded: undecodable, although
+        # neither part alone is HEARD_FRAME_SHARE of the frame
+        detector = SignalDetector()
+        start = time.monotonic() - 7.0
+        detector.push(noise(3.0), now=start)
+        detector.push(noise(3.0, 3000.0, seed=1), now=start + 3.0)
+        detector.push(noise(0.5, seed=2), now=start + 3.5)
+        detector.push(noise(2.0, 3000.0, seed=3), now=start + 5.5)
+        detector.push(noise(1.5, seed=4), now=start + 7.0)
+        segments = detector.segments(since=start - 1)
+        self.assertEqual(len(segments), 2)
+        frame = codec2.get_frame_duration(FREEDV_MODE.data_ofdm_2438.value)
+        self.assertTrue(all(e - s < ARQSessionIRS.HEARD_FRAME_SHARE * frame for s, e in segments))
+        self.assertTrue(self.make_irs(detector).burst_heard_not_decoded(since=start - 1))
+
     def test_answer_in_fsk(self):
         irs = self.make_irs(SignalDetector())
         irs.answer_undecodable_burst()
