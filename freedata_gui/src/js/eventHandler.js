@@ -167,9 +167,11 @@ export function eventDispatcher(data) {
 
     case "stopped":
       displayToast("warning", "bi-arrow-left-right", "Modem stopped", 5000);
+      clearArqRole();
       return;
 
     case "restarted":
+      clearArqRole();
       displayToast("secondary", "bi-bootstrap-reboot", "Modem restarted", 5000);
       loadAllData();
       return;
@@ -315,6 +317,7 @@ export function eventDispatcher(data) {
       return;
 
     case "arq":
+      updateArqRole(data);
       if (data["arq-transfer-outbound"]) {
         stateStore.arq_is_receiving = false;
         switch (data["arq-transfer-outbound"].state) {
@@ -657,6 +660,31 @@ export function eventDispatcher(data) {
       }
       return;
   }
+}
+
+// ARQ session states after which the session is over, on either side
+const ARQ_FINAL_STATES = ["ENDED", "FAILED", "ABORTED"];
+
+// Keeps stateStore.arq_role and arq_remote_call in step with the ARQ events:
+// "arq-transfer-outbound" comes from our ISS session, "arq-transfer-inbound"
+// from our IRS session. Every event carries the remote call sign (dxcall).
+function updateArqRole(data) {
+  const outbound = data["arq-transfer-outbound"];
+  const inbound = data["arq-transfer-inbound"];
+  const session = outbound ?? inbound;
+  if (!session) return;
+
+  if (ARQ_FINAL_STATES.includes(session.state)) {
+    clearArqRole();
+    return;
+  }
+  stateStore.arq_role = outbound ? "ISS" : "IRS";
+  stateStore.arq_remote_call = session.dxcall ?? "";
+}
+
+function clearArqRole() {
+  stateStore.arq_role = "";
+  stateStore.arq_remote_call = "";
 }
 
 function build_HSL() {

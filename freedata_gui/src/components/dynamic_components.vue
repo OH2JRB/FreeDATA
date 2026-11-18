@@ -37,6 +37,7 @@ import grid_stats_chart from "./grid/grid_stats_chart.vue";
 import grid_swr_meter from "./grid/grid_swr_meter.vue";
 import grid_stations_map from "./grid/grid_stations_map.vue";
 import grid_clock from "./grid/grid_clock.vue";
+import grid_arq_role from "./grid/grid_arq_role.vue";
 
 let count = ref(0);
 let grid = null; // DO NOT use ref(null) as proxies GS will break all logic when comparing structures... see https://github.com/gridstack/gridstack.js/issues/2115
@@ -350,8 +351,19 @@ const gridWidgets = [
     25,
     false,
     { x: 20, y: 16, w: 4, h: 11 }
+  ),
+  new gridWidget(
+    grid_arq_role,
+    { x: 20, y: 27, w: 4, h: 13 },
+    "ARQ role (ISS/IRS) and remote station",
+    false,
+    true,
+    "Stats",
+    26,
+    false,
+    { x: 20, y: 27, w: 4, h: 13 }
   )
-  //Next new widget ID should be 26
+  //Next new widget ID should be 27
 ];
 
 // Frequency selection list, served from frequencies.json by the server
