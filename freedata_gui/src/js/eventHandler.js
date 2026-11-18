@@ -667,7 +667,8 @@ const ARQ_FINAL_STATES = ["ENDED", "FAILED", "ABORTED"];
 
 // Keeps stateStore.arq_role and arq_remote_call in step with the ARQ events:
 // "arq-transfer-outbound" comes from our ISS session, "arq-transfer-inbound"
-// from our IRS session. Every event carries the remote call sign (dxcall).
+// from our IRS session. Every event carries the remote call sign (dxcall),
+// progress events also the data mode of the current speed level (mode).
 function updateArqRole(data) {
   const outbound = data["arq-transfer-outbound"];
   const inbound = data["arq-transfer-inbound"];
@@ -678,13 +679,20 @@ function updateArqRole(data) {
     clearArqRole();
     return;
   }
-  stateStore.arq_role = outbound ? "ISS" : "IRS";
+  const role = outbound ? "ISS" : "IRS";
+  if (stateStore.arq_role !== role || session.state === "NEW") {
+    // a new session: the mode of the last one no longer applies
+    stateStore.arq_mode = "";
+  }
+  stateStore.arq_role = role;
   stateStore.arq_remote_call = session.dxcall ?? "";
+  if (session.mode) stateStore.arq_mode = session.mode;
 }
 
 function clearArqRole() {
   stateStore.arq_role = "";
   stateStore.arq_remote_call = "";
+  stateStore.arq_mode = "";
 }
 
 function build_HSL() {

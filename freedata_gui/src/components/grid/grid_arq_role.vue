@@ -28,6 +28,11 @@ const roleClass = computed(() => {
         {{ state.arq_role === 'ISS' ? $t('grid.arq_role_sending_to') : $t('grid.arq_role_receiving_from') }}
       </span>
       <strong class="arq-role-call font-monospace">{{ state.arq_remote_call || '-' }}</strong>
+      <span
+        v-if="state.arq_mode"
+        class="arq-role-mode font-monospace"
+        :title="$t('grid.arq_role_mode')"
+      >{{ state.arq_mode }}</span>
     </div>
     <div
       v-else
@@ -55,15 +60,20 @@ const roleClass = computed(() => {
   align-items: center;
   line-height: 1.15;
   text-align: center;
-  font-size: clamp(10px, min(22cqh, 11cqw), 300px);
+  font-size: clamp(10px, min(19cqh, 11cqw), 300px);
 }
 
 .arq-role-name {
   font-size: 1.4em;
 }
 
+/* the small lines keep a readable minimum on small widgets */
 .arq-role-label {
-  font-size: 0.6em;
+  font-size: max(0.6em, 9px);
+}
+
+.arq-role-mode {
+  font-size: max(0.6em, 9px);
 }
 
 .arq-role-idle {

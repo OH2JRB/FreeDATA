@@ -354,14 +354,14 @@ const gridWidgets = [
   ),
   new gridWidget(
     grid_arq_role,
-    { x: 20, y: 27, w: 4, h: 13 },
+    { x: 20, y: 27, w: 4, h: 18 },
     "ARQ role (ISS/IRS) and remote station",
     false,
     true,
     "Stats",
     26,
     false,
-    { x: 20, y: 27, w: 4, h: 13 }
+    { x: 20, y: 27, w: 4, h: 18 }
   )
   //Next new widget ID should be 27
 ];
