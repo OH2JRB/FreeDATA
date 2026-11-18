@@ -92,6 +92,10 @@ class TestParseSlots(unittest.TestCase):
         slots = frequency_list.parse_slots([{"frequency": 3573000}])
         self.assertEqual(slots[0], entry(3573000))
 
+    def test_frequency_limit_allowed(self):
+        slots = frequency_list.parse_slots([{"frequency": frequency_list.MAX_FREQUENCY}])
+        self.assertEqual(slots[0]["frequency"], frequency_list.MAX_FREQUENCY)
+
     def test_short_list_filled_with_empty_slots(self):
         slots = frequency_list.parse_slots([None, {"frequency": 1}])
         self.assertEqual(len(slots), frequency_list.SLOT_COUNT)
@@ -121,6 +125,8 @@ class TestParseSlots(unittest.TestCase):
             [{"frequency": 14093000.5}],
             [{"frequency": 0}],
             [{"frequency": -7053000}],
+            [{"frequency": frequency_list.MAX_FREQUENCY + 1}],
+            [{"frequency": 10**4000}],
             [{"frequency": True}],
             [{"frequency": 14093000, "notes": 5}],
             [{"frequency": 14093000, "band": None}],

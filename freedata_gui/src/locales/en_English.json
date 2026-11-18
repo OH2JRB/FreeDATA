@@ -95,7 +95,7 @@
             "over": "Over",
             "ended": "Ended",
             "scheduled": "Scheduled",
-            "invalidfrequency": "Enter a frequency in MHz, e.g. 14.093",
+            "invalidfrequency": "Enter a frequency in MHz up to 300 GHz, e.g. 14.093",
             "invalidtime": "Enter start and end times",
             "invaliddates": "The first day is after the last day",
             "save": "Save",

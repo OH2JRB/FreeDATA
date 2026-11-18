@@ -94,7 +94,7 @@
             "over": "Vorbei",
             "ended": "Beendet",
             "scheduled": "Geplant",
-            "invalidfrequency": "Frequenz in MHz eingeben, z. B. 14.093",
+            "invalidfrequency": "Frequenz in MHz bis 300 GHz eingeben, z. B. 14.093",
             "invalidtime": "Beginn und Ende eingeben",
             "invaliddates": "Der erste Tag liegt nach dem letzten Tag",
             "save": "Speichern",

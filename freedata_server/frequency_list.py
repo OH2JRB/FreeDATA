@@ -41,6 +41,8 @@ DEFAULT_FILE = install_paths.data_dir(FILE_NAME)
 SECTION = "FREQUENCIES"
 SETTING = "presets"
 SLOT_COUNT = 10
+# a plausibility limit: the amateur bands of the ITU table end at 250 GHz
+MAX_FREQUENCY = 300_000_000_000
 MAX_BAND_LENGTH = 20
 MAX_NOTES_LENGTH = 200
 DAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
@@ -115,6 +117,8 @@ def parse_entry(entry, index=0):
     # bool is an int subclass, but true/false is not a frequency
     if not isinstance(frequency, int) or isinstance(frequency, bool) or frequency <= 0:
         raise ValueError(f"slot {index}: frequency must be a positive integer in Hz")
+    if frequency > MAX_FREQUENCY:
+        raise ValueError(f"slot {index}: frequency must be at most {MAX_FREQUENCY} Hz (300 GHz)")
     return {
         "frequency": frequency,
         "band": _string(entry, "band", index, MAX_BAND_LENGTH),

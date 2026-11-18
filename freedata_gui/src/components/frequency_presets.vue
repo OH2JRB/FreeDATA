@@ -17,6 +17,8 @@ const state = useStateStore(pinia);
 const emit = defineEmits(["select"]);
 
 const DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+// the server's limit (frequency_list.MAX_FREQUENCY): 300 GHz
+const MAX_FREQUENCY = 300e9;
 
 const slots = ref([]);
 const entries = ref([]);
@@ -76,7 +78,7 @@ function parseMHz(text) {
   const value = Number(String(text).trim().replace(",", "."));
   if (!Number.isFinite(value) || value <= 0) return null;
   const hz = Math.round(value * 1e6);
-  return hz > 0 ? hz : null;
+  return hz > 0 && hz <= MAX_FREQUENCY ? hz : null;
 }
 
 function dayName(day) {
