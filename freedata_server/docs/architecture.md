@@ -448,6 +448,7 @@ Defined in `CONFIG.config_types`; example values from [config.ini.example](../co
 | | `adif_wavelog_api_key` | str | `API-KEY` |
 | GUI | `auto_run_browser` | bool | `True` |
 | | `distance_unit` | str | `km` |
+| FREQUENCIES | `presets` | list | 10 slots, each `null` or `{"frequency": 14093000, "band": "20m", "notes": "EU / US", "schedule": null}`; filled once from frequencies.json or the shipped default list, edited in the GUI ([modem-audio-radio.md](modem-audio-radio.md#frequency-list-frequency_listpy)) |
 | EXP | `enable_ring_buffer` | bool | `False` |
 | | `enable_vhf` | bool | `False` |
 | | `enable_groupchat` | bool | `False` |
@@ -598,11 +599,11 @@ Most jobs catch exceptions and `print()` them.
   Nuitka standalone build (modules in `<dist>/freedata_server/`, data files in `<dist>/lib/` and
   `<dist>/data/`). Used by codec2.py, bandplan.py, frequency_list.py and `find_binary_paths()`, so none depend on the
   working directory.
-- **[frequency_list.py](../frequency_list.py)** - the GUI's frequency selection list:
-  `load_frequency_list(config_file)` returns frequencies.json next to the config file, or the shipped
-  `data/frequencies.json` if that is missing or invalid (logged); `check_frequency_list()` logs the
-  choice at startup. Served by `GET /radio/frequencies`. See
-  [modem-audio-radio.md](modem-audio-radio.md#frequency-list-frequency_listpy).
+- **[frequency_list.py](../frequency_list.py)** - the GUI's frequency presets, kept in the config
+  (`FREQUENCIES.presets`, 10 slots, `null` for an empty one) with an optional UTC schedule each:
+  checks (`parse_slots()`), first fill from frequencies.json or the shipped `data/frequencies.json`
+  (`initial_slots()`), saving (`save_slots()`), `schedule_state()`. Served and saved by
+  `/radio/frequencies`. See [modem-audio-radio.md](modem-audio-radio.md#frequency-list-frequency_listpy).
 - **[maidenhead.py](../maidenhead.py)** - `haversine()` (km), `maidenhead_to_latlon()` (grid ->
   centre lat/lon), `latlon_to_maidenhead(lat, lon, precision=6)` (4/6/8 chars),
   `distance_between_locators()` (`{"kilometers", "miles"}`), `generate_full_maidenhead()` (pads 2- or

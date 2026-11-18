@@ -277,6 +277,16 @@ export async function getRadioFrequencies() {
   return await apiGet("/radio/frequencies");
 }
 
+// Saves the frequency presets: a list of slots, null for an empty one
+export async function setRadioFrequencies(slots) {
+  return await apiPost("/radio/frequencies", { slots });
+}
+
+// Replaces the frequency presets with the server's default list
+export async function resetRadioFrequencies() {
+  return await apiPost("/radio/frequencies/reset");
+}
+
 export async function getFreedataMessages() {
   chatStore.loading = true;
   try {

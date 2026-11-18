@@ -4,6 +4,7 @@ import structlog
 from fastapi import APIRouter, Depends
 from freedata_server.api.common import api_abort
 from freedata_server import api_validations as validations
+from freedata_server import frequency_list
 from freedata_server.context import AppContext, get_ctx
 from freedata_server.message_p2p import common_key_changed, encryption_log, EXPLORER_SETTINGS
 from freedata_server.message_system_db_station import DatabaseManagerStations
@@ -164,9 +165,14 @@ async def post_config(
             ctx.pskreporter.set_enabled(False)
             encryption_log.info("[ENCRYPTION] PSK Reporter switched off, encryption is in use")
 
+    # The frequency presets are saved through POST /radio/frequencies only: a
+    # client sending the whole config back would otherwise overwrite them
+    # with the copy it read earlier
+    new_cfg.pop(frequency_list.SECTION, None)
+
     # Read and compare
     old_cfg = ctx.config_manager.read()
-    if old_cfg == new_cfg:
+    if {section: settings for section, settings in old_cfg.items() if section != frequency_list.SECTION} == new_cfg:
         return old_cfg
 
     # Write new config
