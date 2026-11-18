@@ -356,7 +356,8 @@ class ARQSessionIRS(arq_session.ARQSession):
 
         self.ctx.event_manager.send_arq_session_new(False, self.id, self.dxcall, 0, self.state.name)
 
-        if open_frame["protocol_version"] not in [self.protocol_version]:
+        version_mismatch = open_frame["protocol_version"] not in [self.protocol_version]
+        if version_mismatch:
             self.abort = True
             self.log("Protocol version mismatch! Setting disconnect flag!", isWarning=True)
             self.set_state(IRS_State.ABORTED)
@@ -368,6 +369,19 @@ class ARQSessionIRS(arq_session.ARQSession):
         self.launch_transmit_and_wait(
             self.signalling_frames(ack_frame), self.TIMEOUT_CONNECT, mode=self.get_signalling_mode()
         )
+        if version_mismatch:
+            # the session ends here: say so like the other aborts, or the GUI
+            # keeps showing it and the modem stays busy (setARQ(True) in __init__)
+            self.session_ended = time.time()
+            self.ctx.event_manager.send_arq_session_finished(
+                False,
+                self.id,
+                self.dxcall,
+                False,
+                self.state.name,
+                statistics=self.calculate_session_statistics(self.received_bytes, self.total_length),
+            )
+            self.ctx.state_manager.setARQ(False)
         if not self.abort:
             self.set_state_unless_aborted(IRS_State.OPEN_ACK_SENT)
         return None, None
