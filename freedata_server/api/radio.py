@@ -314,7 +314,6 @@ async def post_radio_frequencies(body: dict, ctx: AppContext = Depends(get_ctx))
         api_abort(str(err), 400)
     except OSError as err:
         api_abort(str(err), 500)
-    log.info("[FRQ] Frequency presets saved", filled=sum(slot is not None for slot in slots))
     return frequencies_response(slots)
 
 
@@ -329,8 +328,7 @@ async def reset_radio_frequencies(ctx: AppContext = Depends(get_ctx)):
     Replace the frequency presets with the default list shipped with the server.
     """
     try:
-        slots = frequency_list.save_slots(ctx.config_manager, frequency_list.default_slots())
+        slots = frequency_list.save_slots(ctx.config_manager, frequency_list.default_slots(), reason="reset")
     except OSError as err:
         api_abort(str(err), 500)
-    log.info("[FRQ] Frequency presets reset to the default list")
     return frequencies_response(slots)

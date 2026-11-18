@@ -282,6 +282,60 @@ class TestConfigStorage(TempConfig):
         self.assertEqual(slots[0]["frequency"], 3573000)
 
 
+class TestChangeLog(TempConfig):
+    def save(self, slots, **kwargs):
+        with structlog.testing.capture_logs() as logs:
+            frequency_list.save_slots(self.config_manager, slots, **kwargs)
+        return logs
+
+    def setUp(self):
+        super().setUp()
+        self.config_manager = self.config()
+        self.save([entry(3573000, "FT8", "80m"), entry(7053000, "EU / US", "40m")])
+
+    def test_added_changed_cleared(self):
+        logs = self.save([None, entry(7074000, "FT8", "40m", SCHEDULE), entry(14080000, "Contest #1", "20m")])
+        self.assertEqual(
+            [(e["event"], e["slot"], e["old"], e["new"]) for e in logs[:-1]],
+            [
+                ("[FRQ] Frequency preset cleared", 1, "3.573 MHz 80m 'FT8'", "empty"),
+                (
+                    "[FRQ] Frequency preset changed",
+                    2,
+                    "7.053 MHz 40m 'EU / US'",
+                    "7.074 MHz 40m 'FT8' sat,sun 00:00-00:00 UTC",
+                ),
+                ("[FRQ] Frequency preset added", 3, "empty", "14.080 MHz 20m 'Contest #1'"),
+            ],
+        )
+        self.assertEqual(logs[-1]["event"], "[FRQ] Frequency presets saved")
+        self.assertEqual((logs[-1]["reason"], logs[-1]["changed"], logs[-1]["filled"]), ("edit", 3, 2))
+
+    def test_nothing_changed(self):
+        logs = self.save([entry(3573000, "FT8", "80m"), entry(7053000, "EU / US", "40m")])
+        self.assertEqual(events(logs), [("info", "[FRQ] Frequency presets saved")])
+        self.assertEqual(logs[0]["changed"], 0)
+
+    def test_moved_slots_logged_as_changes(self):
+        logs = self.save([entry(7053000, "EU / US", "40m"), entry(3573000, "FT8", "80m")])
+        self.assertEqual(
+            [(e["event"], e["slot"]) for e in logs[:-1]],
+            [("[FRQ] Frequency preset changed", 1), ("[FRQ] Frequency preset changed", 2)],
+        )
+
+    def test_reset_reason(self):
+        logs = self.save(frequency_list.default_slots(), reason="reset")
+        self.assertEqual(logs[-1]["reason"], "reset")
+        self.assertEqual(logs[-1]["changed"], frequency_list.SLOT_COUNT)
+
+    def test_describe_dates_and_every_day(self):
+        schedule = {"days": [], "start": "22:00", "end": "02:00", "from": "2026-11-28", "to": ""}
+        self.assertEqual(
+            frequency_list.describe(entry(50313000, schedule=schedule)),
+            "50.313 MHz every day 22:00-02:00 UTC 2026-11-28 to ...",
+        )
+
+
 class TestFrequencyListApi(TempConfig):
     def setUp(self):
         super().setUp()
@@ -304,7 +358,15 @@ class TestFrequencyListApi(TempConfig):
         with structlog.testing.capture_logs() as logs:
             response = self.client.post("/radio/frequencies", json={"slots": slots})
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(events(logs), [("info", "[FRQ] Frequency presets saved")])
+        # the default list filled all slots: slot 2 changed, the others cleared
+        self.assertEqual(
+            events(logs),
+            [("info", "[FRQ] Frequency preset cleared")]
+            + [("info", "[FRQ] Frequency preset changed")]
+            + [("info", "[FRQ] Frequency preset cleared")] * (frequency_list.SLOT_COUNT - 2)
+            + [("info", "[FRQ] Frequency presets saved")],
+        )
+        self.assertEqual((logs[-1]["reason"], logs[-1]["changed"], logs[-1]["filled"]), ("edit", 10, 1))
         body = self.client.get("/radio/frequencies").json()
         self.assertIsNone(body["slots"][0])
         self.assertEqual(body["slots"][1]["notes"], "FT8")

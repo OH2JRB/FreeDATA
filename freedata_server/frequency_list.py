@@ -220,9 +220,52 @@ def band_name(frequency, region=0):
     return ""
 
 
-def save_slots(config_manager, slots, region=0):
+def describe(entry):
+    """One preset as text for the log: "14.093 MHz 20m 'EU / US' sat,sun 00:00-00:00 UTC"."""
+    if entry is None:
+        return "empty"
+    parts = [re.sub(r"0{1,3}$", "", f"{entry['frequency'] / 1e6:.6f}") + " MHz"]
+    if entry["band"]:
+        parts.append(entry["band"])
+    if entry["notes"]:
+        parts.append(repr(entry["notes"]))
+    schedule = entry["schedule"]
+    if schedule is not None:
+        days = ",".join(schedule["days"]) or "every day"
+        parts.append(f"{days} {schedule['start']}-{schedule['end']} UTC")
+        if schedule["from"] or schedule["to"]:
+            parts.append(f"{schedule['from'] or '...'} to {schedule['to'] or '...'}")
+    return " ".join(parts)
+
+
+def log_changes(old, new, reason):
+    """Log each slot that differs between old and new (slot numbers from 1,
+    as in the GUI), then a summary line. Returns the number of changed slots."""
+    changed = 0
+    for index, (before, after) in enumerate(zip(old, new)):
+        if before == after:
+            continue
+        changed += 1
+        if before is None:
+            kind = "added"
+        elif after is None:
+            kind = "cleared"
+        else:
+            kind = "changed"
+        log.info(f"[FRQ] Frequency preset {kind}", slot=index + 1, old=describe(before), new=describe(after))
+    log.info(
+        "[FRQ] Frequency presets saved",
+        reason=reason,
+        changed=changed,
+        filled=sum(slot is not None for slot in new),
+    )
+    return changed
+
+
+def save_slots(config_manager, slots, region=0, reason="edit"):
     """Check the slots and write them to the config file. An empty band label
-    is filled in from the band plan of the IARU region.
+    is filled in from the band plan of the IARU region. Each changed slot is
+    logged (log_changes), with `reason` ("edit", "reset") in the summary.
 
     Returns the slots as written. Raises ValueError if they are not valid,
     OSError if the config could not be written.
@@ -231,8 +274,10 @@ def save_slots(config_manager, slots, region=0):
     for slot in slots:
         if slot is not None and not slot["band"]:
             slot["band"] = band_name(slot["frequency"], region)
+    old = config_slots(config_manager.config)
     if not config_manager.write({SECTION: {SETTING: slots}}):
         raise OSError("the config file could not be written")
+    log_changes(old, slots, reason)
     return slots
 
 
