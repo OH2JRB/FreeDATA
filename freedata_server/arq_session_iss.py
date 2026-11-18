@@ -562,6 +562,7 @@ class ARQSessionISS(arq_session.ARQSession):
             self.state.name,
             self.speed_level,
             statistics=self.calculate_session_statistics(self.confirmed_bytes, self.total_length),
+            mode=self.get_mode_by_speed_level(self.speed_level).name,
         )
 
         # check if we received an abort flag

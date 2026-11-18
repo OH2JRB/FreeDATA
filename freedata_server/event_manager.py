@@ -137,6 +137,7 @@ class EventManager:
         state,
         speed_level,
         statistics=None,
+        mode=None,
     ):
         """Sends an ARQ session progress update event.
 
@@ -154,6 +155,8 @@ class EventManager:
             state (str): The current state of the ARQ session.
             speed_level: The current speed level of the ARQ session.
             statistics (dict, optional): A dictionary containing session statistics. Defaults to None.
+            mode (str, optional): Name of the data mode of the speed level
+                (FREEDV_MODE name, such as "datac4"). Defaults to None.
         """
         if statistics is None:
             statistics = {}
@@ -168,6 +171,7 @@ class EventManager:
                 "total_bytes": total_bytes,
                 "state": state,
                 "speed_level": speed_level,
+                "mode": mode,
                 "statistics": statistics,
             },
         }

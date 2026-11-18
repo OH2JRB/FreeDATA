@@ -216,6 +216,51 @@ class TestARQSession(unittest.TestCase):
         received = base64.b64decode(successes[0]["data"])
         self.assertEqual(received, payload)
 
+    def collect_session_events(self, ctx, key, timeout):
+        """The session's arq-transfer events under key, up to its end (an event with "success")."""
+        events = []
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            try:
+                ev = ctx.TESTMODE_EVENTS.get(timeout=0.5)
+            except queue.Empty:
+                continue
+            if key in ev:
+                events.append(ev[key])
+                if "success" in ev[key]:
+                    return events
+        self.fail(f"no end of the {key} session within {timeout} s: {events}")
+
+    def testARQSessionProgressEventsCarryMode(self):
+        # every progress event on both sides names the data mode of its speed
+        # level (the GUI's ARQ role widget shows it)
+        self.loss_probability = 0
+        for ctx in (self.ctx_ISS, self.ctx_IRS):
+            while not ctx.TESTMODE_EVENTS.empty():
+                ctx.TESTMODE_EVENTS.get_nowait()
+
+        self.establishChannels()
+        params = {
+            "dxcall": "AA1AAA-1",
+            "data": base64.b64encode(np.random.bytes(400)),
+            "type": "raw",
+        }
+        try:
+            ARQRawCommand(self.ctx_ISS, params).run()
+            sessions = {
+                "arq-transfer-outbound": self.collect_session_events(self.ctx_ISS, "arq-transfer-outbound", 120),
+                "arq-transfer-inbound": self.collect_session_events(self.ctx_IRS, "arq-transfer-inbound", 30),
+            }
+        finally:
+            self.channels_running = False
+
+        for key, events in sessions.items():
+            progress = [e for e in events if "speed_level" in e]
+            self.assertTrue(progress, f"no {key} progress events: {events}")
+            for event in progress:
+                expected = ARQSessionISS.SPEED_LEVEL_DICT[event["speed_level"]]["mode"].name
+                self.assertEqual(event["mode"], expected, f"{key}: {event}")
+
     def start_transfer_and_wait_for_data(self):
         """Starts a transfer and returns its ISS and IRS sessions once data flows."""
         self.loss_probability = 0

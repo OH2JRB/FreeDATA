@@ -558,6 +558,7 @@ class ARQSessionIRS(arq_session.ARQSession):
             self.state.name,
             self.speed_level,
             self.calculate_session_statistics(self.received_bytes, self.total_length),
+            mode=self.get_mode_by_speed_level(self.speed_level).name,
         )
 
         return True
@@ -770,6 +771,7 @@ class ARQSessionIRS(arq_session.ARQSession):
                 self.state.name,
                 self.speed_level,
                 statistics=self.calculate_session_statistics(self.received_bytes, self.total_length),
+                mode=self.get_mode_by_speed_level(self.speed_level).name,
             )
 
             self.launch_transmit_and_wait(

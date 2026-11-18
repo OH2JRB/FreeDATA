@@ -42,7 +42,7 @@ gridstack.
 `new gridWidget(component, size, text, quickFill, autoPlace, category, id, quickFillSM, sizeSM)`.
 
 - `id` is persisted in saved layouts. The source comment says never to change
-  it. IDs in use: 0 to 22, 24 and 25 (23 is unused).
+  it. IDs in use: 0 to 22 and 24 to 26 (23 is unused).
 - `size` is used for the normal "Fill grid" and for picker adds. `sizeSM` is
   used by "Fill grid (small screen)".
 - `autoPlace` is `true` for every widget. Fill and restore set it to `false`
@@ -80,6 +80,7 @@ Fill grid (small screen).
 | 22 | Station Map | [grid_stations_map.vue](../src/components/grid/grid_stations_map.vue) | 6,53,10,92 | 12,56,12,92 | Other | yes | yes | d3 world map with own and heard stations | `state.heard_stations`, `settings.remote.STATION.mygrid` |
 | 24 | Audio Stream (listen to RX) | [grid_audio.vue](../src/components/grid/grid_audio.vue) | 16,8,5,30 | 16,8,5,30 | Audio | no | no | Listen/Stop, mute, volume and status for RX audio monitoring | `openAudioStream`, `RxAudioPlayer`, `state.ptt_state`, `state.is_modem_running` |
 | 25 | Clock (local/UTC) | [grid_clock.vue](../src/components/grid/grid_clock.vue) | 20,16,4,11 | 20,16,4,11 | Other | no | no | Local time (`HH:MM:SS`, label from `grid.clock_local`) and UTC, updated every second by a `setInterval` cleared on unmount. The text scales with the widget size (CSS container query units, minimum 10 px), so resizing the widget enlarges the clock | none (browser clock) |
+| 26 | ARQ role (ISS/IRS) and remote station | [grid_arq_role.vue](../src/components/grid/grid_arq_role.vue) | 20,27,4,18 | 20,27,4,18 | Stats | no | no | During an ARQ session: `ISS` (yellow, "sending to") or `IRS` (blue, "receiving from") the remote call sign and, once the first progress event names it, the data mode of the current speed level (such as `datac4`); otherwise "No session" (`grid.arq_role_*`). Text scales with the widget size like the clock | `state.arq_role`, `state.arq_remote_call`, `state.arq_mode`, set by `updateArqRole` in [eventHandler.js](../src/js/eventHandler.js) from the `arq-transfer-outbound` (ISS) / `arq-transfer-inbound` (IRS) events (`mode` from the progress events) and cleared on `ENDED`, `FAILED`, `ABORTED` or a modem stop/restart |
 
 [grid_button.vue](../src/components/grid/grid_button.vue) is not a widget. It is
 the picker button (see section 3).
@@ -89,7 +90,7 @@ the picker button (see section 3).
 1. Create `src/components/grid/grid_<name>.vue`.
 2. Import it in `dynamic_components.vue` and add a `new gridWidget(...)` entry
    with a new unique `id`. The end-of-array comment says "Next new widget ID
-   should be 26", which is correct (25 is the clock).
+   should be 27", which is correct (26 is the ARQ role widget).
 3. `category` must be one of `Activity`, `Audio`, `Broadcasts`, `Rig`,
    `Stats`, `Other`. These map to the DOM ids `activityBody`, `audioBody`,
    `broadcastsBody`, `rigBody`, `statsBody`, `otherBody`. Any other value means

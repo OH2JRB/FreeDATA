@@ -69,6 +69,15 @@ export const useStateStore = defineStore("stateStore", () => {
 
   var arq_is_receiving = ref(false);
 
+  // Role of this station in the running ARQ session: "ISS" (sending),
+  // "IRS" (receiving) or "" when no session is running
+  var arq_role = ref("");
+  // Call sign of the remote station in the running ARQ session
+  var arq_remote_call = ref("");
+  // Data mode of the running ARQ session's speed level (FREEDV_MODE name,
+  // such as "datac4"), "" until the first progress event names it
+  var arq_mode = ref("");
+
   /* TODO Those 3 can be removed I guess , DJ2LS*/
   var arq_seconds_until_finish = ref();
   var arq_seconds_until_timeout = ref();
@@ -143,6 +152,9 @@ export const useStateStore = defineStore("stateStore", () => {
     arq_seconds_until_timeout,
     arq_seconds_until_timeout_percent,
     arq_is_receiving,
+    arq_role,
+    arq_remote_call,
+    arq_mode,
     modem_connection,
     is_modem_running,
     arq_session_state,

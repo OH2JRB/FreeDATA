@@ -507,7 +507,7 @@ clients on the events WebSocket.
 | `send_buffer_overflow(data)` | `{"buffer-overflow": str(data)}` |
 | `send_custom_event(**kw)` | `kw` as-is |
 | `send_arq_session_new(outbound, session_id, dxcall, total_bytes, state)` | `{"type": "arq", "arq-transfer-<outbound\|inbound>": {session_id, dxcall, total_bytes, state}}` |
-| `send_arq_session_progress(outbound, session_id, dxcall, received_bytes, total_bytes, state, speed_level, statistics=None)` | `{"type": "arq", "arq-transfer-<dir>": {session_id, dxcall, received_bytes, total_bytes, state, speed_level, statistics}}` |
+| `send_arq_session_progress(outbound, session_id, dxcall, received_bytes, total_bytes, state, speed_level, statistics=None, mode=None)` | `{"type": "arq", "arq-transfer-<dir>": {session_id, dxcall, received_bytes, total_bytes, state, speed_level, mode, statistics}}` - `mode` is the FREEDV_MODE name of the speed level's data mode (`SPEED_LEVEL_DICT`) |
 | `send_arq_session_finished(outbound, session_id, dxcall, success, state, data=False, statistics=None)` | `{"type": "arq", "arq-transfer-<dir>": {session_id, dxcall, statistics, success, state, data}}` - `data` is base64 (dicts are JSON-encoded first); `False` if no data. |
 | `modem_started()` | `{"freedata_server": "started"}` |
 | `modem_restarted()` | `{"freedata_server": "restarted"}` |
