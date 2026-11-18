@@ -7,7 +7,8 @@ import "../../node_modules/gridstack/dist/gridstack.min.css";
 import { GridStack } from "gridstack";
 import { useStateStore } from "../store/stateStore.js";
 const state = useStateStore(pinia);
-import { setRadioParametersFrequency, getRadioFrequencies } from "../js/api";
+import { setRadioParametersFrequency } from "../js/api";
+import frequency_presets from "./frequency_presets.vue";
 import { displayToast } from "../js/popupHandler";
 import { saveLocalSettingsToConfig, settingsStore } from "../store/settingsStore";
 
@@ -366,19 +367,12 @@ const gridWidgets = [
   //Next new widget ID should be 27
 ];
 
-// Frequency selection list, served from frequencies.json by the server
-const frequencyList = ref([]);
+// Frequency presets (the server's config file), reloaded each time the
+// frequency selection opens
+const frequencyPresets = ref(null);
 
-async function loadFrequencyList() {
-  const response = await getRadioFrequencies();
-  if (response && Array.isArray(response.frequencies)) {
-    frequencyList.value = response.frequencies;
-  }
-}
-
-// Hz to MHz with at least three decimals: 7053000 -> "7.053", 14093500 -> "14.0935"
-function formatMHz(frequency) {
-  return (frequency / 1e6).toFixed(6).replace(/0{1,3}$/, "");
+function loadFrequencyList() {
+  frequencyPresets.value?.reload();
 }
 
 function updateFrequencyAndApply(frequency) {
@@ -1098,27 +1092,13 @@ onBeforeUnmount(() => {
             </button>
           </div>
         </li>
-
-        <!-- Dropdown Divider -->
-        <li class="list-group-item">
-          <hr class="dropdown-divider">
-        </li>
-        <!-- Dropdown Items: frequency list from the server (frequencies.json) -->
-        <a
-          v-for="entry in frequencyList"
-          :key="entry.frequency"
-          href="#"
-          class="list-group-item list-group-item-action"
-          data-bs-dismiss="offcanvas"
-          @click="updateFrequencyAndApply(entry.frequency)"
-        >
-          <div class="d-flex w-100 justify-content-between">
-            <h5 class="mb-1">{{ formatMHz(entry.frequency) }} MHz</h5>
-            <small>{{ entry.notes }}</small>
-            <h6>{{ entry.band }}</h6>
-          </div>
-        </a>
       </ul>
+      <hr>
+      <!-- frequency presets from the server's config file -->
+      <frequency_presets
+        ref="frequencyPresets"
+        @select="updateFrequencyAndApply"
+      />
     </div>
   </div>
 </template>

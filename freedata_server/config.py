@@ -3,6 +3,8 @@ import structlog
 import json
 import os
 
+from freedata_server import frequency_list
+
 
 def fsk_modes_enabled(ctx) -> bool:
     """True if the FSK modes may be used (MODEM.enable_fsk, "Enable FSK modes" in
@@ -137,6 +139,11 @@ class CONFIG:
             "auto_run_browser": bool,
             "distance_unit": str,
         },
+        # the GUI's frequency presets (frequency_list.py): a JSON list of
+        # frequency_list.SLOT_COUNT slots, null for an empty one
+        "FREQUENCIES": {
+            "presets": list,
+        },
         "EXP": {
             "enable_ring_buffer": bool,
             "enable_vhf": bool,
@@ -250,6 +257,7 @@ class CONFIG:
             data if successful, False otherwise.
         """
         existing_sections = self.parser.sections()
+        presets_missing = not self.parser.has_option(frequency_list.SECTION, frequency_list.SETTING)
 
         # Remove sections and settings not defined in self.config_types
         for section in existing_sections:
@@ -277,6 +285,12 @@ class CONFIG:
                     self.parser.set(section, setting, str(default_value))
                     self.log.info(f"[CFG] Adding missing setting: {section}.{setting}")
 
+        # first start with presets: from the frequencies.json of earlier
+        # versions, or the default list
+        if presets_missing:
+            slots = frequency_list.initial_slots(self.config_name)
+            self.parser.set(frequency_list.SECTION, frequency_list.SETTING, self.list_to_ini(slots))
+
         # PTT types FreeDATA used to offer that Hamlib does not know: rigctld
         # took them as NONE and never keyed the radio (normalize_ptt_type)
         if self.parser.has_option("RADIO", "ptt_type"):
@@ -286,6 +300,17 @@ class CONFIG:
                 self.parser.set("RADIO", "ptt_type", new)
                 self.log.warning(f"[CFG] RADIO.ptt_type {old} is not a Hamlib PTT type, changed to {new}")
         return self.write_to_file()
+
+    @staticmethod
+    def list_to_ini(value):
+        """A list as JSON for the config file.
+
+        "#" would start an inline comment there and cut the value off, and
+        "%" is interpolation syntax that configparser refuses. Both can only
+        be inside JSON strings, so they are written as JSON escapes (a
+        backslash and u0023 or u0025), which json.loads turns back.
+        """
+        return json.dumps(value).replace("#", "\\u0023").replace("%", "\\u0025")
 
     def handle_setting(self, section, setting, value, is_writing=False):
         """Handles special data type conversions for config settings.
@@ -311,7 +336,7 @@ class CONFIG:
                     # When writing, ensure the value is a list and then convert it to JSON
                     if isinstance(value, str):
                         value = json.loads(value)  # Convert JSON string to list
-                    return json.dumps(value)  # Convert list to JSON string
+                    return self.list_to_ini(value)
                 else:
                     # When reading, convert the JSON string back to a list
                     if isinstance(value, str):

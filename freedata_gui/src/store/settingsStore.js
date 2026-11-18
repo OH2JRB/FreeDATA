@@ -201,6 +201,9 @@ export function onChange() {
   if (remote_config.STATION) {
     remote_config.STATION.callsign_blacklist = blacklistContent;
   }
+  // The frequency presets are saved on their own (POST /radio/frequencies);
+  // the copy here may be older than what is stored
+  delete remote_config.FREQUENCIES;
 
   return setConfig(remote_config).then((conf) => {
     if (conf && typeof conf === "object") {

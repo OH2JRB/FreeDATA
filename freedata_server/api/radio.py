@@ -220,36 +220,115 @@ async def post_radio_clock(ctx: AppContext = Depends(get_ctx)):
     return api_response(result)
 
 
+FREQUENCY_PRESET_EXAMPLE = {
+    "frequency": 14093000,
+    "band": "20m",
+    "notes": "EU / US",
+    "schedule": {"days": ["sat", "sun"], "start": "00:00", "end": "00:00", "from": "", "to": ""},
+}
+
+FREQUENCIES_RESPONSE = {
+    "description": (
+        "The frequency presets. `slots` has all slots in order, null for an empty one; "
+        "`frequencies` has the filled ones for the frequency selection, each with its "
+        "`slot` index and `schedule_state` (null without a schedule)."
+    ),
+    "content": {
+        "application/json": {
+            "example": {
+                "slots": [FREQUENCY_PRESET_EXAMPLE, None],
+                "frequencies": [
+                    {
+                        **FREQUENCY_PRESET_EXAMPLE,
+                        "slot": 0,
+                        "schedule_state": {
+                            "state": "upcoming",
+                            "start": "2026-11-21T00:00:00+00:00",
+                            "end": "2026-11-22T00:00:00+00:00",
+                        },
+                    }
+                ],
+                "slot_count": frequency_list.SLOT_COUNT,
+            }
+        }
+    },
+}
+
+
+def iaru_region(ctx):
+    region = (ctx.config_manager.config or {}).get("STATION", {}).get("iaru_region", 0)
+    return region if region in (1, 2, 3) else 0
+
+
+def frequencies_response(slots):
+    return api_response({
+        "slots": slots,
+        "frequencies": frequency_list.picker_entries(slots),
+        "slot_count": frequency_list.SLOT_COUNT,
+    })
+
+
 @router.get(
     "/frequencies",
-    summary="Get Frequency List",
+    summary="Get Frequency Presets",
     tags=["Radio"],
-    responses={
-        200: {
-            "description": "Frequencies offered in the GUI's frequency selection, in Hz.",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "frequencies": [{"frequency": 14093000, "notes": "EU / US", "band": "20m"}],
-                        "source": "user",
-                    }
-                }
-            },
-        },
-    },
+    responses={200: FREQUENCIES_RESPONSE},
 )
 async def get_radio_frequencies(ctx: AppContext = Depends(get_ctx)):
     """
-    Return the frequency list: frequencies.json next to the config file if it
-    is there and valid, otherwise the default list shipped with the server.
-    `source` is "user", "default", or "none" if neither could be read.
+    Return the frequency presets from the config file (FREQUENCIES.presets).
     """
-    config_file = ctx.config_manager.config_name
-    entries, path = frequency_list.load_frequency_list(config_file)
-    if path is None:
-        source = "none"
-    elif path == frequency_list.user_file(config_file):
-        source = "user"
-    else:
-        source = "default"
-    return api_response({"frequencies": entries, "source": source})
+    return frequencies_response(frequency_list.config_slots(ctx.config_manager.config))
+
+
+@router.post(
+    "/frequencies",
+    summary="Save Frequency Presets",
+    tags=["Radio"],
+    responses={
+        200: FREQUENCIES_RESPONSE,
+        400: {
+            "description": "The presets are not valid.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": {"error": "slot 2: frequency must be a positive integer in Hz"}}
+                }
+            },
+        },
+        500: {
+            "description": "The config file could not be written.",
+            "content": {"application/json": {"example": {"detail": {"error": "the config file could not be written"}}}},
+        },
+    },
+)
+async def post_radio_frequencies(body: dict, ctx: AppContext = Depends(get_ctx)):
+    """
+    Save the frequency presets to the config file. The body is
+    `{"slots": [...]}`: at most `slot_count` slots, each a preset or null for
+    an empty slot; a shorter list is filled up with empty slots. An empty
+    band label is filled in from the IARU band plan.
+    """
+    try:
+        slots = frequency_list.save_slots(ctx.config_manager, body.get("slots"), iaru_region(ctx))
+    except ValueError as err:
+        api_abort(str(err), 400)
+    except OSError as err:
+        api_abort(str(err), 500)
+    return frequencies_response(slots)
+
+
+@router.post(
+    "/frequencies/reset",
+    summary="Reset Frequency Presets",
+    tags=["Radio"],
+    responses={200: FREQUENCIES_RESPONSE},
+)
+async def reset_radio_frequencies(ctx: AppContext = Depends(get_ctx)):
+    """
+    Replace the frequency presets with the default list shipped with the server.
+    """
+    try:
+        slots = frequency_list.save_slots(ctx.config_manager, frequency_list.default_slots(), reason="reset")
+    except OSError as err:
+        api_abort(str(err), 500)
+    return frequencies_response(slots)

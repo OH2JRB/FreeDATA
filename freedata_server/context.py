@@ -65,7 +65,7 @@ class AppContext:
         self.config_manager.read()
 
         bandplan.check_bandplan()
-        frequency_list.check_frequency_list(self.config_manager.config_name)
+        frequency_list.check_frequency_list(self.config_manager.config)
 
         self.websocket_manager.startWorkerThreads(self)
 

@@ -180,19 +180,24 @@ Layout format: `[[x, y, w, h, widgetId], ...]`.
 
 `dynamic_components.vue` also contains `#offcanvasFrequency`. It is opened by
 the Frequency widget and by the QRG button in Rig control. It has a free-text
-frequency input bound to `state.new_frequency` and a list of frequency
-presets. The presets are not in the GUI: `loadFrequencyList()` fetches them
-with `getRadioFrequencies()` (GET `/radio/frequencies`) when the dashboard
-mounts and again each time the offcanvas opens (`show.bs.offcanvas`). Each
-entry `{frequency, notes, band}` is shown as "MHz, notes, band"
-(`formatMHz()`: at least three decimals). The server reads the list from
-frequencies.json next to its config file, or its shipped default
-(`freedata_server/data/frequencies.json`: 50.616, 50.308, 28.093, 27.265,
-27.245, 24.908, 21.093, 18.106, 14.093, 7.053 MHz); see the server's
-modem-audio-radio.md, "Frequency list". If the request fails the list stays
-as it was (empty on the first load). Both the input and the presets call
-`setRadioParametersFrequency()`, which sends POST `/radio`
-`{radio_frequency}`.
+frequency input bound to `state.new_frequency` and the frequency presets,
+`frequency_presets.vue`. The presets are in the server's config file
+(`FREQUENCIES.presets`); the component fetches them with
+`getRadioFrequencies()` (GET `/radio/frequencies`) each time the offcanvas
+opens (`show.bs.offcanvas` calls its `reload()`). Each filled slot is shown as
+"MHz, notes, band" (`formatMHz()`: at least three decimals); one with a
+schedule also shows a badge (now / in N h / ended, from `schedule_state`,
+re-rendered every 30 s) and the schedule in UTC, and active ones are listed
+first. Edit switches to an editor of all 10 slots: frequency in MHz, band
+(left empty, the server fills it from the IARU band plan), notes, an optional
+schedule (UTC weekdays, start and end time, optional first and last day),
+fill from the radio's current frequency, move up/down and clear. Save sends
+POST `/radio/frequencies` `{slots}`; Defaults sends POST
+`/radio/frequencies/reset` after a confirm. While editing, opening the
+offcanvas again does not reload. The settings save (`onChange()` in
+settingsStore.js) drops `FREQUENCIES` from the config it posts. Both the
+input and the presets call `setRadioParametersFrequency()`, which sends POST
+`/radio` `{radio_frequency}`.
 
 ## 6. Waterfall
 

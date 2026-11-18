@@ -90,7 +90,7 @@ A full run takes about a minute. Both commands exit non-zero when a test fails.
 | `test_arq_session_sim.py` | The real-time ARQ session simulator in `tools/arq_session_sim.py`: its audio bus, the streaming channel and one short session on a clean channel | no |
 | `test_bandplan.py` | The bundled IARU band plan data and its lookup helpers | no |
 | `test_encryption_logging.py` | Encryption events reach the server log (stdout and the log file), key material never does | no (subprocess) |
-| `test_frequency_list.py` | The GUI's frequency list: loading the file, the fallback list and the API | yes (`TestClient`) |
+| `test_frequency_list.py` | The GUI's frequency presets: slot checks, storage in the config (cleared slots, `#` and `%`), the first fill from frequencies.json or the default, schedule states, the change log lines of a save, settings saves leaving the presets alone, and the API | yes (`TestClient`) |
 | `test_fsk_early.py` | The early FSK decoder (`fsk_early.py`) passes FSK frames on right after their end, never before ([fading-channels.md](fading-channels.md), section 8) | no |
 | `test_fsk_switch.py` | `MODEM.enable_fsk` through the config API: logged, saved to the config file, modem restarted | yes |
 | `test_install_paths.py` | The bundled `lib/` and `data/` files found from an install, a Nuitka build and the source tree, whatever the working directory | no |
