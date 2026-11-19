@@ -30,7 +30,7 @@ CONFIG_ENV_VAR = "FREEDATA_CONFIG"
 LOG_TO_TEMP_ENV_VAR = "FREEDATA_LOG_TO_TEMP"
 DEFAULT_CONFIG_FILE = "config.ini"
 DEFAULT_APP_DIR = _default_app_dir()
-MODEM_VERSION = "0.30.3"
+MODEM_VERSION = "0.30.4"
 API_VERSION = 4
 # 2: data_fsk4_50 became speed level 0, the OFDM levels moved up by one
 ARQ_PROTOCOL_VERSION = 2
