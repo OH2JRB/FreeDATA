@@ -23,4 +23,4 @@ pytest-rerunfailures
 # Build
 build
 wheel
-nuitka<=4.3.5
+nuitka<=4.1.3
