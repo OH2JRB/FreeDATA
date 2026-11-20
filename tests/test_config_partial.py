@@ -95,5 +95,46 @@ class TestPartialConfig(unittest.TestCase):
         self.assertEqual((result["STATION"]["mycall"], result["STATION"]["myssid"]), ("OH2JRB", 9))
 
 
+class TestConfigChangedEvent(unittest.TestCase):
+    """POST /config/ announces a change, so open GUI tabs reload the config."""
+
+    def setUp(self):
+        self.path = os.path.join(os.path.dirname(testenv.config_path()), "config-event-test.ini")
+        shutil.copyfile(testenv.CONFIG_TEMPLATE, self.path)
+        self.addCleanup(os.remove, self.path)
+        self.events = []
+        self.ctx = types.SimpleNamespace(
+            modem_service=queue.Queue(),
+            event_manager=types.SimpleNamespace(config_changed=lambda: self.events.append("changed")),
+        )
+        self.ctx.config_manager = CONFIG(self.ctx, self.path)
+        full = self.ctx.config_manager.read()
+        full["STATION"].update({"mycall": "OH2JRB", "myssid": 13, "mygrid": "KP20le"})
+        asyncio.run(post_config(full, self.ctx))
+        self.events.clear()
+
+    def test_change_is_announced(self):
+        asyncio.run(post_config({"STATION": {"myssid": 3}}, self.ctx))
+        self.assertEqual(self.events, ["changed"])
+
+    def test_no_change_is_not_announced(self):
+        asyncio.run(post_config({"STATION": {"myssid": 13}}, self.ctx))
+        self.assertEqual(self.events, [])
+
+    def test_refused_change_is_not_announced(self):
+        with self.assertRaises(HTTPException):
+            asyncio.run(post_config({"STATION": {"mycall": "not a call"}}, self.ctx))
+        self.assertEqual(self.events, [])
+
+
+class TestEventShape(unittest.TestCase):
+    def test_config_changed_event(self):
+        from freedata_server.event_manager import EventManager
+
+        q = queue.Queue()
+        EventManager(types.SimpleNamespace(TESTMODE=False), [q]).config_changed()
+        self.assertEqual(q.get_nowait(), {"type": "config", "config": "changed"})
+
+
 if __name__ == "__main__":
     unittest.main()

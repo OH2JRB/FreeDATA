@@ -250,6 +250,15 @@ class EventManager:
         }
         self.broadcast(event)
 
+    def config_changed(self):
+        """Sends a config changed event, after POST /config/ wrote the config.
+
+        Open GUI tabs reload the config on it, so they show what another tab
+        (or another client) changed. They take over only the settings they
+        have not changed themselves (settingsStore.refreshRemote).
+        """
+        self.broadcast({"type": "config", "config": "changed"})
+
     def modem_started(self):
         """Sends a freedata_server started event.
 

@@ -101,7 +101,8 @@ How `POST /config/` runs:
 3. `validate_remote_config(merged)` checks `STATION.mycall` and `STATION.mygrid` of the result (see §5) and **normalizes them**. Any failure gives 400. With the common key or any station's encryption on, Explorer reporting is kept off in the result and PSK Reporter is switched off.
 4. If the result equals the stored config, it is returned unchanged and nothing restarts. Otherwise `config_manager.write(merged)` runs once; a falsy result gives 500.
 5. The config is re-read. `ctx.modem_service.put("restart")` restarts the modem only if a section other than `GUI` differs between the old and the re-read config. GUI-only changes (`GUI.distance_unit`, `GUI.auto_run_browser`) are written without a restart.
-6. Returns the re-read config, the whole of it.
+6. Sends the `config changed` event (§ events), so open GUI tabs show the change.
+7. Returns the re-read config, the whole of it.
 
 Minimal body, changing the call sign only:
 
@@ -292,6 +293,7 @@ These are produced by `EventManager.broadcast()` ([event_manager.py](../event_ma
 | Scatter | `{"scatter": "<json string>"}` |
 | Buffer overflow | `{"buffer-overflow": "<str>"}` |
 | Modem lifecycle | `{"freedata_server": "started" \| "restarted" \| "stopped" \| "failed"}` |
+| Config changed | `{"type": "config", "config": "changed"}` after `POST /config/` wrote a change (not for a save that changed nothing). Open GUI tabs reload the config and take over the settings they have not changed themselves (`refreshRemote` / `mergeRemoteConfig` in `settingsStore.js`) |
 | Message DB change | `{"message-db": "changed", "message_id": <id or null>}` |
 | Logging | `{"type": "message-logging", "endpoint", "status", "message"}` |
 | ARQ new / progress / finished | `{"type": "arq", "arq-transfer-outbound"\|"arq-transfer-inbound": {session_id, dxcall, ...}}`. *new* carries `total_bytes, state`. *progress* carries `received_bytes, total_bytes, state, speed_level, mode, statistics` (`mode` is the data mode of `speed_level` as a FREEDV_MODE name, such as `datac4` or `data_fsk4_50`). *finished* carries `statistics, success, state, data` (no top-level `received_bytes`/`total_bytes`; the byte count is `statistics.total_bytes`) |

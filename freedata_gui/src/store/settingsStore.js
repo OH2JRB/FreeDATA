@@ -165,6 +165,60 @@ let remoteConfigLoaded = false;
 // SSID was changed in it).
 let serverConfig = {};
 
+// The callsign blacklist is edited as text, one call per line, but stored
+// and sent as a list
+function blacklistAsList(value) {
+  if (typeof value === "string") {
+    return value
+      .split("\n")
+      .map((item) => item.trim())
+      .filter((item) => item !== "");
+  }
+  return Array.isArray(value) ? value : [];
+}
+
+// A setting as this tab would send it / as the server sent it
+function sendable(section, key, value) {
+  return section === "STATION" && key === "callsign_blacklist"
+    ? blacklistAsList(value)
+    : value;
+}
+function shown(section, key, value) {
+  return section === "STATION" &&
+    key === "callsign_blacklist" &&
+    Array.isArray(value)
+    ? value.join("\n")
+    : value;
+}
+
+// Another tab or client changed the config (the server's "config changed"
+// event): take over its values, but only for the settings this tab has not
+// changed itself since it last received the config, so an edit in progress
+// here is kept and saved later as before. Nothing is saved here.
+export function mergeRemoteConfig(conf) {
+  for (const [section, settings] of Object.entries(conf || {})) {
+    if (!settings || typeof settings !== "object") continue;
+    if (!settingsStore.remote[section]) {
+      settingsStore.remote[section] = {};
+    }
+    for (const [key, value] of Object.entries(settings)) {
+      const local = sendable(section, key, settingsStore.remote[section][key]);
+      const base = serverConfig?.[section]?.[key];
+      if (JSON.stringify(local) === JSON.stringify(base)) {
+        settingsStore.remote[section][key] = shown(section, key, value);
+      }
+    }
+  }
+  serverConfig = clone(conf);
+}
+
+export function refreshRemote() {
+  if (!remoteConfigLoaded) return getRemote();
+  return getConfig().then((conf) => {
+    if (conf && typeof conf === "object") mergeRemoteConfig(conf);
+  });
+}
+
 function applyRemoteConfig(conf) {
   remoteConfigLoaded = true;
   serverConfig = clone(conf);

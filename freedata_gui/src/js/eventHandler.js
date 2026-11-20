@@ -24,7 +24,7 @@ import { useAudioStore } from "../store/audioStore";
 const audioStore = useAudioStore(pinia);
 import { useSerialStore } from "../store/serialStore";
 const serialStore = useSerialStore(pinia);
-import { getRemote } from "../store/settingsStore";
+import { getRemote, refreshRemote } from "../store/settingsStore";
 import { useBroadcastStore } from "../store/broadcastStore";
 const broadcast = useBroadcastStore(pinia);
 import { useChatStore } from "../store/chatStore";
@@ -216,6 +216,11 @@ export function eventDispatcher(data) {
           10000,
         );
       }
+      return;
+
+    case "config":
+      // another tab or client saved the config: show its changes here
+      if (data.config === "changed") refreshRemote();
       return;
 
     case "hello-client":
