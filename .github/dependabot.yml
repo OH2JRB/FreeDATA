@@ -1,24 +1,62 @@
-# https://docs.github.com/github/administering-a-repository/configuration-options-for-dependency-updates
+# Dependabot version updates for the OH2JRB fork.
+# https://docs.github.com/code-security/dependabot/working-with-dependabot/dependabot-options-reference
+#
+# Every update opens a pull request against main. Updates are grouped, so a
+# month brings a few pull requests per ecosystem instead of one per package;
+# major versions come in their own pull request, since they may need changes.
+# A new version is offered only after it has been out for a week (cooldown),
+# so a release that is pulled again soon after does not get in.
+# Security updates (Settings > Code security) are separate and come at once.
 version: 2
 updates:
-
-  # Maintain dependencies for GitHub Actions
+  # Actions in .github/workflows. They are pinned to a commit SHA with the
+  # version as a comment; Dependabot updates both.
   - package-ecosystem: "github-actions"
     directory: "/"
+    target-branch: "main"
     schedule:
       interval: "monthly"
-    target-branch: "main"
-    
-  # Maintain dependencies for npm
-  - package-ecosystem: "npm"
-    directory: "/freedata_gui"
-    schedule:
-      interval: "monthly"
-    target-branch: "main"
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: "ci"
+    groups:
+      github-actions:
+        patterns: ["*"]
 
-  # Maintain dependencies for pip
+  # The server: requirements.txt and pyproject.toml.
   - package-ecosystem: "pip"
     directory: "/"
+    target-branch: "main"
     schedule:
       interval: "monthly"
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: "deps"
+    groups:
+      python-minor-and-patch:
+        update-types: ["minor", "patch"]
+    ignore:
+      # ruff is pinned exactly in requirements.txt, pyproject.toml and
+      # .github/workflows/ruff.yaml (ruff versions format differently); move
+      # it by hand in all three and in the venv at once
+      - dependency-name: "ruff"
+
+  # The GUI: freedata_gui/package.json and package-lock.json.
+  - package-ecosystem: "npm"
+    directory: "/freedata_gui"
     target-branch: "main"
+    schedule:
+      interval: "monthly"
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: "deps(gui)"
+    groups:
+      gui-minor-and-patch:
+        update-types: ["minor", "patch"]
+
+  # Not covered: the Docker base images (node:22, python:3.15) and the
+  # Hamlib and codec2 versions in the Dockerfile and build workflows are
+  # chosen on purpose and moved by hand.
