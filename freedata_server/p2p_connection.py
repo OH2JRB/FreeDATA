@@ -6,12 +6,13 @@ from freedata_server.codec2 import FREEDV_MODE
 from freedata_server import data_frame_factory
 import structlog
 import random
-from queue import Queue
+from queue import Empty, Queue
 import time
 from freedata_server.arq_data_type_handler import ARQDataTypeHandler, ARQ_SESSION_TYPES
 from freedata_server.arq_session import ARQSession
 from freedata_server.arq_session_iss import ARQSessionISS
 from freedata_server import helpers
+from freedata_server import channel_gate
 from freedata_server.config import fsk_modes_enabled
 import zlib
 
@@ -708,11 +709,26 @@ class P2PConnection:
         else:
             arq_destination = self.origin
 
-        threading.Event().wait(3)
+        # listen before talk: the other station has just handed this one the
+        # turn, so the FreeDATA holdoff is the short one of a CQ reply. This was
+        # a fixed 3 s wait, after which the ISS waited on the SignalDetector
+        # and sent its ARQ_SESSION_OPEN anyway
+        if not channel_gate.wait_for_clear_channel(
+            self.ctx,
+            "P2P ARQ session",
+            max_wait_setting="cq_reply_max_wait",
+            holdoff_setting="cq_reply_holdoff",
+        ):
+            self.log("Channel busy with FreeDATA traffic, ARQ session not started; trying again", isWarning=True)
+            self.requeue_first(data)
+            self.set_state(States.CONNECTED)
+            return None
 
         prepared_data, type_byte = self.arq_data_type_handler.prepare(data, ARQ_SESSION_TYPES.p2p_connection)
         iss = ARQSessionISS(self.ctx, arq_destination, prepared_data, type_byte)
         iss.id = self.session_id
+        # the gate has just passed: the first ARQ_SESSION_OPEN goes out at once
+        iss.skip_next_clear_channel_wait = True
         if self.fsk:
             # the connection already needs FSK: the session starts on it
             iss.fall_back_to_fsk()
@@ -723,6 +739,18 @@ class P2PConnection:
             self.ctx.state_manager.register_arq_iss_session(iss)
             iss.start()
             return iss
+
+    def requeue_first(self, data):
+        """Puts data back at the front of p2p_data_tx_queue, before what was
+        queued after it."""
+        rest = []
+        while True:
+            try:
+                rest.append(self.p2p_data_tx_queue.get_nowait())
+            except Empty:
+                break
+        for item in [data] + rest:
+            self.p2p_data_tx_queue.put(item)
 
     def transmitted_arq(self, transmitted_data):
         self.last_data_timestamp = time.time()

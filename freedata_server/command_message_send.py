@@ -5,13 +5,24 @@ from freedata_server.arq_data_type_handler import ARQ_SESSION_TYPES
 from freedata_server.message_system_db_messages import DatabaseManagerMessages
 from freedata_server import encryption
 from freedata_server.bandplan import on_amateur_band
-import threading
-import numpy as np
-import time
+from freedata_server import channel_gate
 
 
 class SendMessageCommand(TxCommand):
     """Command to send a P2P message using an ARQ transfer session"""
+
+    # transmit() goes through the channel gate itself, right before the session
+    # starts: run()'s gate would come before the message checks, and its decision
+    # would be stale by the time the session opens (on the air 2026-11-19, test
+    # G2: a message keyed up 26 s after its last check, over another station)
+    LISTEN_BEFORE_TALK = False
+    # the scheduler sends queued messages on its own thread: it waits for
+    # FreeDATA traffic only this long and leaves the message queued for its next try
+    SCHEDULER_MAX_WAIT_SETTING = "beacon_max_wait"
+
+    def __init__(self, ctx, apiParams: dict = {}, from_scheduler=False):
+        self.from_scheduler = from_scheduler
+        super().__init__(ctx, apiParams)
 
     def set_params_from_api(self, apiParams):
         """Sets parameters from the API request.
@@ -111,25 +122,6 @@ class SendMessageCommand(TxCommand):
             if self.blocked_on_amateur_band(encrypt, message_id, message.destination):
                 return
 
-            # wait some random time and wait if we have an ongoing codec2 transmission
-            # on our channel. This should prevent some packet collision
-            random_delay = np.random.randint(0, 10)
-            threading.Event().wait(random_delay)
-            while self.ctx.state_manager.is_receiving_codec2_signal():
-                threading.Event().wait(0.1)
-
-            # we are going to wait and check if we received any other codec2 signal within 10s.
-            # if so, we are returning, message stays queued.
-            # this helps to avoid packet collisions.
-            time_to_wait = 10
-            time_waiting_for_free_channel = time.time() + time_to_wait
-            self.log(f"Checking channel if free for {time_to_wait}s", isWarning=False)
-            while time.time() < time_waiting_for_free_channel:
-                threading.Event().wait(0.1)
-                if self.ctx.state_manager.is_receiving_codec2_signal():
-                    self.log("Codec2 signal found, skipping  message until next cycle", isWarning=True)
-                    return
-
             # Convert JSON string to bytes (using UTF-8 encoding)
             payload = message.to_payload().encode("utf-8")
             json_bytearray = bytearray(payload)
@@ -144,6 +136,15 @@ class SendMessageCommand(TxCommand):
                 self.ctx.event_manager.send_encryption_key_required(message.destination, "send")
                 return
 
+            # listen before talk (channel_gate), as late as possible: the session
+            # opens right after it. FreeDATA traffic that goes on, or a Stop,
+            # leaves the message queued
+            max_wait = self.SCHEDULER_MAX_WAIT_SETTING if self.from_scheduler else self.CHANNEL_MAX_WAIT_SETTING
+            if not channel_gate.wait_for_clear_channel(
+                self.ctx, self.get_name(), max_wait_setting=max_wait, stop_count=stop_count
+            ):
+                self.log("Channel not free, message stays queued", isWarning=True)
+                return
             # Stop was pressed while we waited: the message is aborted already
             if self.ctx.state_manager.stop_count != stop_count:
                 self.log("Stopped while waiting for a free channel, not sending", isWarning=True)
@@ -165,6 +166,9 @@ class SendMessageCommand(TxCommand):
             # destination must come from the same (queued) message as the payload,
             # which is not necessarily self.message
             iss = ARQSessionISS(self.ctx, message.destination, data, data_type)
+            # the gate has just passed: the first ARQ_SESSION_OPEN goes out at once,
+            # its retries wait for the channel as before
+            iss.skip_next_clear_channel_wait = True
             self.ctx.state_manager.register_arq_iss_session(iss)
             iss.start()
         except Exception as e:

@@ -145,6 +145,14 @@ class ARQSession:
     # before transmitting, wait at most this long while the other station is
     # still on the air (wait_for_clear_channel)
     CLEAR_CHANNEL_SECONDS = 12
+    # True for the next transmit_frame only: it goes out without
+    # wait_for_clear_channel. Set where the ISS's ARQ_SESSION_OPEN follows the
+    # channel gate (channel_gate) right away: command_arq_raw,
+    # command_message_send, P2PConnection.transmit_arq and the open's retries
+    # (ARQSessionISS.open_retry_clear); waiting on the SignalDetector there, up to
+    # CLEAR_CHANNEL_SECONDS on a local non-FreeDATA signal, made the gate's
+    # decision stale and then sent anyway (on the air 2026-11-19, test G2)
+    skip_next_clear_channel_wait = False
 
     def __init__(self, ctx, dxcall: str):
         """Initializes a new ARQ session.
@@ -359,7 +367,10 @@ class ARQSession:
         if mode in ["auto"]:
             mode = self.get_mode_by_speed_level(self.speed_level)
 
-        self.wait_for_clear_channel()
+        if self.skip_next_clear_channel_wait:
+            self.skip_next_clear_channel_wait = False
+        else:
+            self.wait_for_clear_channel()
         modem.transmit(mode, 1, 1, frame)
         return True
 

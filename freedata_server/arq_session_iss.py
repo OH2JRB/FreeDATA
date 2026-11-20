@@ -6,6 +6,7 @@ from freedata_server.codec2 import FREEDV_MODE
 from freedata_server.config import fsk_modes_enabled, high_rate_modes_enabled
 from freedata_server.modem_frametypes import FRAME_TYPE
 from freedata_server import arq_session
+from freedata_server import channel_gate
 from freedata_server import helpers
 from enum import Enum
 import time
@@ -284,6 +285,15 @@ class ARQSessionISS(arq_session.ARQSession):
                 if self.fsk and (mode is FREEDV_MODE.signalling or (isARQBurst and failures))
                 else 1
             )
+            if failures and self.state is ISS_State.OPEN_SENT:
+                # a retry of ARQ_SESSION_OPEN: no session yet, so listen before
+                # talk as for the first one (open_retry_clear)
+                clear = self.open_retry_clear(superseded)
+                if clear is None:
+                    return
+                if clear is False:
+                    self.transmission_failed()
+                    return
             if len(burst) > 1:
                 # one transmission, so the frames follow each other without PTT gaps
                 sent = self.transmit_frame(burst, tx_mode)
@@ -394,6 +404,29 @@ class ARQSessionISS(arq_session.ARQSession):
             daemon=True,
         )
         twr.start()
+
+    def open_retry_clear(self, superseded):
+        """The channel gate before a retry of ARQ_SESSION_OPEN.
+
+        The IRS has not answered, so there is no session on the channel yet:
+        the retry must not go out over someone else's FreeDATA traffic. It used
+        to wait on the SignalDetector at most CLEAR_CHANNEL_SECONDS and then go
+        out anyway.
+
+        Returns:
+            True to send the retry now (without the SignalDetector wait); None
+            when the session moved on while waiting (answered, aborted, a newer
+            retry loop): nothing to send; False when FreeDATA traffic did not end
+            (channel_gate drops it): the session fails.
+        """
+        clear = channel_gate.wait_for_clear_channel(self.ctx, "ARQ session open (retry)")
+        if superseded() or self.state is not ISS_State.OPEN_SENT:
+            return None
+        if not clear:
+            self.log("Channel busy with FreeDATA traffic, session open not repeated", isWarning=True)
+            return False
+        self.skip_next_clear_channel_wait = True
+        return True
 
     def start(self):
         """Starts the ARQ session.

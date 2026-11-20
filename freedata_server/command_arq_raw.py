@@ -60,6 +60,9 @@ class ARQRawCommand(TxCommand):
             prepared_data, type_byte = self.arq_data_type_handler.prepare(self.data, self.type)
 
             iss = ARQSessionISS(self.ctx, self.dxcall, prepared_data, type_byte)
+            # the gate has just passed: the first ARQ_SESSION_OPEN goes out at once,
+            # its retries wait for the channel as before
+            iss.skip_next_clear_channel_wait = True
             if iss.id:
                 self.ctx.state_manager.register_arq_iss_session(iss)
                 iss.start()
