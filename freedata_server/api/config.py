@@ -148,14 +148,33 @@ async def post_config(
     Raises:
         HTTPException via api_abort on validation or write errors.
     """
-    # Validate incoming data
-    if not validations.validate_remote_config(new_cfg):
+    if not isinstance(new_cfg, dict) or not all(isinstance(settings, dict) for settings in new_cfg.values()):
+        api_abort("Invalid configuration", 400)
+
+    # The frequency presets are saved through POST /radio/frequencies only: a
+    # client sending the whole config back would otherwise overwrite them
+    # with the copy it read earlier
+    new_cfg.pop(frequency_list.SECTION, None)
+
+    # A client may send only the settings it changed: they are merged into the
+    # stored config, and the checks below run on the result. A client that
+    # sends its whole copy overwrites every setting with what it read earlier,
+    # including what another client (a second GUI tab) changed meanwhile: on
+    # 2026-11-20 a tab opened before the call sign was changed wrote the old
+    # call sign back when its user changed the SSID.
+    old_cfg = ctx.config_manager.read()
+    merged = {section: dict(settings) for section, settings in old_cfg.items() if section != frequency_list.SECTION}
+    for section, settings in new_cfg.items():
+        merged.setdefault(section, {}).update(settings)
+
+    # Validate (and normalize) the call sign and locator of the result
+    if not validations.validate_remote_config(merged):
         api_abort("Invalid configuration", 400)
 
     # No Explorer or PSK Reporter reporting while encryption is in use: the
     # common key setting in this config, or encryption on for any station
-    if new_cfg.get("MESSAGES", {}).get("enable_common_key") or DatabaseManagerStations(ctx).any_encryption_enabled():
-        station = new_cfg.get("STATION", {})
+    if merged.get("MESSAGES", {}).get("enable_common_key") or DatabaseManagerStations(ctx).any_encryption_enabled():
+        station = merged.get("STATION", {})
         off = [key for key in EXPLORER_SETTINGS if station.get(key)]
         for key in off:
             station[key] = False
@@ -165,18 +184,12 @@ async def post_config(
             ctx.pskreporter.set_enabled(False)
             encryption_log.info("[ENCRYPTION] PSK Reporter switched off, encryption is in use")
 
-    # The frequency presets are saved through POST /radio/frequencies only: a
-    # client sending the whole config back would otherwise overwrite them
-    # with the copy it read earlier
-    new_cfg.pop(frequency_list.SECTION, None)
-
-    # Read and compare
-    old_cfg = ctx.config_manager.read()
-    if {section: settings for section, settings in old_cfg.items() if section != frequency_list.SECTION} == new_cfg:
+    # Nothing changed
+    if {section: settings for section, settings in old_cfg.items() if section != frequency_list.SECTION} == merged:
         return old_cfg
 
     # Write new config
-    if not ctx.config_manager.write(new_cfg):
+    if not ctx.config_manager.write(merged):
         api_abort("Error writing configuration", 500)
 
     updated = ctx.config_manager.read()

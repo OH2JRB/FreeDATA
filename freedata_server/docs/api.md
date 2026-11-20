@@ -93,19 +93,20 @@ No error paths.
 | Method | Path | Body | Response | Errors |
 |---|---|---|---|---|
 | GET | `/config/` | none | The whole `ctx.config_manager.config` dict (sections such as `AUDIO`, `MODEM`, `NETWORK`, `RADIO`, `RIGCTLD`, `STATION`, ...) | 404 `Configuration not found` if config is `None` |
-| POST | `/config/` | The full config dict | The config as re-read after the write | 400 `Invalid configuration`, 500 `Error writing configuration` |
+| POST | `/config/` | The settings to change, by section (a partial config), or the whole config | The config as re-read after the write | 400 `Invalid configuration`, 500 `Error writing configuration` |
 
 How `POST /config/` runs:
-1. `validate_remote_config(new_cfg)` checks `STATION.mycall` and `STATION.mygrid` (see §5) and **normalizes them in place**. Any failure gives 400.
-2. A `FREQUENCIES` section in the body is dropped: the presets are saved through `POST /radio/frequencies` only. `old_cfg = config_manager.read()`. If it equals `new_cfg` (ignoring `FREQUENCIES`), `old_cfg` is returned unchanged and nothing restarts.
-3. `config_manager.write(new_cfg)` runs once. A falsy result gives 500.
-4. The config is re-read. `ctx.modem_service.put("restart")` restarts the modem only if a section other than `GUI` differs between the old and the re-read config. GUI-only changes (`GUI.distance_unit`, `GUI.auto_run_browser`) are written without a restart.
-5. Returns the re-read config.
+1. The body must be a dict of sections, each a dict of settings, or 400. A `FREQUENCIES` section is dropped: the presets are saved through `POST /radio/frequencies` only.
+2. The body is merged into the stored config (`old_cfg = config_manager.read()`): sections and settings it does not name keep their stored values. Send only what changed: a client that sends its whole copy also writes back every value it read earlier, including what another client changed meanwhile. On 2026-11-20 a GUI tab opened before the call sign was changed put the old call sign back when the SSID was changed in it; the GUI now sends only the settings that differ from the config it last received (`changedSettings` in `settingsStore.js`).
+3. `validate_remote_config(merged)` checks `STATION.mycall` and `STATION.mygrid` of the result (see §5) and **normalizes them**. Any failure gives 400. With the common key or any station's encryption on, Explorer reporting is kept off in the result and PSK Reporter is switched off.
+4. If the result equals the stored config, it is returned unchanged and nothing restarts. Otherwise `config_manager.write(merged)` runs once; a falsy result gives 500.
+5. The config is re-read. `ctx.modem_service.put("restart")` restarts the modem only if a section other than `GUI` differs between the old and the re-read config. GUI-only changes (`GUI.distance_unit`, `GUI.auto_run_browser`) are written without a restart.
+6. Returns the re-read config, the whole of it.
 
-Minimal valid body fragment:
+Minimal body, changing the call sign only:
 
 ```json
-{ "STATION": { "mycall": "aa1aaa", "mygrid": "jn48ea", "myssid": 0 }, "...": "..." }
+{ "STATION": { "mycall": "aa1aaa" } }
 ```
 
 Validation rewrites these to `"AA1AAA"` and `"JN48ea"`.

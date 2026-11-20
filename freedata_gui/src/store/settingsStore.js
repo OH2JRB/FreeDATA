@@ -158,8 +158,16 @@ let remoteConfigLoaded = false;
 
 // Apply a config received from the server to the store. The callsign
 // blacklist is edited as newline separated text in the GUI.
+// The config as the server last sent it. A save sends only the settings that
+// differ from it (changedSettings): a tab that sent its whole copy wrote back
+// everything it had read earlier, including what another tab had changed
+// meanwhile (on 2026-11-20 an older tab put the old call sign back when the
+// SSID was changed in it).
+let serverConfig = {};
+
 function applyRemoteConfig(conf) {
   remoteConfigLoaded = true;
+  serverConfig = clone(conf);
   settingsStore.remote = conf;
   const blacklist = conf?.STATION?.callsign_blacklist;
   if (Array.isArray(blacklist)) {
@@ -168,6 +176,20 @@ function applyRemoteConfig(conf) {
 }
 
 // Function to handle remote configuration changes
+// The settings in `current` that differ from `base`, by section
+export function changedSettings(current, base) {
+  const changes = {};
+  for (const [section, settings] of Object.entries(current || {})) {
+    if (!settings || typeof settings !== "object") continue;
+    for (const [key, value] of Object.entries(settings)) {
+      if (JSON.stringify(value) !== JSON.stringify(base?.[section]?.[key])) {
+        (changes[section] ??= {})[key] = value;
+      }
+    }
+  }
+  return changes;
+}
+
 export function onChange() {
   // Never post the GUI defaults over the server config
   if (!remoteConfigLoaded) {
@@ -205,7 +227,12 @@ export function onChange() {
   // the copy here may be older than what is stored
   delete remote_config.FREQUENCIES;
 
-  return setConfig(remote_config).then((conf) => {
+  // only what this tab changed; the server merges it into the stored config
+  // and answers with the whole of it, other tabs' changes included
+  const changes = changedSettings(remote_config, serverConfig);
+  if (Object.keys(changes).length === 0) return Promise.resolve();
+
+  return setConfig(changes).then((conf) => {
     if (conf && typeof conf === "object") {
       applyRemoteConfig(conf);
     } else {
