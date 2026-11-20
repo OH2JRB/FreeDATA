@@ -215,5 +215,10 @@ async def post_config(
     if any(old_cfg.get(section) != updated.get(section) for section in sections):
         ctx.modem_service.put("restart")
 
+    # let open GUI tabs show the change (they reload the config)
+    events = getattr(ctx, "event_manager", None)
+    if events is not None:
+        events.config_changed()
+
     # Return updated configuration
     return updated

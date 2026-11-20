@@ -510,6 +510,7 @@ clients on the events WebSocket.
 | `send_arq_session_new(outbound, session_id, dxcall, total_bytes, state)` | `{"type": "arq", "arq-transfer-<outbound\|inbound>": {session_id, dxcall, total_bytes, state}}` |
 | `send_arq_session_progress(outbound, session_id, dxcall, received_bytes, total_bytes, state, speed_level, statistics=None, mode=None)` | `{"type": "arq", "arq-transfer-<dir>": {session_id, dxcall, received_bytes, total_bytes, state, speed_level, mode, statistics}}` - `mode` is the FREEDV_MODE name of the speed level's data mode (`SPEED_LEVEL_DICT`). An event identical to the session's last one (all fields but `statistics`) is not sent: the receiving station reports each burst both at its last frame and at the burst ACK, and resent bursts repeat; `send_arq_session_new` and `send_arq_session_finished` reset it (`forget_progress`) |
 | `send_arq_session_finished(outbound, session_id, dxcall, success, state, data=False, statistics=None)` | `{"type": "arq", "arq-transfer-<dir>": {session_id, dxcall, statistics, success, state, data}}` - `data` is base64 (dicts are JSON-encoded first); `False` if no data. |
+| `config_changed()` | `{"type": "config", "config": "changed"}`, from `POST /config/` after a write |
 | `modem_started()` | `{"freedata_server": "started"}` |
 | `modem_restarted()` | `{"freedata_server": "restarted"}` |
 | `modem_stopped()` | `{"freedata_server": "stopped"}` |
