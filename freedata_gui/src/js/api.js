@@ -63,18 +63,22 @@ async function getErrorMessage(response) {
 }
 
 // Show an API error to the user. Identical messages are suppressed for a
-// few seconds to avoid toast spam.
+// few seconds to avoid toast spam. 409 and 503 mean the server refused on
+// purpose (modem not running, channel busy, stopped): nothing was sent, but
+// nothing is broken either, so they show as a warning.
 const recentErrors = new Map();
 const ERROR_TOAST_SUPPRESS_MS = 5000;
-function showApiError(method, endpoint, message) {
+const NOT_SENT_STATUSES = new Set([409, 503]);
+function showApiError(method, endpoint, message, status) {
   const key = `${method} ${endpoint} ${message}`;
   const now = Date.now();
   if (now - (recentErrors.get(key) || 0) < ERROR_TOAST_SUPPRESS_MS) return;
   recentErrors.set(key, now);
+  const notSent = NOT_SENT_STATUSES.has(status);
   displayToast(
-    "danger",
-    "bi-exclamation-octagon",
-    `<strong>Server error</strong>
+    notSent ? "warning" : "danger",
+    notSent ? "bi-exclamation-triangle" : "bi-exclamation-octagon",
+    `<strong>${notSent ? "Not sent" : "Server error"}</strong>
      <div class="small text-muted">${escapeHtml(method)} ${escapeHtml(endpoint)}</div>
      <div>${escapeHtml(message)}</div>`,
     8000,
@@ -98,7 +102,7 @@ async function apiRequest(method, endpoint, payload, notify) {
     if (!response.ok) {
       const message = await getErrorMessage(response);
       console.error(`REST ${method} ${endpoint} failed: ${message}`);
-      if (notify) showApiError(method, endpoint, message);
+      if (notify) showApiError(method, endpoint, message, response.status);
       return;
     }
     return await response.json();

@@ -698,10 +698,24 @@ class P2PConnection:
             self.ctx.socket_interface_manager.command_server.command_handler.socket_respond_disconnected()
 
     def transmit_arq(self, data):
-        """
-        This function needs to be fixed - we want to send ARQ data within a p2p connection
-        check p2p_connection handler in arq_data_type_handler
+        """Sends data too large for a payload frame in an ARQ session inside this connection.
 
+        Waits for a clear channel first (channel_gate, with the CQ reply's short
+        holdoff: the other station has just handed this one the turn). If
+        FreeDATA traffic goes on, the data goes back to the front of the queue
+        and the connection returns to CONNECTED, to try again on its next turn.
+        Otherwise it prepares the data as ARQ_SESSION_TYPES.p2p_connection and
+        starts an ARQSessionISS with this connection's session id; the
+        receiving station's ARQ data type handler passes the data to its
+        P2P connection (received_arq), and transmitted_arq / failed_arq end the
+        session here.
+
+        Args:
+            data (bytes): the uncompressed data from p2p_data_tx_queue.
+
+        Returns:
+            ARQSessionISS or None: the started session; None if the channel
+            stayed busy.
         """
         self.set_state(States.ARQ_SESSION)
         if self.is_ISS:

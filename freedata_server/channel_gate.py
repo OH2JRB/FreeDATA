@@ -119,10 +119,31 @@ def wait_for_clear_channel(
     Returns:
         bool: True to send now; False when the transmission must not go out
         (FreeDATA traffic did not end, or Stop was pressed).
+        gate_result() tells which.
     """
+    return gate_result(
+        ctx,
+        what,
+        max_wait_setting=max_wait_setting,
+        holdoff_setting=holdoff_setting,
+        random_delay_setting=random_delay_setting,
+        stop_count=stop_count,
+    ) in (CLEAR, SEND_ANYWAY)
+
+
+def gate_result(
+    ctx,
+    what,
+    max_wait_setting="freedata_max_wait",
+    holdoff_setting="freedata_holdoff",
+    random_delay_setting="random_delay",
+    stop_count=None,
+):
+    """wait_for_clear_channel, returning why: CLEAR, SEND_ANYWAY, DROPPED
+    (FreeDATA traffic did not end) or STOPPED."""
     if getattr(ctx, "TESTMODE", False) or not setting(ctx, "enable_listen_before_talk"):
-        return True
-    result = _wait(
+        return CLEAR
+    return _wait(
         ctx.state_manager,
         what,
         freedata_max_wait=setting(ctx, max_wait_setting),
@@ -132,7 +153,6 @@ def wait_for_clear_channel(
         other_busy_wait=setting(ctx, "other_busy_wait"),
         stop_count=stop_count,
     )
-    return result in (CLEAR, SEND_ANYWAY)
 
 
 def _wait(state, what, freedata_max_wait, holdoff, random_delay_max, listen_time, other_busy_wait, stop_count):

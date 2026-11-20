@@ -325,7 +325,7 @@ stateDiagram-v2
 
 ### Creation via API
 
-1. `POST /messages` ([api/freedata.py](../api/freedata.py)) calls `enqueue_tx_command(ctx, SendMessageCommand, payload)` ([api/command_helpers.py](../api/command_helpers.py)), which instantiates the command and runs `command.run` in a worker thread. If either step raises (e.g. a validation `ValueError`), it returns `False` and the endpoint answers 500.
+1. `POST /messages` ([api/freedata.py](../api/freedata.py)) calls `start_tx_command(ctx, SendMessageCommand, payload)` ([api/command_helpers.py](../api/command_helpers.py)), which instantiates the command in a worker thread (step 2 stores the message), answers, and runs `command.run` in a background thread: the answer does not wait for the channel gate. If creating the command raises (e.g. a validation `ValueError`), it returns `False` and the endpoint answers 500; errors in `run()` are only logged, and the message's status follows as `message-db` events.
 2. `TxCommand.__init__` ([command.py](../command.py)) calls `set_params_from_api(payload)`:
    - origin = `"{STATION.mycall}-{STATION.myssid}"` from config,
    - `MessageP2P.from_api_params(origin, payload)` validates and builds the message,
@@ -423,7 +423,8 @@ sequenceDiagram
     UI->>API: POST /messages {destination, body, attachments}
     API->>Cmd: SendMessageCommand(ctx, payload)
     Cmd->>DB: add_message(direction=transmit, status=queued)
-    API->>Cmd: run() in thread -> transmit()
+    API-->>UI: 200 (message stored as queued)
+    API->>Cmd: run() in background thread -> transmit()
     Cmd->>DB: get_first_queued_message()
     Note over Cmd: claim the message id (state_manager.claim_message_transmit),<br/>return if another command is already sending it
     Cmd->>H: prepare(json bytes, p2pmsg_zlib)

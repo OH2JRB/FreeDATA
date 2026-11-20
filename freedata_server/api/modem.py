@@ -156,8 +156,16 @@ async def get_modem_state(ctx: AppContext = Depends(get_ctx)):
             "content": {"application/json": {"example": {"detail": {"error": "Resource not found."}}}},
         },
         503: {
-            "description": "Modem not running.",
+            "description": "Modem not running, or the channel stayed busy with another FreeDATA station's traffic (listen before talk): not sent.",
             "content": {"application/json": {"example": {"detail": {"error": "Modem not running."}}}},
+        },
+        409: {
+            "description": "Stopped while waiting for a clear channel: not sent.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": {"error": "Not sent: stopped while waiting for a clear channel."}}
+                }
+            },
         },
     },
 )
@@ -196,8 +204,16 @@ async def post_cq(ctx: AppContext = Depends(get_ctx)):
             "content": {"application/json": {"example": {"detail": {"error": "Resource not found."}}}},
         },
         503: {
-            "description": "Modem not running.",
+            "description": "Modem not running, or the channel stayed busy with another FreeDATA station's traffic (listen before talk): not sent.",
             "content": {"application/json": {"example": {"detail": {"error": "Modem not running."}}}},
+        },
+        409: {
+            "description": "Stopped while waiting for a clear channel: not sent.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": {"error": "Not sent: stopped while waiting for a clear channel."}}
+                }
+            },
         },
     },
 )
@@ -303,8 +319,16 @@ async def post_pskreporter(payload: dict, ctx: AppContext = Depends(get_ctx)):
             "content": {"application/json": {"example": {"detail": {"error": "Resource not found."}}}},
         },
         503: {
-            "description": "Modem not running.",
+            "description": "Modem not running, or the channel stayed busy with another FreeDATA station's traffic (listen before talk): not sent.",
             "content": {"application/json": {"example": {"detail": {"error": "Modem not running."}}}},
+        },
+        409: {
+            "description": "Stopped while waiting for a clear channel: not sent.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": {"error": "Not sent: stopped while waiting for a clear channel."}}
+                }
+            },
         },
     },
 )
@@ -339,8 +363,16 @@ async def post_ping(
             "content": {"application/json": {"example": {"detail": {"error": "Resource not found."}}}},
         },
         503: {
-            "description": "Modem not running.",
+            "description": "Modem not running, or the channel stayed busy with another FreeDATA station's traffic (listen before talk): not sent.",
             "content": {"application/json": {"example": {"detail": {"error": "Modem not running."}}}},
+        },
+        409: {
+            "description": "Stopped while waiting for a clear channel: not sent.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": {"error": "Not sent: stopped while waiting for a clear channel."}}
+                }
+            },
         },
     },
 )
@@ -502,7 +534,7 @@ async def post_stop(ctx: AppContext = Depends(get_ctx)):
             "content": {"application/json": {"example": {"detail": {"error": "Resource not found."}}}},
         },
         503: {
-            "description": "Modem not running or busy.",
+            "description": "Modem not running or busy, or the channel stayed busy with another FreeDATA station's traffic (listen before talk): not sent.",
             "content": {
                 "application/json": {
                     "examples": {
@@ -511,7 +543,23 @@ async def post_stop(ctx: AppContext = Depends(get_ctx)):
                             "value": {"detail": {"error": "Modem not running."}},
                         },
                         "modem_busy": {"summary": "Modem Busy", "value": {"detail": {"error": "Modem Busy."}}},
+                        "channel_busy": {
+                            "summary": "Channel Busy",
+                            "value": {
+                                "detail": {
+                                    "error": "Not sent: the channel stayed busy with another FreeDATA station's traffic."
+                                }
+                            },
+                        },
                     }
+                }
+            },
+        },
+        409: {
+            "description": "Stopped while waiting for a clear channel: not sent.",
+            "content": {
+                "application/json": {
+                    "example": {"detail": {"error": "Not sent: stopped while waiting for a clear channel."}}
                 }
             },
         },
