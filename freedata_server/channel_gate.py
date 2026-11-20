@@ -1,8 +1,13 @@
 """Listen before talk for transmissions that start something new.
 
-Ping, CQ, beacon, test frame, the start of an ARQ session or P2P connection and
-the reply to a CQ go through wait_for_clear_channel before keying up. Replies
-inside a running session do not: the other station is waiting for them.
+Ping, CQ, beacon, test frame, the start of an ARQ session (raw data or a
+message) or P2P connection and the reply to a CQ go through
+wait_for_clear_channel before keying up. Replies inside a running session do
+not: the other station is waiting for them. An ARQ session's first
+ARQ_SESSION_OPEN goes out right after the gate, without the SignalDetector
+wait (ARQSession.skip_next_clear_channel_wait); its retries, before the IRS
+has answered, go through the gate again (ARQSessionISS.open_retry_clear). The
+ARQ session inside a P2P connection uses the CQ reply's holdoff and max wait.
 
 The settings are in the [CHANNEL] section of config.ini (setting(); the
 defaults are in DEFAULTS and config.CONFIG.setting_defaults), times in seconds.

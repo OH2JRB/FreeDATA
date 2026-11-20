@@ -272,18 +272,38 @@ class StateManager:
     # P2P connection states (p2p_connection.States) in which it is not under way
     P2P_IDLE_STATES = {"NEW", "DISCONNECTED", "ABORTED", "FAILED"}
 
+    # ARQ session states (ISS_State, IRS_State names)
+    ISS_UNANSWERED_STATES = {"NEW", "OPEN_SENT"}
+    IRS_DONE_STATES = {"ENDED", "FAILED", "ABORTED", "RESUME"}
+
     def is_in_session(self):
         """True while an ARQ session runs or a P2P connection is under way.
 
         The two stations then take turns on the channel, so nearly all the
-        traffic heard is the other station's (audio.calculate_fft).
+        traffic heard is the other station's (audio.calculate_fft). Not while
+        this station's ISS waits for the answer to its ARQ_SESSION_OPEN
+        (arq_open_unanswered): there is no partner traffic yet, and whatever
+        is heard is someone else's. It used to count from the ISS's creation,
+        so the channel gate before the session and the retries of the open
+        heard no other traffic (on the air 2026-11-19, test G2).
         """
-        if self.getARQ():
+        if self.getARQ() and not self.arq_open_unanswered():
             return True
         return any(
             getattr(getattr(session, "state", None), "name", None) not in self.P2P_IDLE_STATES
             for session in list(self.p2p_connection_sessions.values())
         )
+
+    def arq_open_unanswered(self):
+        """True while this station's ARQ session is an ISS whose ARQ_SESSION_OPEN
+        has not been answered, and no IRS session runs."""
+
+        def state_name(session):
+            return getattr(getattr(session, "state", None), "name", None)
+
+        if any(state_name(s) not in self.IRS_DONE_STATES for s in list(self.arq_irs_sessions.values())):
+            return False
+        return any(state_name(s) in self.ISS_UNANSWERED_STATES for s in list(self.arq_iss_sessions.values()))
 
     def getARQ(self):
         """Gets the ARQ status.

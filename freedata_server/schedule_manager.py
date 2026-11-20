@@ -187,8 +187,8 @@ class ScheduleManager:
         A free channel (channel_busy_event set) always is. Codec2 traffic,
         another FreeDATA station, always holds the queue. A channel busy only
         from other signals holds it for QUEUE_BUSY_MAX_WAIT seconds in a row,
-        then lets it send; SendMessageCommand still checks for codec2 traffic
-        for 10 s before keying up."""
+        then lets it send; SendMessageCommand then goes through the channel
+        gate (channel_gate) before keying up."""
         state = self.ctx.state_manager
         if state.channel_busy_event.is_set():  # set == channel available
             self.queue_busy_since = None
@@ -223,7 +223,9 @@ class ScheduleManager:
                             "[SCHEDULE] Channel busy from non-FreeDATA signals, sending queued message anyway",
                             busy_for=round(time.time() - self.queue_busy_since),
                         )
-                    command = command_message_send.SendMessageCommand(self.ctx, first_queued_message)
+                    command = command_message_send.SendMessageCommand(
+                        self.ctx, first_queued_message, from_scheduler=True
+                    )
                     command.transmit()
             except Exception as e:
                 print(e)

@@ -480,7 +480,11 @@ The triggers:
   in one transmission (`answer_frames`); the ISS waits for two answer frames on such a retry;
 * before transmitting, a station waits while the `SignalDetector` shows the other station still on the air,
   at most `CLEAR_CHANNEL_SECONDS` (12 s; `wait_for_clear_channel`): the early decoder passes a frame on at its
-  end, but more frames of the same transmission may follow;
+  end, but more frames of the same transmission may follow. Not before the ISS's first `ARQ_SESSION_OPEN`,
+  which follows the channel gate (`channel_gate`) at once (`skip_next_clear_channel_wait`, set by
+  `ARQRawCommand`, `SendMessageCommand` and `P2PConnection.transmit_arq`); a retry of the open, before the IRS
+  has answered, goes through the channel gate again (`ARQSessionISS.open_retry_clear`), and FreeDATA traffic
+  that does not end there fails the session instead of being sent over;
 * the IRS waits `FSK_TIMEOUT_FACTOR` (4) times its `TIMEOUT_CONNECT` / `TIMEOUT_DATA` on FSK, since one ISS
   attempt there takes about 37 s; a session that failed in the meantime takes up an `ARQ_SESSION_INFO` again
   (`FAILED` -> `send_info_ack`). The schedule manager's 90 s limit, after which it sets a quiet IRS session
@@ -683,7 +687,7 @@ length:
 |---|---|---|
 | <= 11 bytes | `P2P_CONNECTION_PAYLOAD` in `signalling` | `PAYLOAD_TRANSMISSION` |
 | 12-32 bytes | `P2P_CONNECTION_PAYLOAD` in `datac4` | `PAYLOAD_TRANSMISSION` |
-| > 32 bytes | `transmit_arq(raw_data)`: waits 3 s, prepares as `p2p_connection`, creates `ARQSessionISS` with `id = p2p session_id` to the peer, links it and starts it | `ARQ_SESSION` |
+| > 32 bytes | `transmit_arq(raw_data)`: goes through the channel gate with the CQ reply's holdoff and max wait (`cq_reply_holdoff`, `cq_reply_max_wait`; the other station just handed over); if FreeDATA traffic goes on, puts the data back at the front of the queue and returns to `CONNECTED`. Then prepares as `p2p_connection`, creates `ARQSessionISS` with `id = p2p session_id` to the peer, links it and starts it | `ARQ_SESSION` |
 
 The payload frame has a random `sequence_id` (0-255) and `HAS_DATA` set if more items are queued. The
 receiver inflates `data` as is, without stripping the `0x00` frame padding. The raw-deflate decompressor

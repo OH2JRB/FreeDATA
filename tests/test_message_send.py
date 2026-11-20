@@ -1,7 +1,6 @@
 """SendMessageCommand.transmit() must send a queued message only once, even
 when the API and the scheduler start sending it at the same time."""
 
-import itertools
 import threading
 import unittest
 import unittest.mock
@@ -10,6 +9,13 @@ import testenv  # noqa: F401  isolates config + message DB, must precede freedat
 from freedata_server.context import AppContext
 from freedata_server import command_message_send
 from freedata_server.message_system_db_messages import DatabaseManagerMessages
+
+
+def delete_after(test, message_id):
+    """Deletes a test message after the test: the test stations share the message
+    database, and a message left queued is sent by later tests' schedulers
+    (test_message_protocol, test_p2p_connection) as their first queued message."""
+    test.addCleanup(DatabaseManagerMessages(test.ctx).delete_message, message_id, allow_queued=True)
 
 
 class TestSingleMessageSend(unittest.TestCase):
@@ -30,10 +36,11 @@ class TestSingleMessageSend(unittest.TestCase):
         )
         # other tests share the database and may have left queued messages
         queued = DatabaseManagerMessages(self.ctx).get_message_by_id(command.message.id)
+        delete_after(self, command.message.id)
 
         with (
             unittest.mock.patch.object(DatabaseManagerMessages, "get_first_queued_message", return_value=queued),
-            unittest.mock.patch.object(command_message_send.np.random, "randint", return_value=0),
+            unittest.mock.patch.object(command_message_send.channel_gate, "wait_for_clear_channel", return_value=True),
             unittest.mock.patch.object(command_message_send, "ARQSessionISS") as iss_class,
         ):
             # like the API command and the scheduler: two commands, same message
@@ -55,6 +62,7 @@ class TestSingleMessageSend(unittest.TestCase):
     def test_queued_message_not_added_again(self):
         # the scheduler passes the queued message it found to the command
         command = command_message_send.SendMessageCommand(self.ctx, {"destination": "AA1AAA-5", "body": "queued"})
+        delete_after(self, command.message.id)
         queued = DatabaseManagerMessages(self.ctx).get_message_by_id(command.message.id)
         with unittest.mock.patch.object(DatabaseManagerMessages, "add_message") as add_message:
             command = command_message_send.SendMessageCommand(self.ctx, queued)
@@ -65,6 +73,7 @@ class TestSingleMessageSend(unittest.TestCase):
         # an API client may choose the message ID itself
         params = {"destination": "AA1AAA-5", "body": "own id", "id": "AA1AAA-0_AA1AAA-5_2026-10-27T10:00:00"}
         command_message_send.SendMessageCommand(self.ctx, params)
+        delete_after(self, params["id"])
         self.assertEqual(DatabaseManagerMessages(self.ctx).get_message_by_id(params["id"])["body"], "own id")
 
 
@@ -87,14 +96,13 @@ class TestEncryptedSendOnAmateurBand(unittest.TestCase):
         self.ctx.state_manager.radio_frequency = frequency
         self.ctx.config_manager.config["STATION"]["iaru_region"] = region
         command = command_message_send.SendMessageCommand(self.ctx, {"destination": "AA1AAA-5", "body": "secret"})
+        delete_after(self, command.message.id)
         queued = DatabaseManagerMessages(self.ctx).get_message_by_id(command.message.id)
         with (
             unittest.mock.patch.object(DatabaseManagerMessages, "get_first_queued_message", return_value=queued),
             unittest.mock.patch.object(command_message_send, "encryption_wanted", return_value=encrypt),
             unittest.mock.patch.object(command_message_send.SendMessageCommand, "key_missing", return_value=False),
-            unittest.mock.patch.object(command_message_send.np.random, "randint", return_value=0),
-            # skip the 10 s free channel check
-            unittest.mock.patch.object(command_message_send.time, "time", side_effect=itertools.count(step=100)),
+            unittest.mock.patch.object(command_message_send.channel_gate, "wait_for_clear_channel", return_value=True),
             unittest.mock.patch.object(self.ctx.event_manager, "send_encryption_amateur_band") as event,
             unittest.mock.patch.object(command_message_send, "ARQSessionISS") as iss_class,
         ):
