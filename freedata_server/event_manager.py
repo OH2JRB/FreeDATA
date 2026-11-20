@@ -2,6 +2,7 @@ import base64
 import json
 import queue
 import structlog
+import threading
 
 
 class EventManager:
@@ -24,6 +25,10 @@ class EventManager:
         self.ctx = ctx
         self.logger = structlog.get_logger("Event Manager")
         self.lastpttstate = False
+        # the last progress event of each running ARQ session, by (direction,
+        # session_id), without the statistics; see send_arq_session_progress
+        self.last_progress = {}
+        self.last_progress_lock = threading.Lock()
 
     def broadcast(self, data):
         """Broadcasts an event to all registered queues.
@@ -116,6 +121,7 @@ class EventManager:
             state (str): The initial state of the ARQ session.
         """
         direction = "outbound" if outbound else "inbound"
+        self.forget_progress(direction, session_id)
         event = {
             "type": "arq",
             f"arq-transfer-{direction}": {
@@ -162,6 +168,17 @@ class EventManager:
             statistics = {}
 
         direction = "outbound" if outbound else "inbound"
+        # The same progress twice in a row tells nothing new: the station
+        # receiving a transfer reports each burst both when it stores its last
+        # frame and when it sends the burst ACK, and a burst sent again (lost
+        # ACK, fallback) or a repeated ACK brings no new bytes. The GUI showed
+        # each as another toast. The statistics (times) are left out of the
+        # comparison: they change with every call.
+        progress = (dxcall, received_bytes, total_bytes, state, speed_level, mode)
+        with self.last_progress_lock:
+            if self.last_progress.get((direction, session_id)) == progress:
+                return
+            self.last_progress[(direction, session_id)] = progress
         event = {
             "type": "arq",
             f"arq-transfer-{direction}": {
@@ -176,6 +193,13 @@ class EventManager:
             },
         }
         self.broadcast(event)
+
+    def forget_progress(self, direction, session_id):
+        """Forgets a session's last progress event (send_arq_session_progress),
+        at its start and end: a new session can get the same id (P2P sessions
+        reuse theirs) and must not have its first progress event dropped."""
+        with self.last_progress_lock:
+            self.last_progress.pop((direction, session_id), None)
 
     def send_arq_session_finished(
         self,
@@ -212,6 +236,7 @@ class EventManager:
                 # Base64 encode the bytes-like object
             data = base64.b64encode(data).decode("UTF-8")
         direction = "outbound" if outbound else "inbound"
+        self.forget_progress(direction, session_id)
         event = {
             "type": "arq",
             f"arq-transfer-{direction}": {
