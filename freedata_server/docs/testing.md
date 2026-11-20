@@ -161,8 +161,14 @@ an ARQ transfer shows up as `{"arq-transfer-outbound": {...}}` on the ISS and
   "session ended" event and then checks the rest of the queue can never fail.
 - Avoid non-ASCII characters in `print()`. On Windows, redirected output uses cp1252 and raises
   `UnicodeEncodeError`.
-- Handlers wait before replying: CQ waits a random 0–5 s before sending QRV, and messages wait for a
-  free channel. Use timeouts of about 15 s for those exchanges.
+- In `TESTMODE` the channel gate (listen before talk) lets everything through at once, so a test that
+  checks the gate patches `channel_gate.wait_for_clear_channel`, or calls it with a context that is
+  not in `TESTMODE`, a fake state and a fake clock (`test_channel_gate.py`). Use timeouts of about 15 s for exchanges that go over the
+  simulated channel.
+- Delete the messages a test creates (`addCleanup(... delete_message, id, allow_queued=True)`): the
+  test stations share the message database, and a message left `queued` is sent by a later test's
+  scheduler as its first queued message (it made `test_p2p_connection` and `test_message_protocol`
+  fail depending on the order).
 - Two stations in one process share the message database (`FREEDATA_DATABASE`). When the test checks
   what each station stored, give each its own database file, as `test_norm_protocol.py` does by
   patching `DatabaseManager.get_database` per context.

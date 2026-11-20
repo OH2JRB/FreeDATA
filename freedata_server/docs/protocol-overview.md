@@ -163,6 +163,57 @@ sequenceDiagram
     Note over R: all bursts, CRC ok: received
 ```
 
+## Listen before talk
+
+A transmission that starts something new first waits for a clear channel
+([channel_gate.py](../channel_gate.py)), so a station does not key up over another station's FreeDATA
+traffic. This covers ping, CQ, beacon, test frame, the reply to a CQ, the start of a P2P connection and
+the start of every ARQ session: a raw ARQ transfer (`POST /modem/send_arq_raw`), a message (sent at once
+or by the scheduler from the queue) and the ARQ session inside a P2P connection. Frames inside a running
+session or connection are not delayed: the other station waits for them. Neither is the tune tone.
+
+The channel counts as clear when, for `listen_time` seconds in a row, no FreeDATA signal is heard (and
+none was in the last `freedata_holdoff` seconds, which covers the answer of a station this one cannot
+hear) and the FFT check sees no other signal. A random delay follows, after which the channel must still
+be clear: two stations that waited for the same session do not key up together. Then:
+
+- FreeDATA traffic is never sent over. If it goes on for the maximum wait, the transmission is dropped:
+  a ping or CQ is not sent, a message stays queued, a P2P connection puts its data back at the front of
+  its queue and tries again on its next turn, and a retried session open ends the session as failed.
+- A channel busy only from other signals (noise, a carrier, another mode) is waited for
+  `other_busy_wait` seconds, counted from the last FreeDATA signal heard, and then sent on anyway.
+- Stop ends the wait.
+
+An ARQ session's first `ARQ_SESSION_OPEN` goes out at once after the gate. If it gets no answer, each
+retry goes through the gate again, since there is no session on the channel yet. Until the other
+station answers, a station counts what it hears as traffic; once the session runs, the other station's
+frames are not counted as a busy channel.
+
+The settings are in the `[CHANNEL]` section of `config.ini` (added with these defaults when the config
+is loaded), times in seconds:
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `enable_listen_before_talk` | True | False sends everything at once |
+| `listen_time` | 2 | the channel must stay clear this long |
+| `freedata_holdoff` | 8 | after the last FreeDATA signal heard, the channel still counts as busy |
+| `random_delay` | 3 | upper bound of the random delay |
+| `freedata_max_wait` | 60 | FreeDATA traffic is waited for this long, then the transmission is dropped |
+| `other_busy_wait` | 30 | other signals are waited for this long, then it is sent anyway |
+| `beacon_max_wait` | 10 | `freedata_max_wait` for a beacon and for a queued message sent by the scheduler |
+| `cq_reply_holdoff` | 1 | `freedata_holdoff` for a CQ reply and the ARQ session in a P2P connection: the other station was just heard |
+| `cq_reply_max_wait` | 15 | `freedata_max_wait` for those two |
+| `cq_reply_random_delay` | 5 | `random_delay` for a CQ reply, since several stations may answer |
+
+The API calls that send (ping, CQ, beacon, test frame, message, raw ARQ) answer only after the wait,
+which can take up to `freedata_max_wait` plus the listening time and random delay. The log shows each
+wait as `[GATE]` lines.
+
+On the air the gate passed on 2026-11-17 (pings, a CQ reply, a ping held through another session) and,
+for messages, on 2026-11-20 (a ping held through a message session and sent 15 s after it, a P2P
+transfer). On 2026-11-19 a message's session still keyed up over a ping, since messages were not yet
+gated; that was fixed in merge 6d905497.
+
 ## Known issues
 
 None of its own: this page summarizes the documents it links. See their known-issues sections for open

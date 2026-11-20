@@ -16,7 +16,7 @@ of known issues and oddities that remain in the source.
 | [architecture.md](architecture.md) | Startup, `AppContext`, threads and queues, managers (event, state, service, radio, schedule, websocket), configuration keys, events, scheduled jobs, utility modules |
 | [api.md](api.md) | REST endpoint reference, WebSocket streams, validation, how API calls become transmit commands |
 | [modem-audio-radio.md](modem-audio-radio.md) | RX/TX audio paths, codec2 ctypes binding and modes, demodulators, audio devices, CW ID, radio control backends (rigctld, flrig, serial PTT, dummy) |
-| [protocol-overview.md](protocol-overview.md) | Overview diagrams of the protocols between two stations: discovery, ARQ sessions, speed levels and FSK fallback, P2P connections, NORM broadcasts, and which mode each frame uses |
+| [protocol-overview.md](protocol-overview.md) | Overview diagrams of the protocols between two stations: discovery, ARQ sessions, speed levels and FSK fallback, P2P connections, NORM broadcasts, listen before talk (`[CHANNEL]` settings), and which mode each frame uses |
 | [protocol-frames.md](protocol-frames.md) | Frame types, byte layouts, frame dispatch and handlers, `TxCommand` classes |
 | [arq-sessions.md](arq-sessions.md) | ARQ ISS/IRS state machines, speed-level adaptation, data-type handlers, P2P connections, TCP socket interface, NORM broadcasts |
 | [message-system.md](message-system.md) | SQLite database and schema, P2P message lifecycle and wire format, attachments, beacons, stations, broadcasts |
