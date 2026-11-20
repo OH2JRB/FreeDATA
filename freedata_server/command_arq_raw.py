@@ -38,9 +38,10 @@ class ARQRawCommand(TxCommand):
         """Executes the ARQ raw data transmission command.
 
         This method prepares the data for transmission, creates an ARQ session,
-        and starts the transmission process. It includes a random delay to
-        mitigate packet collisions and handles potential errors during session
-        startup.
+        and starts the transmission process. It waits for a clear channel first
+        (wait_for_clear_channel, listen before talk); the session's first
+        ARQ_SESSION_OPEN then goes out at once. Errors during session startup
+        are logged and return False.
 
         Args:
             event_queue (Queue): The event queue for emitting events.

@@ -331,7 +331,7 @@ Despite the name, nothing is queued. The handler `await`s `command.run()` in a w
 
 `enqueue_tx_command` returns `False` if the constructor or `run()` raised, or if `run()` returned `False`; otherwise `True` (most commands return `None` on success). Every calling handler checks the result and aborts with 500 on `False` (see §2). `ARQRawCommand` and `Norm` catch their own errors inside `run()` and return `False`. `SendMessageCommand.transmit` leaves the message queued for the scheduler to retry, so a stored message still gives a success response.
 
-Base class `TxCommand` ([command.py](../command.py)): `run()` calls `emit_event()`, logs, then `transmit()`. `transmit()` calls `build_frame()` and `ctx.rf_modem.transmit(get_tx_mode(), 1, 0, frame)`. `get_tx_mode()` returns `FREEDV_MODE.data_vhf_1` when `EXP.enable_vhf` is set, otherwise `FREEDV_MODE.signalling`.
+Base class `TxCommand` ([command.py](../command.py)): `run()` calls `emit_event()`, logs, waits for a clear channel (`wait_for_clear_channel`, listen before talk, [protocol-overview.md](protocol-overview.md#listen-before-talk); not with `LISTEN_BEFORE_TALK = False`), then `transmit()`; if the gate drops the transmission, `run()` returns `False` and the handler answers 500. `transmit()` calls `build_frame()` and `ctx.rf_modem.transmit(get_tx_mode(), 1, 0, frame)`. `get_tx_mode()` returns `FREEDV_MODE.data_vhf_1` when `EXP.enable_vhf` is set, otherwise `FREEDV_MODE.signalling`.
 
 | Endpoint | Command class | Params consumed by the command |
 |---|---|---|
@@ -339,12 +339,12 @@ Base class `TxCommand` ([command.py](../command.py)): `run()` calls `emit_event(
 | `POST /modem/beacon` | [command_beacon.py](../command_beacon.py) `BeaconCommand` | none (uses `state_manager.is_away_from_key`) |
 | `POST /modem/ping_ping` | [command_ping.py](../command_ping.py) `PingCommand` | `dxcall` (appends `-0` if invalid, creates the station DB entry) |
 | `POST /modem/send_test_frame` | [command_test.py](../command_test.py) `TestCommand` | none |
-| `POST /modem/send_arq_raw` | [command_arq_raw.py](../command_arq_raw.py) `ARQRawCommand` | `dxcall`, `type`, `data` (base64). Overrides `run()` to start an `ARQSessionISS` after a random 0-5 s delay plus a wait on `channel_busy_condition_codec2` of up to 5 s |
+| `POST /modem/send_arq_raw` | [command_arq_raw.py](../command_arq_raw.py) `ARQRawCommand` | `dxcall`, `type`, `data` (base64). Overrides `run()`: waits for a clear channel, then starts an `ARQSessionISS` whose first open goes out at once |
 | `POST /radio/tune` (enable) | [command_transmit_sine.py](../command_transmit_sine.py) `TransmitSine` | none |
-| `POST /freedata/messages` | [command_message_send.py](../command_message_send.py) `SendMessageCommand` | `destination`, `body`, `attachments`, `id` |
+| `POST /freedata/messages` | [command_message_send.py](../command_message_send.py) `SendMessageCommand` | `destination`, `body`, `attachments`, `id`. `run()` does not gate; `transmit()` waits for a clear channel right before the session, and leaves the message queued if the gate drops it |
 | `POST /freedata/broadcasts` | [command_norm.py](../command_norm.py) `Norm` | `origin`, `domain`, `data`, `type`, `gridsquare`, `priority` |
 
-Because `ARQRawCommand.run()` includes the random delay and condition wait, `POST /modem/send_arq_raw` can take several seconds to respond.
+Because the commands wait for a clear channel before sending, these calls answer only after the wait: usually `listen_time` plus the random delay (2-5 s), on a busy channel up to `freedata_max_wait` (60 s; a beacon 10 s) or `other_busy_wait` (30 s) more. A client with a short timeout (`curl -m 30`, say) can give up while the server still sends; on the air on 2026-11-20 such a client saw no answer, but the ping and the message went out. `POST /radio/tune` does not wait.
 
 ---
 

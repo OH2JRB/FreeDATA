@@ -383,7 +383,7 @@ every non-final `ARQ_BURST_FRAME`:
    mode uses (datac4 only it), so the slowest level would avoid nothing: the choice is then made again by
    SNR and bandwidth alone. A busy centre slot was mostly the other station's own frames before a receiver
    synced on them, and it made sessions drop to datac4 at 13 dB (on the air 2026-11-08, 500 Hz limit); the
-   FFT now counts no new traffic during a session or P2P connection (`StateManager.is_in_session()`,
+   FFT now counts no new traffic during a session or P2P connection, from the IRS's first answer on (`StateManager.is_in_session()`,
    modem-audio-radio.md), so the slots mostly hold what was heard before it. If no level qualifies even
    so (low SNR), it falls back to datac4 (level 1). The FSK level is
    never chosen here. On a session that is on FSK, `calibrate_speed_settings()` returns level 0 at once.

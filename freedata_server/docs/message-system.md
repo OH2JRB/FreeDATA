@@ -339,16 +339,16 @@ stateDiagram-v2
 1. Return early if an ARQ session is active (`state_manager.getARQ()`) or `ctx.rf_modem` is not set.
 2. `get_first_queued_message()` - the next `queued` message in `QUEUE_ORDER`: highest `priority` first, then oldest `timestamp`. Every message has priority 10 unless it was moved with send last.
 3. Reload it with `get_message_by_id` and rebuild a `MessageP2P` with `from_api_params(message_dict["origin"], message_dict)` (keeps the stored `id`).
-4. Collision avoidance: wait a random 0-9 s, wait while a codec2 signal is being received, then observe the channel for 10 s; if any codec2 signal appears, return and leave the message `queued`.
-5. Set status `transmitting`.
-6. `payload = message.to_payload().encode("utf-8")`, then `arq_data_type_handler.prepare(payload, ARQ_SESSION_TYPES.p2pmsg_zlib)`.
-7. Create `ARQSessionISS(ctx, message.destination, data, data_type)` - the destination comes from the same queued message as the payload - register it with the state manager and `start()` it.
+4. `payload = message.to_payload().encode("utf-8")`, then `arq_data_type_handler.prepare(payload, ARQ_SESSION_TYPES.p2pmsg_zlib)`.
+5. Listen before talk, right before the session ([protocol-overview.md](protocol-overview.md#listen-before-talk)): `channel_gate.wait_for_clear_channel`, with `freedata_max_wait` (60 s) when sent from the API and `beacon_max_wait` (10 s) from the scheduler, whose thread it holds. If FreeDATA traffic goes on that long, or Stop is pressed, return and leave the message `queued`. `run()` does not gate before `transmit()` (`LISTEN_BEFORE_TALK = False`), so the decision is not stale when the session opens. Until 2026-11-20 this step was a random 0-9 s wait and a 10 s codec2 check after the gate, and the session then waited up to 12 s more on the SignalDetector: a message keyed up over another station's ping on the air.
+6. Return with the message `queued` if another ARQ session started meanwhile; set status `transmitting`.
+7. Create `ARQSessionISS(ctx, message.destination, data, data_type)` - the destination comes from the same queued message as the payload - set `skip_next_clear_channel_wait` (its first `ARQ_SESSION_OPEN` goes out at once), register it with the state manager and `start()` it.
 
 ### Scheduler involvement ([schedule_manager.py](../schedule_manager.py))
 
 | Job | Interval | Behaviour |
 |---|---|---|
-| `check_for_queued_messages` | 15 s | If no ARQ, modem running and the channel allows it (`queue_channel_free`: free, i.e. `channel_busy_event` set, or busy only from signals that are not codec2 traffic for `QUEUE_BUSY_MAX_WAIT` = 60 s in a row, after which it logs "sending queued message anyway"; codec2 traffic from another FreeDATA station always holds the queue): take `get_first_queued_message()`, construct `SendMessageCommand(ctx, first_queued_message)` and call `transmit()` |
+| `check_for_queued_messages` | 15 s | If no ARQ, modem running and the channel allows it (`queue_channel_free`: free, i.e. `channel_busy_event` set, or busy only from signals that are not codec2 traffic for `QUEUE_BUSY_MAX_WAIT` = 60 s in a row, after which it logs "sending queued message anyway"; codec2 traffic from another FreeDATA station always holds the queue): take `get_first_queued_message()`, construct `SendMessageCommand(ctx, first_queued_message, from_scheduler=True)` and call `transmit()`, which then goes through the channel gate with `beacon_max_wait` |
 | `beacon_cleanup` | 600 s | `beacon_cleanup_older_than_days(2)` |
 | `check_missing_broadcast_bursts` | 20 s | Broadcast NACK handling (section 7) |
 | `check_queued_messages` | 20 s | Broadcast (re)transmission (section 7) |
@@ -426,14 +426,14 @@ sequenceDiagram
     API->>Cmd: run() in thread -> transmit()
     Cmd->>DB: get_first_queued_message()
     Note over Cmd: claim the message id (state_manager.claim_message_transmit),<br/>return if another command is already sending it
-    Note over Cmd: random 0-9 s wait, 10 s channel check
-    alt codec2 signal heard
+    Cmd->>H: prepare(json bytes, p2pmsg_zlib)
+    H-->>Cmd: raw-deflate data, type 20
+    Note over Cmd: listen before talk (channel_gate)
+    alt FreeDATA traffic did not end, or Stop
         Cmd-->>Cmd: return (stays queued, scheduler retries every 15 s)
-    else channel free
+    else channel clear
         Cmd->>DB: update_message(status=transmitting)
-        Cmd->>H: prepare(json bytes, p2pmsg_zlib)
-        H-->>Cmd: raw-deflate data, type 20
-        Cmd->>ISS: start()
+        Cmd->>ISS: start() (first open at once)
         ISS->>IRS: ARQ bursts (CRC-32 of data in session open)
         IRS->>IRS: final_crc_matches()
         IRS->>RDB: dispatch -> message_received -> add_message(receive, received, is_read=False)
