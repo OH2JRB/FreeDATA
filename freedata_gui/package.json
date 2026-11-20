@@ -50,9 +50,9 @@
     "vuemoji-picker": "^0.3.2"
   },
   "devDependencies": {
-    "@cyclonedx/cyclonedx-npm": "^7.0.0",
-    "@vitejs/plugin-vue": "^6.0.10",
-    "eslint": "^10.14.0",
+    "@cyclonedx/cyclonedx-npm": "^7.0.1",
+    "@vitejs/plugin-vue": "^6.0.11",
+    "eslint": "^10.15.0",
     "eslint-plugin-vue": "^10.12.1",
     "globals": "^17.14.0",
     "vite": "^8.3.8"
