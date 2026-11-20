@@ -17,11 +17,31 @@ export function escapeHtml(str) {
     .replace(/'/g, "&#39;");
 }
 
+// Toasts on screen, by their type, icon and text. The server can send the same
+// event twice in a row: a station receiving an ARQ transfer reports the bytes
+// of each burst both when it stores the last frame and when it sends the burst
+// ACK, and a burst sent again (lost ACK, fallback) brings no new bytes. Such an
+// identical toast is not stacked again: the one on screen stays up longer.
+const shownToasts = new Map();
+
+function toastKey(type, icon, content) {
+  return `${type}|${icon}|${String(content).replace(/\s+/g, " ").trim()}`;
+}
+
 // `content` is inserted as HTML: escape any untrusted text with escapeHtml()
 export function displayToast(type, icon, content, duration) {
   const mainToastContainer = document.getElementById("mainToastContainer");
   if (!mainToastContainer) {
     console.warn("Toast container not available yet, toast dropped");
+    return;
+  }
+
+  const key = toastKey(type, icon, content);
+  const shown = shownToasts.get(key);
+  if (shown) {
+    // the same toast is still on screen: restart its timer instead
+    shown._config.delay = Math.max(shown._config.delay, duration);
+    shown.show();
     return;
   }
 
@@ -51,6 +71,7 @@ export function displayToast(type, icon, content, duration) {
   const toastHTMLElement = document.getElementById(randomID);
   const toast = bootstrap.Toast.getOrCreateInstance(toastHTMLElement); // Returns a Bootstrap toast instance
   toast._config.delay = duration;
+  shownToasts.set(key, toast);
 
   // Show toast
   toast.show();
@@ -63,6 +84,7 @@ export function displayToast(type, icon, content, duration) {
         "hidden.bs.toast",
         handleToastHidden,
       );
+      if (shownToasts.get(key) === toast) shownToasts.delete(key);
       toastHTMLElement.remove();
     },
   );
