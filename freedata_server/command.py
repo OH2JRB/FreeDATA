@@ -162,13 +162,19 @@ class TxCommand:
         frame = self.build_frame()
         self.ctx.rf_modem.transmit(self.get_tx_mode(), 1, 0, frame)
 
+    # why the channel gate did not let this command send (channel_gate.DROPPED
+    # or STOPPED), for the API's answer (api.command_helpers); None if it did
+    not_sent_reason = None
+
     def wait_for_clear_channel(self):
         """True when this command may key up now (channel_gate.wait_for_clear_channel)."""
         if not self.LISTEN_BEFORE_TALK:
             return True
-        return channel_gate.wait_for_clear_channel(
-            self.ctx, self.get_name(), max_wait_setting=self.CHANNEL_MAX_WAIT_SETTING
-        )
+        result = channel_gate.gate_result(self.ctx, self.get_name(), max_wait_setting=self.CHANNEL_MAX_WAIT_SETTING)
+        if result in (channel_gate.DROPPED, channel_gate.STOPPED):
+            self.not_sent_reason = result
+            return False
+        return True
 
     def run(self):
         """Runs the command.

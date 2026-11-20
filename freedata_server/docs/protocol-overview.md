@@ -205,9 +205,11 @@ is loaded), times in seconds:
 | `cq_reply_max_wait` | 15 | `freedata_max_wait` for those two |
 | `cq_reply_random_delay` | 5 | `random_delay` for a CQ reply, since several stations may answer |
 
-The API calls that send (ping, CQ, beacon, test frame, message, raw ARQ) answer only after the wait,
-which can take up to `freedata_max_wait` plus the listening time and random delay. The log shows each
-wait as `[GATE]` lines.
+The API calls that send (ping, CQ, beacon, test frame, raw ARQ) answer only after the wait, which can
+take up to `freedata_max_wait` plus the listening time and random delay: 200 when it went out, 503 when
+FreeDATA traffic did not end, 409 when Stop ended the wait (the GUI shows both as "Not sent"). A message
+is answered as soon as it is stored and waits in the background; a message the gate drops stays queued.
+The log shows each wait as `[GATE]` lines.
 
 On the air the gate passed on 2026-11-17 (pings, a CQ reply, a ping held through another session) and,
 for messages, on 2026-11-20 (a ping held through a message session and sent 15 s after it, a P2P

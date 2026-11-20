@@ -4,7 +4,7 @@ from fastapi.responses import Response
 import asyncio
 
 from freedata_server.api.common import api_response, api_abort
-from freedata_server.api.command_helpers import enqueue_tx_command
+from freedata_server.api.command_helpers import enqueue_tx_command, start_tx_command
 from freedata_server.message_system_db_messages import DatabaseManagerMessages
 from freedata_server.message_system_db_attachments import DatabaseManagerAttachments
 from freedata_server.message_system_db_beacon import DatabaseManagerBeacon
@@ -115,7 +115,7 @@ async def get_freedata_message(message_id: str, ctx: AppContext = Depends(get_ct
     tags=["FreeDATA"],
     responses={
         200: {
-            "description": "Message transmitted successfully.",
+            "description": "Message stored as queued; it is sent in the background (listen before talk first). Its status follows as message-db events.",
             "content": {"application/json": {"example": {"destination": "XX1XXX-6", "body": "Hello FreeDATA"}}},
         },
         404: {
@@ -125,9 +125,11 @@ async def get_freedata_message(message_id: str, ctx: AppContext = Depends(get_ct
     },
 )
 async def post_freedata_message(payload: dict, ctx: AppContext = Depends(get_ctx)):
-    # Transmit FreeDATA message
-    if not await enqueue_tx_command(ctx, command_message_send.SendMessageCommand, payload):
-        api_abort("Failed to transmit message.", 500)
+    # Store the message and send it in the background: the answer does not
+    # wait for a clear channel. Its status (transmitting, transmitted, failed,
+    # or still queued) follows as message-db events.
+    if not await start_tx_command(ctx, command_message_send.SendMessageCommand, payload):
+        api_abort("Failed to store message.", 500)
     return api_response(payload)
 
 
