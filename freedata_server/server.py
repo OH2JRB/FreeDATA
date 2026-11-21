@@ -10,7 +10,12 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from freedata_server.log_handler import log_to_temp_requested, setup_logging, temp_log_filename
+from freedata_server.log_handler import (
+    log_to_temp_requested,
+    setup_logging,
+    temp_log_filename,
+    temp_log_in_config,
+)
 from freedata_server.constants import CONFIG_ENV_VAR, DEFAULT_CONFIG_FILE, DEFAULT_APP_DIR, API_VERSION
 from freedata_server.context import AppContext
 from freedata_server import helpers
@@ -72,12 +77,20 @@ config_file = resolve_config_path()
 # --- Logging setup: log file MUST be in the same directory as the config file ---
 config_dir = os.path.dirname(config_file)
 log_file = os.path.join(config_dir, "freedata_server.log")
-temp_log_file = temp_log_filename() if log_to_temp_requested(sys.argv[1:]) else ""
+# the temp-directory log: on by the command line or environment, or by the
+# switch in the config (STATION.enable_log_to_temp) from an earlier run
+temp_log_requested = log_to_temp_requested(sys.argv[1:])
+temp_log_file = temp_log_filename() if temp_log_requested or temp_log_in_config(config_file) else ""
 logger = setup_logging(filename=log_file, level="INFO", temp_filename=temp_log_file)
 logger.info("Using config", file=config_file, log_file=log_file)
 
 # --- AppContext startup ---
 ctx = AppContext(config_file)
+# turned on by the command line or environment: the GUI switch shows it, and
+# later runs keep it on until it is switched off there
+if temp_log_requested and not ctx.config_manager.config.get("STATION", {}).get("enable_log_to_temp"):
+    ctx.config_manager.write({"STATION": {"enable_log_to_temp": True}})
+    logger.info("Temp file logging stored in the config", setting="STATION.enable_log_to_temp")
 ctx.startup()
 
 

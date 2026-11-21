@@ -58,6 +58,9 @@ class CONFIG:
             "iaru_region": int,
             "enable_callsign_blacklist": bool,
             "callsign_blacklist": list,
+            # also log into a file in the temp directory (log_handler.set_temp_logging);
+            # --log-to-temp or FREEDATA_LOG_TO_TEMP turn it on and store it here
+            "enable_log_to_temp": bool,
         },
         "AUDIO": {
             "input_device": str,

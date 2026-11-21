@@ -11,6 +11,8 @@ export const useStateStore = defineStore("stateStore", () => {
   // an encrypted message was not sent, because the radio is on an amateur band;
   // cleared once the radio leaves the amateur bands
   var encryption_band_blocked = ref(false);
+  // the server's temp-directory log file, "" when it is not logging there
+  var temp_log_file = ref("");
   var mode = ref("-");
   var rf_level = ref(10);
   var bandwidth = ref("-");
@@ -119,6 +121,7 @@ export const useStateStore = defineStore("stateStore", () => {
     frequency,
     amateur_band,
     encryption_band_blocked,
+    temp_log_file,
     mode,
     bandwidth,
     tuner,

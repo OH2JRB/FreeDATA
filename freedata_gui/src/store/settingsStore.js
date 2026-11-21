@@ -76,6 +76,7 @@ const defaultConfig = {
       iaru_region: 0,
       enable_callsign_blacklist: false,
       callsign_blacklist: [],
+      enable_log_to_temp: false,
     },
     MESSAGES: {
       enable_auto_repeat: false,

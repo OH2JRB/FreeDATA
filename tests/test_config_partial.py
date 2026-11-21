@@ -14,6 +14,7 @@ import queue
 import shutil
 import types
 import unittest
+from unittest import mock
 
 from fastapi import HTTPException
 
@@ -125,6 +126,55 @@ class TestConfigChangedEvent(unittest.TestCase):
         with self.assertRaises(HTTPException):
             asyncio.run(post_config({"STATION": {"mycall": "not a call"}}, self.ctx))
         self.assertEqual(self.events, [])
+
+
+class TestTempLogSwitch(unittest.TestCase):
+    """STATION.enable_log_to_temp starts or stops the temp-directory log at once,
+    without a modem restart, and the state event shows the file."""
+
+    def setUp(self):
+        self.path = os.path.join(os.path.dirname(testenv.config_path()), "config-templog-test.ini")
+        shutil.copyfile(testenv.CONFIG_TEMPLATE, self.path)
+        self.addCleanup(os.remove, self.path)
+        self.state = {}
+        self.ctx = types.SimpleNamespace(
+            modem_service=queue.Queue(),
+            state_manager=types.SimpleNamespace(set=lambda key, value: self.state.__setitem__(key, value)),
+        )
+        self.ctx.config_manager = CONFIG(self.ctx, self.path)
+        full = self.ctx.config_manager.read()
+        full["STATION"].update({"mycall": "OH2JRB", "myssid": 13, "mygrid": "KP20le"})
+        asyncio.run(post_config(full, self.ctx))
+        while not self.ctx.modem_service.empty():
+            self.ctx.modem_service.get()
+        patcher = mock.patch(
+            "freedata_server.api.config.set_temp_logging",
+            side_effect=lambda on: "/tmp/freedata_server_x.log" if on else "",
+        )
+        self.switch = patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_template_has_it_off(self):
+        self.assertIs(self.ctx.config_manager.read()["STATION"]["enable_log_to_temp"], False)
+
+    def test_on_then_off(self):
+        asyncio.run(post_config({"STATION": {"enable_log_to_temp": True}}, self.ctx))
+        self.assertEqual(self.state, {"temp_log_file": "/tmp/freedata_server_x.log"})
+        asyncio.run(post_config({"STATION": {"enable_log_to_temp": False}}, self.ctx))
+        self.assertEqual(self.state, {"temp_log_file": ""})
+        self.assertEqual([c.args for c in self.switch.call_args_list], [(True,), (False,)])
+        self.assertTrue(self.ctx.modem_service.empty())  # no modem restart
+
+    def test_stored_for_later_runs(self):
+        asyncio.run(post_config({"STATION": {"enable_log_to_temp": True}}, self.ctx))
+        parser = configparser.ConfigParser()
+        parser.read(self.path)
+        self.assertTrue(parser.getboolean("STATION", "enable_log_to_temp"))
+
+    def test_other_settings_leave_it_alone(self):
+        asyncio.run(post_config({"STATION": {"myssid": 4}}, self.ctx))
+        self.switch.assert_not_called()
+        self.assertEqual(self.ctx.modem_service.get_nowait(), "restart")
 
 
 class TestEventShape(unittest.TestCase):

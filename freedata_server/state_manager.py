@@ -3,6 +3,7 @@ import threading
 import numpy as np
 
 from freedata_server.bandplan import on_amateur_band
+from freedata_server.log_handler import temp_log_path
 
 
 class StateManager:
@@ -51,6 +52,9 @@ class StateManager:
         self.is_away_from_key = False
         # PSK Reporter uploads, switched at runtime (pskreporter.set_enabled)
         self.is_pskreporter_enabled = False
+        # the temp-directory log file being written, "" if none
+        # (log_handler.set_temp_logging, switched by STATION.enable_log_to_temp)
+        self.temp_log_file = temp_log_path()
 
         # If true, any wait() call is blocking
         self.transmitting_event = threading.Event()
@@ -188,6 +192,7 @@ class StateManager:
             "activities": self.activities_list,
             "is_modem_busy": self.getARQ(),
             "rx_audio_loss": self.rx_audio_loss,
+            "temp_log_file": self.temp_log_file,
         }
 
     def get_radio_event(self, isChangedState):

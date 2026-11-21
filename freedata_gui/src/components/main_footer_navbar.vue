@@ -73,6 +73,26 @@ const state = useStateStore(pinia);
               style="font-size: 0.8rem"
             />
           </button>
+          <!-- the server's temp-directory log file (Settings, Station) -->
+          <button
+            id="temp_log_state"
+            class="btn btn-sm me-1"
+            :class="state.temp_log_file ? 'btn-success' : 'btn-secondary'"
+            type="button"
+            data-bs-placement="top"
+            data-bs-toggle="tooltip"
+            data-bs-trigger="hover"
+            :data-bs-title="state.temp_log_file
+              ? $t('navbar.templog_on', { file: state.temp_log_file, interpolation: { escapeValue: false } })
+              : $t('navbar.templog_off')"
+            disabled
+            style="pointer-events: auto"
+          >
+            <i
+              class="bi bi-journal-text"
+              style="font-size: 0.8rem"
+            />
+          </button>
         </div>
 
         <div

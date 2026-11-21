@@ -100,7 +100,7 @@ How `POST /config/` runs:
 2. The body is merged into the stored config (`old_cfg = config_manager.read()`): sections and settings it does not name keep their stored values. Send only what changed: a client that sends its whole copy also writes back every value it read earlier, including what another client changed meanwhile. On 2026-11-20 a GUI tab opened before the call sign was changed put the old call sign back when the SSID was changed in it; the GUI now sends only the settings that differ from the config it last received (`changedSettings` in `settingsStore.js`).
 3. `validate_remote_config(merged)` checks `STATION.mycall` and `STATION.mygrid` of the result (see §5) and **normalizes them**. Any failure gives 400. With the common key or any station's encryption on, Explorer reporting is kept off in the result and PSK Reporter is switched off.
 4. If the result equals the stored config, it is returned unchanged and nothing restarts. Otherwise `config_manager.write(merged)` runs once; a falsy result gives 500.
-5. The config is re-read. `ctx.modem_service.put("restart")` restarts the modem only if a section other than `GUI` differs between the old and the re-read config. GUI-only changes (`GUI.distance_unit`, `GUI.auto_run_browser`) are written without a restart.
+5. The config is re-read. `ctx.modem_service.put("restart")` restarts the modem only if a section other than `GUI` differs between the old and the re-read config, leaving out `NO_RESTART_SETTINGS`. GUI-only changes (`GUI.distance_unit`, `GUI.auto_run_browser`) are written without a restart. So is `STATION.enable_log_to_temp`: switching it starts or stops the temp-directory log file at once (`log_handler.set_temp_logging`, a new file `freedata_server_<date>_<time>.log` each start) and sets the state's `temp_log_file`.
 6. Sends the `config changed` event (§ events), so open GUI tabs show the change.
 7. Returns the re-read config, the whole of it.
 
@@ -169,7 +169,8 @@ Validation rewrites these to `"AA1AAA"` and `"JN48ea"`.
   "is_codec2_traffic": false,
   "audio_dbfs": -7.9,
   "activities": { "<id>": { "activity_type": "BEACON", "direction": "received", "...": "..." } },
-  "is_modem_busy": false
+  "is_modem_busy": false,
+  "temp_log_file": ""
 }
 ```
 
@@ -304,7 +305,7 @@ These are produced by `EventManager.broadcast()` ([event_manager.py](../event_ma
 Produced by `StateManager` ([state_manager.py](../state_manager.py)):
 
 - `{"type": "state", ...}`: a full state snapshot, as `GET /modem/state` returns it (`get_state_event(False)`); the stream itself sends only the changes below.
-- `{"type": "state-change", ...}`: the same fields, sent by `set(key, value)` and `set_channel_slot_busy()` when the snapshot differs from the last one. Fields: `is_modem_running, is_beacon_running, is_away_from_key, is_pskreporter_enabled, radio_status, channel_busy, channel_busy_slot, is_codec2_traffic, audio_dbfs, activities, is_modem_busy, rx_audio_loss` (`{driver, queue, decoder}`: RX audio blocks lost since the modem started). `channel_busy` is `true` while the channel is busy (`not channel_busy_event.is_set()`; the event is set while the channel is free).
+- `{"type": "state-change", ...}`: the same fields, sent by `set(key, value)` and `set_channel_slot_busy()` when the snapshot differs from the last one. Fields: `is_modem_running, is_beacon_running, is_away_from_key, is_pskreporter_enabled, radio_status, channel_busy, channel_busy_slot, is_codec2_traffic, audio_dbfs, activities, is_modem_busy, rx_audio_loss, temp_log_file` (`rx_audio_loss` is `{driver, queue, decoder}`: RX audio blocks lost since the modem started; `temp_log_file` is the path of the temp-directory log file being written, `""` when off; the GUI footer shows it). `channel_busy` is `true` while the channel is busy (`not channel_busy_event.is_set()`; the event is set while the channel is free).
 - `{"type": "radio-change", radio_status, radio_frequency, radio_rf_level, radio_mode, s_meter_strength, radio_swr, radio_tuner}`, sent by `set_radio()` when the value changes. `get_radio_event` can also build `type: "radio"`.
 
 ### 3.3 `/fft` messages
