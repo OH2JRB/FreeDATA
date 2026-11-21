@@ -6,11 +6,25 @@ from freedata_server.api.common import api_abort
 from freedata_server import api_validations as validations
 from freedata_server import frequency_list
 from freedata_server.context import AppContext, get_ctx
+from freedata_server.log_handler import set_temp_logging
 from freedata_server.message_p2p import common_key_changed, encryption_log, EXPLORER_SETTINGS
 from freedata_server.message_system_db_station import DatabaseManagerStations
 
 router = APIRouter()
 modem_log = structlog.get_logger("Modem")
+
+# settings the server applies while it runs: changing them does not restart the modem
+NO_RESTART_SETTINGS = {("STATION", "enable_log_to_temp")}
+
+
+def modem_settings(cfg: dict) -> dict:
+    """The config without the GUI section and NO_RESTART_SETTINGS (GUI-only
+    keys such as distance_unit are not used by the modem)."""
+    return {
+        section: {key: value for key, value in settings.items() if (section, key) not in NO_RESTART_SETTINGS}
+        for section, settings in cfg.items()
+        if section != "GUI"
+    }
 
 
 @router.get(
@@ -209,10 +223,18 @@ async def post_config(
     if fsk_is_on != fsk_was_on:
         modem_log.info("[MODEM] FSK modes " + ("enabled" if fsk_is_on else "disabled"))
 
-    # Trigger modem restart, unless only the GUI section changed
-    # (GUI-only keys such as distance_unit are not used by the modem)
-    sections = (set(old_cfg) | set(updated)) - {"GUI"}
-    if any(old_cfg.get(section) != updated.get(section) for section in sections):
+    # the temp-directory log file, switched at once
+    log_was_on = bool(old_cfg.get("STATION", {}).get("enable_log_to_temp"))
+    log_is_on = bool(updated.get("STATION", {}).get("enable_log_to_temp"))
+    if log_is_on != log_was_on:
+        path = set_temp_logging(log_is_on)
+        state = getattr(ctx, "state_manager", None)
+        if state is not None:
+            state.set("temp_log_file", path)
+
+    # Trigger modem restart, unless only the GUI section or settings applied
+    # while running (NO_RESTART_SETTINGS) changed
+    if modem_settings(old_cfg) != modem_settings(updated):
         ctx.modem_service.put("restart")
 
     # let open GUI tabs show the change (they reload the config)

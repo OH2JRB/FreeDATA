@@ -47,6 +47,13 @@ file) or threads that hung at shutdown.
      is missing or an `OSError` occurs, the process exits with code 1.
 2. **Logging** - `setup_logging(filename=<config dir>/freedata_server.log, level="INFO")`
    ([log_handler.py](../log_handler.py)). The log file always lives next to the config file.
+   A second log file, `<temp dir>/freedata_server_<YYYYMMDD_HHMMSS>.log` (plain text, no colour
+   codes), is written when `--log-to-temp` is given, `FREEDATA_LOG_TO_TEMP` is 1/true/yes/on, or
+   `STATION.enable_log_to_temp` is on in the config (`temp_log_in_config`, read before the config
+   manager exists). If the command line or environment turned it on, `STATION.enable_log_to_temp`
+   is written as `True` once `AppContext` has read the config, so the GUI switch shows it and later
+   runs keep it until it is switched off. `POST /config/` starts or stops it at once
+   (`set_temp_logging`); the state events report the file as `temp_log_file`.
 3. **AppContext** - `ctx = AppContext(config_file)` followed by `ctx.startup()` (see section 2).
    Note: constructing `AppContext` already starts the service-manager runner thread.
    `ctx.radio_manager` stays `None` until the service manager processes `start`.

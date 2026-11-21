@@ -10,7 +10,12 @@ import unittest
 from unittest import mock
 
 from freedata_server.constants import LOG_TO_TEMP_ENV_VAR
-from freedata_server.log_handler import log_to_temp_requested, strip_control_characters, temp_log_filename
+from freedata_server.log_handler import (
+    log_to_temp_requested,
+    strip_control_characters,
+    temp_log_filename,
+    temp_log_in_config,
+)
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -91,6 +96,67 @@ class TestLogToTempSwitch(unittest.TestCase):
         for value, expected in (("1", True), ("Yes", True), ("true", True), ("0", False), ("", False)):
             os.environ[LOG_TO_TEMP_ENV_VAR] = value
             self.assertEqual(log_to_temp_requested([]), expected, value)
+
+
+class TestTempLogInConfig(unittest.TestCase):
+    def read(self, text):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "config.ini")
+            if text is not None:
+                with open(path, "w", encoding="utf-8") as fh:
+                    fh.write(text)
+            return temp_log_in_config(path)
+
+    def test_on_and_off(self):
+        self.assertTrue(self.read("[STATION]\nenable_log_to_temp = True\n"))
+        self.assertFalse(self.read("[STATION]\nenable_log_to_temp = False\n"))
+
+    def test_missing_or_broken_is_off(self):
+        self.assertFalse(self.read(None))
+        self.assertFalse(self.read("[STATION]\nmycall = OH2JRB\n"))
+        self.assertFalse(self.read("[STATION]\nenable_log_to_temp = maybe\n"))
+        self.assertFalse(self.read("not an ini file"))
+
+
+class TestSwitchAtRuntime(unittest.TestCase):
+    def test_start_stop_start(self):
+        # set_temp_logging changes the logging of the whole process, so run it in its own
+        script = (
+            "import sys, structlog\n"
+            "from freedata_server.log_handler import setup_logging, set_temp_logging, temp_log_path\n"
+            "setup_logging('', 'INFO')\n"
+            "log = structlog.get_logger('test')\n"
+            "assert temp_log_path() == ''\n"
+            "log.info('before')\n"
+            "assert set_temp_logging(True, sys.argv[1]) == sys.argv[1]\n"
+            "assert set_temp_logging(True) == sys.argv[1]  # already on: same file\n"
+            "log.info('while on')\n"
+            "assert set_temp_logging(False) == ''\n"
+            "assert temp_log_path() == ''\n"
+            "log.info('after')\n"
+            "assert set_temp_logging(True, sys.argv[2]) == sys.argv[2]\n"
+            "log.info('second file')\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            first = os.path.join(tmp, "first.log")
+            second = os.path.join(tmp, "second.log")
+            result = subprocess.run(
+                [sys.executable, "-c", script, first, second],
+                cwd=REPO_ROOT,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                timeout=60,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            with open(first, encoding="utf-8") as fh:
+                content = fh.read()
+            self.assertIn("while on", content)
+            self.assertIn("Logging to temp file stopped", content)
+            self.assertNotIn("before", content)
+            self.assertNotIn("after", content)
+            with open(second, encoding="utf-8") as fh:
+                self.assertIn("second file", fh.read())
 
 
 if __name__ == "__main__":

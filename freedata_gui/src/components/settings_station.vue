@@ -224,6 +224,40 @@
     </label>
   </div>
 
+  <!-- Temp-directory log file (log_handler.set_temp_logging), applied at once -->
+  <div class="input-group input-group-sm mb-1">
+    <label class="input-group-text w-50 text-wrap">
+      {{ $t('settings.station.logtotemp') }}
+      <button
+        type="button"
+        class="btn btn-link p-0 ms-2"
+        data-bs-toggle="tooltip"
+        :title="$t('settings.station.logtotemp_help')"
+      >
+        <i class="bi bi-question-circle" />
+      </button>
+    </label>
+    <label class="input-group-text w-50 text-wrap">
+      <div class="form-check form-switch form-check-inline">
+        <input
+          id="logToTempSwitch"
+          v-model="settings.remote.STATION.enable_log_to_temp"
+          class="form-check-input"
+          type="checkbox"
+          @change="onChange"
+        >
+        <label
+          class="form-check-label"
+          for="logToTempSwitch"
+        >{{ $t('settings.enable') }}</label>
+      </div>
+      <small
+        v-if="state.temp_log_file"
+        class="ms-2 text-break text-start"
+      >{{ state.temp_log_file }}</small>
+    </label>
+  </div>
+
   <!-- Callsign Blacklist Textarea -->
   <div class="input-group input-group-sm mb-1">
     <label class="input-group-text w-50 text-wrap">
@@ -258,6 +292,10 @@
 import { settingsStore as settings, onChange, getRemote } from "../store/settingsStore.js";
 import { validateCallsignWithoutSSID } from "../js/freedata";
 import i18next from "../js/i18n";
+import pinia from "../store/index";
+import { useStateStore } from "../store/stateStore.js";
+
+const state = useStateStore(pinia);
 
 const gridRegex = /^[A-Ra-r]{2}[0-9]{2}([A-Xa-x]{2})?$/;
 // Last grid locator known to be valid (or the value loaded from the server),

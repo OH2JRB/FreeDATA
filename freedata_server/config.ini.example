@@ -14,6 +14,7 @@ respond_to_cq = True
 iaru_region = 0
 enable_callsign_blacklist = False
 callsign_blacklist = []
+enable_log_to_temp = False
 
 [AUDIO]
 input_device = 5a1c
