@@ -14,7 +14,11 @@ router = APIRouter()
 modem_log = structlog.get_logger("Modem")
 
 # settings the server applies while it runs: changing them does not restart the modem
-NO_RESTART_SETTINGS = {("STATION", "enable_log_to_temp")}
+NO_RESTART_SETTINGS = {
+    ("STATION", "enable_log_to_temp"),
+    # read at every received CQ (CQFrameHandler.should_respond)
+    ("STATION", "respond_to_cq"),
+}
 
 
 def modem_settings(cfg: dict) -> dict:

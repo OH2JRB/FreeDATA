@@ -10,33 +10,43 @@ class CQFrameHandler(frame_handler.FrameHandler):
 
     This class processes received CQ (Calling Any Station) frames and sends
     a QRV (Ready to Receive) frame as an acknowledgement if the station is
-    not currently busy with ARQ. It also checks for queued messages to be
-    sent based on the configuration.
+    not currently busy with ARQ and STATION.respond_to_cq is on. It also
+    checks for queued messages to be sent based on the configuration.
     """
 
-    # def should_respond(self):
-    #    self.logger.debug(f"Respond to CQ: {self.ctx.config_manager.config['MODEM']['respond_to_cq']}")
-    #    return bool(self.ctx.config_manager.config['MODEM']['respond_to_cq'] and not self.ctx.state_manager.getARQ())
+    def should_respond(self):
+        """True if this station answers a CQ with QRV: the setting "Respond to
+        CQ callings with a QRV reply" (STATION.respond_to_cq, on by default).
+        Read at every CQ, so a change applies at once."""
+        return bool(self.ctx.config_manager.config["STATION"].get("respond_to_cq", True))
 
     def follow_protocol(self):
         """Processes the received CQ frame.
 
-        This method checks if the modem is currently busy with ARQ. If not,
-        it sends a QRV frame as an acknowledgement and checks for queued
-        messages to send.
+        While an ARQ session runs, nothing is done. Otherwise it answers with a
+        QRV frame if should_respond() (the station is still listed as heard
+        either way) and checks for queued messages to the calling station.
         """
 
         if self.ctx.state_manager.getARQ():
             return
 
-        self.logger.debug(
-            f"[Modem] Responding to request from [{self.details['frame']['origin']}]",
-            snr=self.details["snr"],
-        )
+        if self.should_respond():
+            self.logger.debug(
+                f"[Modem] Responding to request from [{self.details['frame']['origin']}]",
+                snr=self.details["snr"],
+            )
+            # in its own thread: waiting for a clear channel must not hold up the
+            # receive worker, which decodes every other frame
+            threading.Thread(target=self.send_ack, name="CQ reply", daemon=True).start()
+        else:
+            self.logger.info(
+                f"[Modem] CQ from [{self.details['frame']['origin']}] not answered: STATION.respond_to_cq is off",
+                snr=self.details["snr"],
+            )
 
-        # in its own thread: waiting for a clear channel must not hold up the
-        # receive worker, which decodes every other frame
-        threading.Thread(target=self.send_ack, name="CQ reply", daemon=True).start()
+        # a message that failed to this station may go out now (auto repeat);
+        # that is about our own messages, so it does not depend on answering
         self.check_for_queued_message()
 
     def send_ack(self):

@@ -100,6 +100,25 @@ class TestProtocols(unittest.TestCase):
 
         print("OK: CQ/QRV successfully verified.")
 
+    def testCQWithoutQRV(self):
+        # STATION.respond_to_cq off: the CQ is heard but not answered
+        self.ctx.config_manager.config["STATION"]["respond_to_cq"] = False
+        self.addCleanup(self.ctx.config_manager.config["STATION"].__setitem__, "respond_to_cq", True)
+        self.state_manager.set_channel_busy_condition_codec2(False)
+
+        frame = CQCommand(self.ctx, {}).test(self.ctx.TESTMODE_EVENTS)
+        self.shortcutTransmission(frame)
+        self.assertEventReceivedType("CQ")
+
+        # long enough for a reply through the channel gate (testCQWithQRV gets one within seconds)
+        deadline = time.time() + 10
+        while time.time() < deadline:
+            try:
+                ev = self.ctx.TESTMODE_EVENTS.get(timeout=max(0.1, deadline - time.time()))
+            except queue.Empty:
+                break
+            self.assertNotIsInstance(ev, (bytes, bytearray), "a QRV was transmitted although respond_to_cq is off")
+
 
 if __name__ == "__main__":
     unittest.main()
