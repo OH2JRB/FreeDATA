@@ -520,16 +520,16 @@ class ARQSessionIRS(arq_session.ARQSession):
             return True
 
         if frame["offset"] != self.received_bytes:
-            # TODO: IF WE HAVE AN OFFSET BECAUSE OF A SPEED LEVEL CHANGE FOR EXAMPLE,
-            # TODO: WE HAVE TO DISCARD THE LAST BYTES, BUT NOT returning False!!
-            # CASE: ACK is going lost.
+            # The frame starts inside the data already received and reaches past
+            # it: the ISS sent again from an earlier offset (its ACK was lost, or
+            # a speed level change cut the data into frames of another size).
+            # Go on from the frame's offset; the data after it is replaced by
+            # this frame below (received_data[offset:] = ...), so nothing is lost.
             self.log(
                 f"Discarding data offset: Offset = {frame['offset']} | Already received: {self.received_bytes}",
                 isWarning=True,
             )
             self.received_bytes = frame["offset"]
-
-            # return False
 
         # update p2p connection timeout
         if self.running_p2p_connection:

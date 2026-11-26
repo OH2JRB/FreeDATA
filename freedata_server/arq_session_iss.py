@@ -344,7 +344,10 @@ class ARQSessionISS(arq_session.ARQSession):
                 )
                 return
 
-            # TODO TEMPORARY TEST FOR SENDING IN LOWER SPEED LEVEL IF WE HAVE TWO FAILED TRANSMISSIONS!!!
+            # After two unanswered data bursts, step down once: a high-rate level
+            # to the same waveform at a lower code rate, another OFDM level to
+            # the lowest one (datac4), and the lowest to FSK if it is allowed.
+            # The IRS's next answer then chooses the level again.
             if (
                 retries == self.RETRIES_DATA - 2
                 and isARQBurst
