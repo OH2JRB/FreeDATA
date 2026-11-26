@@ -149,13 +149,13 @@ Libraries: `marked` ^18 and `dompurify` ^3.4 ([package.json](../package.json)).
 |---|---|---|
 | [chat_new_message.vue](../src/components/chat_new_message.vue) `transmitNewMessage` | `DOMPurify.sanitize(marked.parse(inputText))` - the **HTML** result is what gets sent as `body` | Yes (default DOMPurify config) |
 | [main_modals.vue](../src/components/main_modals.vue) `newChat` (new-chat modal) | `newMessage(callsign, chat.newChatMessage)` - raw text, no marked/DOMPurify | No (send side) |
-| [chat_messages_sent.vue](../src/components/chat_messages_sent.vue) / [chat_messages_received.vue](../src/components/chat_messages_received.vue) `parsedMessageBody` | `marked.parse(body)` -> `DOMPurify.sanitize()` -> temp `div` -> every `<a>` gets `target="_blank" rel="noopener noreferrer"` -> `v-html` | Yes (default config) |
+| [chat_messages_sent.vue](../src/components/chat_messages_sent.vue) / [chat_messages_received.vue](../src/components/chat_messages_received.vue) `parsedMessageBody` | `marked.parse(body)` -> `sanitizeMessageHtml()` ([sanitize.js](../src/js/sanitize.js)) -> temp `div` -> every `<a>` gets `target="_blank" rel="noopener noreferrer"` -> `v-html` | Yes, and nothing is loaded from the network (below) |
 | [chat_conversations.vue](../src/components/chat_conversations.vue) preview | `DOMPurify.sanitize(..., {ALLOWED_TAGS: [], RETURN_DOM: true}).textContent`, rendered with `{{ }}` (escaped) | Yes |
 | Attachment names | `{{ attachment.name }}` | Escaped by Vue |
 | Composer toasts (image prepared, attachment too large) | `file.name` passed through `escapeHtml` ([popupHandler.js](../src/js/popupHandler.js)) before it goes into the HTML string for `displayToast` | Yes |
-| Broadcast bubbles | `decodeBroadcastText(final)` -> `marked.parse` -> `DOMPurify.sanitize()` -> `v-html` | Yes (default config) |
+| Broadcast bubbles | `decodeBroadcastText(final)` -> `marked.parse` -> `sanitizeMessageHtml()` -> `v-html` | Yes, and nothing is loaded from the network (below) |
 
-Display-side sanitisation is what protects the GUI: received bodies come from remote stations and are always run through DOMPurify before `v-html`. Send-side sanitisation does not protect anyone, and it means bodies sent from the composer are HTML (e.g. `<p>Hi</p>\n`), which other clients receive verbatim. The default DOMPurify profile still allows tags such as `<img src="http://...">`, so a received message can make the GUI load a remote URL.
+Display-side sanitisation is what protects the GUI: received bodies come from remote stations and are always run through DOMPurify before `v-html`. Send-side sanitisation does not protect anyone, and it means bodies sent from the composer are HTML (e.g. `<p>Hi</p>\n`), which other clients receive verbatim. DOMPurify's default profile keeps tags such as `<img src="http://...">`, so the shown messages use `sanitizeMessageHtml()`, a DOMPurify instance of its own that also removes everything that would load from the network when the message is shown: `src` except `data:image/...` on `<img>`, `srcset`, `poster`, `background`, `href` except on `<a>`, `xlink:href`, `action`, `formaction`, `data`, `ping`, the `style` attribute and the tags `style`, `audio`, `video`, `source`, `track`, `picture`, SVG `image`, `form`, `input`, `button`. Otherwise a station could make the browser fetch an address of its choice, which tells it the operator's IP address and that the message was read. A blocked image shows as a broken image with its alt text; links stay, open in a new tab and are followed only when clicked. The composers still use plain `DOMPurify.sanitize()`, so what is sent is unchanged.
 
 The composer's B/I/U buttons wrap the selection in `**...**`, `_..._` and `<u>...</u>`.
 
@@ -290,7 +290,7 @@ broadcasts_screen.vue
 broadcast_modal.vue                  (mounted by main_modals.vue)
 ```
 
-`broadcasts_screen.vue` has a `messagesContainer` ref but, unlike `chat_screen.vue`, **no watcher on `broadcast.scrollTrigger`**, so `triggerScrollToBottom()` has no effect here.
+`broadcasts_screen.vue` watches `broadcast.scrollTrigger` like `chat_screen.vue` and scrolls its `messagesContainer` to the bottom on `nextTick`. `processFreedataBroadcastsPerDomain()` triggers it when another domain's broadcasts are loaded or the open domain has more broadcasts than before, so opening a domain, sending and receiving all show the newest broadcast.
 
 ### 3.2 Broadcast store ([broadcastStore.js](../src/store/broadcastStore.js))
 
@@ -299,7 +299,7 @@ broadcast_modal.vue                  (mounted by main_modals.vue)
 | `domains` | Response of `GET /freedata/broadcasts/domains`: `{domain: {message_count, unread_count, last_message_id, last_message_timestamp, ...}}` |
 | `selectedDomain` | Open domain |
 | `domainBroadcasts` | Response of `GET /freedata/broadcasts/{domain}/`: `{domain: [messages]}` (replaced on each load, so it holds one domain) |
-| `inputText`, `newDomain`, `newMessageType`, `newPriority` | Composer/modal state (`newPriority` is unused) |
+| `inputText`, `newDomain`, `newMessageType` | Composer/modal state |
 | `selectedMessage` | Message shown in the broadcast-info modal |
 | `totalUnreadMessages` | Sum of `unread_count` over domains (navbar badge) |
 | `loading`, `scrollTrigger` | UI state |
@@ -309,7 +309,7 @@ broadcast_modal.vue                  (mounted by main_modals.vue)
 - `getFreedataDomains()` is called from the left navbar, on websocket connect, on every `message-db` event and 1 s after sending from the modal. `processFreedataDomains` stores the object and sums `unread_count`.
 - The sidebar shows each domain with `message_count`, an unread badge (red if > 0, green otherwise) and `last_message_timestamp` (seconds -> time today / date otherwise).
 - `domainSelected(domain)` sets `selectedDomain = domain.toUpperCase()` and loads `GET /freedata/broadcasts/{domain}/` with the original case. That GET is read-only. If the domain has unread broadcasts (`domains[domain].unread_count > 0`), it also calls `setFreedataBroadcastDomainAsRead(domain)` -> `PATCH /freedata/broadcasts/{domain}/read`, which runs `mark_domain_as_read` on the server and fires a `message-db` event, so the domain list and the navbar badge refresh.
-- Background reloads (`eventDispatcher` on every `message-db` event, `loadAllData()`) only GET the selected domain, so broadcasts that arrive later stay unread (and counted in the badge) until the user selects the domain again.
+- Background reloads (`eventDispatcher` on every `message-db` event, `loadAllData()`) GET the selected domain. When the domain list comes back with unread broadcasts in the selected domain while the Broadcasts screen is shown (`#list-broadcasts` active), `processFreedataDomains()` marks them read the same way; on any other screen they stay unread. `getFreedataBroadcastsPerDomain()` does nothing without a selected domain.
 - Delete domain: the graph button in the `broadcasts_screen.vue` header opens `#deleteBroadcastModal` (it no longer calls a handler itself). The modal header shows `broadcast.selectedDomain`; its button calls `deleteBroadcastDomainFromDB(selectedDomain)` -> `DELETE /freedata/broadcasts/{domain}` and clears `selectedDomain`. The server endpoint is shared with message delete: it tries the value as a message id first, then as a domain.
 
 ### 3.4 Sending
@@ -329,7 +329,7 @@ Two entry points build the same payload for `POST /freedata/broadcasts` via `new
 
 **Size limit**: `BROADCAST_MAX_BYTES = 15 * 26` (390), the amount the server keeps. Both entry points measure the payload that is actually sent (sanitised HTML or raw METAR) in UTF-8 bytes with `utf8Bytes()`:
 
-- Inline composer: no `maxlength` on the textarea any more. Once the payload passes 75 % of the limit, a `bytes/390` counter appears next to the textarea (red and bold when over the limit), and the send button is disabled while the payload is too large. B/I/U markdown buttons; Enter sends. The emoji button is commented out, but its modal is still declared, now as `#broadcastEmojiPickerModal`.
+- Inline composer: no `maxlength` on the textarea any more. Once the payload passes 75 % of the limit, a `bytes/390` counter appears next to the textarea (red and bold when over the limit), and the send button is disabled while the payload is too large. B/I/U markdown buttons; Enter sends. There is no emoji picker (its unused dialog was removed).
 - Modal: shows `N / 390 bytes` under the MESSAGE textarea and under the METAR preview (red when too large, plus a "too long" note for MESSAGE) and disables "Send Broadcast" while the payload is too large.
 - In both, sending a payload over the limit (for example via Enter) is refused with a warning toast "Broadcast too long: N of 390 bytes (after formatting)".
 - Modal: after sending, it waits 1 s, then reloads domains and the target domain and selects it. The type `<select>` only offers `MESSAGE`; the `METAR` option is commented out, so the METAR form (IATA/ICAO input with airports datalist, time, AUTO/COR, wind, visibility/CAVOK, cloud layers, temp/dew, QNH, remarks, live preview) is not reachable from the UI.
@@ -341,7 +341,7 @@ All bubbles decode `message.payload_data.final` with `decodeBroadcastText()` ins
 
 | Component | Body | Footer | Buttons |
 |---|---|---|---|
-| `broadcast_message_sent.vue` | `DOMPurify.sanitize(marked.parse(body))`, links get `target=_blank`, `v-html` | `msg_type`, time, `origin` | info, retransmit, delete |
+| `broadcast_message_sent.vue` | `sanitizeMessageHtml(marked.parse(body))`, links get `target=_blank`, `v-html` | `msg_type`, time, `origin` | info, retransmit, delete |
 | `broadcast_message_received.vue` | same; placeholder skeleton until `final` exists | `origin`, `msg_type`, `priority`, time | info, delete |
 | `broadcast_message_metar_sent.vue` | METAR card (below) | `msg_type`, time, `origin` | info, retransmit, delete |
 | `broadcast_message_metar_received.vue` | METAR card | `origin`, `msg_type`, `priority ?? 1`, time | info, delete |
@@ -401,10 +401,10 @@ The handlers now return the API promise, so the components' `try/await` waits fo
 | `POST /freedata/broadcasts` | `{origin, domain, gridsquare, type, priority, data}` | `Norm`: same keys, `priority` coerced to int (0-7, else 1); **409** if `EXP.enable_groupchat` is off; 500 if the constructor raises | Match. Both entry points send `priority: 1`. Errors show a toast |
 | `PATCH /freedata/broadcasts/{id}` | `{action: "retransmit"}` | 404 unknown id; 400 other actions | Match |
 | `DELETE /freedata/broadcasts/{id or domain}` | empty JSON body | 200 on success; **404** if neither a message id nor a domain matches; 500 on a database error | Match. Errors show a toast |
-| `GET /freedata/broadcasts/{domain}/` | - | `{domain: [...]}` including `priority`; read-only | `selectedDomain === undefined` on startup gives `GET /freedata/broadcasts/undefined/` |
+| `GET /freedata/broadcasts/{domain}/` | - | `{domain: [...]}` including `priority`; read-only | Match. Not requested while no domain is selected |
 | `PATCH /freedata/broadcasts/{domain}/read` | no body | Marks all unread broadcasts of the domain read; `{domain, marked_read, status}` | Called from `domainSelected()` when the domain has unread broadcasts |
 | `GET /freedata/broadcasts/domains` | - | `{domain: {message_count, unread_count, last_message_*}}` | Match |
-| `GET /freedata/broadcasts` | - | All broadcasts as a flat list | `getFreedataBroadcasts()` groups the list by `domain` and stores it like the per-domain endpoint. No caller in the GUI |
+| `GET /freedata/broadcasts` | - | All broadcasts as a flat list | Not used by the GUI, which loads broadcasts per domain |
 | `POST /freedata/broadcasts/{id}/adif` | - | Does not exist | The GUI no longer calls it (broadcast ADIF removed) |
 
 ---
@@ -413,17 +413,14 @@ The handlers now return the API promise, so the components' `try/await` waits fo
 
 ### Security
 
-1. **No unsanitised `v-html` found in this area.** Every `v-html` of chat or broadcast content (`chat_messages_sent/received.vue`, `broadcast_message_sent/received.vue`) runs `DOMPurify.sanitize()` after `marked.parse()`; the METAR `v-html` renders `buildCompassSVG` output built only from numbers. Toasts that include file names escape them with `escapeHtml`. Remaining risks:
-   - DOMPurify runs with its **default profile**, which allows `<img>`, `<a href>` and similar. A remote station can make the GUI load external URLs (tracking/privacy), and links open in a new tab.
+1. **No unsanitised `v-html` found in this area.** Every `v-html` of chat or broadcast content (`chat_messages_sent/received.vue`, `broadcast_message_sent/received.vue`) runs `sanitizeMessageHtml()` after `marked.parse()`, which also removes everything that would load from the network (section 3); the METAR `v-html` renders `buildCompassSVG` output built only from numbers. Toasts that include file names escape them with `escapeHtml`. Remaining risks:
+   - Links in messages stay and open in a new tab; following one is the user's choice.
    - Sending sanitised HTML instead of markdown is no protection for receivers, and the new-chat modal sends raw text anyway. The receiver must always sanitise (it does).
 
 ### Bugs and limitations
 
 2. **Every `message-db` event reloads everything**: full message list (including all attachment base64 data), domain list, selected domain's broadcasts.
 3. **Failed loads are silent.** GET errors (message list, domains, broadcasts, attachments, beacons) are only logged; only POST/PATCH/DELETE failures show a toast (4.1).
-4. **Broadcast scroll-to-bottom is not wired** (no watcher on `broadcast.scrollTrigger` in `broadcasts_screen.vue`).
-5. **METAR**: the METAR type is still disabled in the modal. ICAO lookup now exists, but only 35 entries of `airports.json` carry an ICAO code, so most ICAO stations (e.g. `EFHK`) show no airport name.
-6. **Broadcasts in the open domain stay unread.** Mark-as-read only happens when a domain is selected, so broadcasts arriving while the user is looking at that domain keep the unread badge until the domain is selected again.
-7. **`GET /freedata/broadcasts/undefined/`** at startup: `broadcast.selectedDomain` starts as `undefined` and is requested anyway.
-8. **Dead code**: `chat_conversations.vue` `newChat()` is unused; `broadcastStore.newPriority` is unused; `stationStore` is not used by these components; `broadcast_new_message.vue` declares `#broadcastEmojiPickerModal` although its emoji button is commented out; `getFreedataBroadcasts()` has no caller.
-9. **Attachments**: the 100 KiB limit counts raw bytes per message; there is no limit on the number of files, and files are still read completely with `readAsBinaryString` + `btoa()`.
+4. **METAR**: the METAR type is still disabled in the modal. ICAO lookup now exists, but only 37 entries of `airports.json` carry an ICAO code, so most ICAO stations (e.g. `EFHK`) show no airport name.
+5. **`stationStore`** is not used by these components.
+6. **Attachments**: the 100 KiB limit counts raw bytes per message; there is no limit on the number of files, and files are still read completely with `readAsBinaryString` + `btoa()`.

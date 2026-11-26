@@ -135,7 +135,6 @@ const { isMobile } = useIsMobile(720);
 setActivePinia(pinia);
 
 const chat = useChatStore(pinia);
-const newChatCall = ref(null);
 // the last saved message log: fileName, totalMessages, picked (saved where
 // the user chose in the save dialog)
 const messageLog = ref(null);
@@ -257,13 +256,6 @@ function getDateTime(input) {
 
 
 
-function newChat() {
-  let callsign = newChatCall.value;
-  callsign = callsign.toUpperCase().trim();
-  if (callsign === "") return;
-  newChatCall.value = "";
-}
-
 function startNewChat() {
   chat.newChatCallsign = "";
   chat.newChatMessage = "Hi there! Nice to meet you!";
@@ -281,7 +273,7 @@ function previewBody(body) {
 export default {
   setup() {
     return {
-      chat, newChatCall, chatSelected, setMessagesAsRead, getDateTime, newChat, startNewChat, previewBody,
+      chat, chatSelected, setMessagesAsRead, getDateTime, startNewChat, previewBody,
       messageLog, savingMessageLog, saveMessageLog,
     };
   }

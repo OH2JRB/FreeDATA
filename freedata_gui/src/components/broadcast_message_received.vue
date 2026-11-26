@@ -50,7 +50,7 @@
 
 <script>
 import { marked } from 'marked';
-import DOMPurify from 'dompurify';
+import { sanitizeMessageHtml } from "../js/sanitize";
 import {deleteBroadcastMessageFromDB, decodeBroadcastText} from "@/js/broadcastsHandler";
 
 import { setActivePinia } from 'pinia';
@@ -90,7 +90,7 @@ export default {
         }
       }
 
-      const html = DOMPurify.sanitize(marked.parse(body));
+      const html = sanitizeMessageHtml(marked.parse(body));
       const temp = document.createElement("div");
       temp.innerHTML = html;
       temp.querySelectorAll("a").forEach(link => {

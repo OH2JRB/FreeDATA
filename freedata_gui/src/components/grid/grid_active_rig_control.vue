@@ -74,7 +74,7 @@ async function setRadioClockNow() {
             >{{ state.frequency / 1000 }} kHz</span>
             <button
               class="btn btn-secondary dropdown-toggle"
-              :class="{ disabled: state.hamlib_status === 'disconnected' }"
+              :class="{ disabled: !state.radio_status }"
               type="button"
               data-bs-toggle="offcanvas"
               data-bs-target="#offcanvasFrequency"
@@ -89,7 +89,7 @@ async function setRadioClockNow() {
             <select
               v-model="state.mode"
               class="form-control"
-              :class="{ disabled: state.hamlib_status === 'disconnected' }"
+              :class="{ disabled: !state.radio_status }"
               @change="setRadioParameterMode"
             >
               <option
@@ -117,7 +117,7 @@ async function setRadioClockNow() {
             <select
               v-model="state.rf_level"
               class="form-control"
-              :class="{ disabled: state.hamlib_status === 'disconnected' }"
+              :class="{ disabled: !state.radio_status }"
               @change="setRadioParameterRFLevel"
             >
               <option value="0">
@@ -206,7 +206,7 @@ async function setRadioClockNow() {
           <button
             class="btn btn-sm btn-outline-secondary"
             type="button"
-            :disabled="state.hamlib_status === 'disconnected'"
+            :disabled="!state.radio_status"
             :title="$t('grid.components.setradioclock_help')"
             @click="setRadioClockNow"
           >

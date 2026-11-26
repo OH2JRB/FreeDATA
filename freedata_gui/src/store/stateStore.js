@@ -3,7 +3,6 @@ import { ref } from "vue";
 
 export const useStateStore = defineStore("stateStore", () => {
   var busy_state = ref();
-  var arq_state = ref("-");
   var frequency = ref(0);
   var new_frequency = ref(14093000);
   // radio frequency is inside an amateur band (IARU band plan)
@@ -15,7 +14,6 @@ export const useStateStore = defineStore("stateStore", () => {
   var temp_log_file = ref("");
   var mode = ref("-");
   var rf_level = ref(10);
-  var bandwidth = ref("-");
 
   var swr_raw = ref(0);
   var swr_percent = ref(0);
@@ -29,7 +27,6 @@ export const useStateStore = defineStore("stateStore", () => {
   var ptt_state = ref(false);
 
   var speed_level = ref(0);
-  var fft = ref();
   var channel_busy = ref(false);
   var channel_busy_slot = ref([false, false, false, false, false]);
   var scatter = ref([]);
@@ -37,7 +34,6 @@ export const useStateStore = defineStore("stateStore", () => {
   var s_meter_strength_raw = ref(0);
 
   var modem_connection = ref("disconnected");
-  var modemStartCount = ref(0);
   var is_modem_running = ref();
 
   var arq_total_bytes = ref(0);
@@ -47,19 +43,11 @@ export const useStateStore = defineStore("stateStore", () => {
   var heard_stations = ref([]);
   var dxcallsign = ref("");
 
-  var arq_session_state = ref("");
   var beacon_state = ref(false);
   var away_from_key = ref(false);
 
-  var audio_recording = ref(false);
-
-  var hamlib_status = ref("");
-  var tx_audio_level = ref("");
-  var rx_audio_level = ref("");
   // RX audio blocks lost since the modem started: driver, queue, decoder
   var rx_audio_loss = ref({ driver: 0, queue: 0, decoder: 0 });
-
-  var alc = ref("");
 
   var is_codec2_traffic = ref("");
 
@@ -81,12 +69,6 @@ export const useStateStore = defineStore("stateStore", () => {
   var arq_mode = ref("");
 
   /* TODO Those 3 can be removed I guess , DJ2LS*/
-  var arq_seconds_until_finish = ref();
-  var arq_seconds_until_timeout = ref();
-  var arq_seconds_until_timeout_percent = ref();
-
-  var rigctld_started = ref();
-  var rigctld_process = ref();
 
   var api_version = ref();
   var modem_version = ref();
@@ -108,29 +90,24 @@ export const useStateStore = defineStore("stateStore", () => {
     version: "",
   });
 
-  var rx_buffer_length = ref();
-
   // New state for network traffic
   var is_network_traffic = ref(false);
 
   return {
     dxcallsign,
     busy_state,
-    arq_state,
     new_frequency,
     frequency,
     amateur_band,
     encryption_band_blocked,
     temp_log_file,
     mode,
-    bandwidth,
     tuner,
     swr_raw,
     swr_percent,
     dbfs_level,
     dbfs_level_percent,
     speed_level,
-    fft,
     channel_busy,
     channel_busy_slot,
     scatter,
@@ -138,42 +115,29 @@ export const useStateStore = defineStore("stateStore", () => {
     s_meter_strength_percent,
     s_meter_strength_raw,
     arq_total_bytes,
-    audio_recording,
-    hamlib_status,
-    tx_audio_level,
-    rx_audio_level,
     rx_audio_loss,
-    alc,
-    modemStartCount,
     arq_transmission_percent,
     arq_speed_list_bpm,
     arq_speed_list_timestamp,
     arq_speed_list_snr,
     arq_bytes_per_minute,
     arq_bits_per_second,
-    arq_seconds_until_finish,
-    arq_seconds_until_timeout,
-    arq_seconds_until_timeout_percent,
     arq_is_receiving,
     arq_role,
     arq_remote_call,
     arq_mode,
     modem_connection,
     is_modem_running,
-    arq_session_state,
     is_codec2_traffic,
     rf_level,
     activities,
     heard_stations,
     beacon_state,
     away_from_key,
-    rigctld_started,
-    rigctld_process,
     python_info,
     modem_version,
     api_version,
     os_info,
-    rx_buffer_length,
     radio_status,
     is_network_traffic,
   };

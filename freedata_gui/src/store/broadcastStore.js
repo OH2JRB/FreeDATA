@@ -23,8 +23,6 @@ export const useBroadcastStore = defineStore("broadcastStore", () => {
   const newMessageType = ref("");
   // new domain
   const newDomain = ref("");
-  // new priority
-  const newPriority = ref("");
 
   // selectedMessage
   const selectedMessage = ref();
@@ -55,7 +53,6 @@ export const useBroadcastStore = defineStore("broadcastStore", () => {
     setBroadcastsForDomain,
     inputText,
     newDomain,
-    newPriority,
     newMessageType,
     selectedMessage,
     totalUnreadMessages,

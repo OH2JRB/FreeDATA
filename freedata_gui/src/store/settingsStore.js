@@ -5,8 +5,8 @@ import { displayToast } from "../js/popupHandler";
 // Default configuration
 const defaultConfig = {
   local: {
-    host: "127.0.0.1",
-    port: "5000",
+    // (host and port were here; the GUI always talks to the server it was
+    // loaded from, see the URL logic in js/api.js)
     spectrum: "waterfall",
     wf_theme: 2,
     enable_sys_notification: false,
@@ -157,8 +157,6 @@ export const settingsStore = reactive({
 // true once a config has been received from the server
 let remoteConfigLoaded = false;
 
-// Apply a config received from the server to the store. The callsign
-// blacklist is edited as newline separated text in the GUI.
 // The config as the server last sent it. A save sends only the settings that
 // differ from it (changedSettings): a tab that sent its whole copy wrote back
 // everything it had read earlier, including what another tab had changed
@@ -220,6 +218,8 @@ export function refreshRemote() {
   });
 }
 
+// Apply a config received from the server to the store. The callsign
+// blacklist is edited as newline separated text in the GUI.
 function applyRemoteConfig(conf) {
   remoteConfigLoaded = true;
   serverConfig = clone(conf);
@@ -230,7 +230,6 @@ function applyRemoteConfig(conf) {
   }
 }
 
-// Function to handle remote configuration changes
 // The settings in `current` that differ from `base`, by section
 export function changedSettings(current, base) {
   const changes = {};
@@ -260,23 +259,10 @@ export function onChange() {
 
   // Work on a copy so a failed request does not leave the store modified
   let remote_config = clone(settingsStore.remote);
-  let blacklistContent = remote_config.STATION?.callsign_blacklist;
-  // Check if the content is a string
-  if (typeof blacklistContent === "string") {
-    // Split the string by newlines to create an array
-    blacklistContent = blacklistContent
-      .split("\n") // Split text by newlines
-      .map((item) => item.trim()) // Trim whitespace from each line
-      .filter((item) => item !== ""); // Remove empty lines
-  }
-
-  // Ensure it's an array, even if the data comes in incorrectly formatted
-  if (!Array.isArray(blacklistContent)) {
-    // Convert any other data types to an empty array as a fallback
-    blacklistContent = [];
-  }
   if (remote_config.STATION) {
-    remote_config.STATION.callsign_blacklist = blacklistContent;
+    remote_config.STATION.callsign_blacklist = blacklistAsList(
+      remote_config.STATION.callsign_blacklist,
+    );
   }
   // The frequency presets are saved on their own (POST /radio/frequencies);
   // the copy here may be older than what is stored
@@ -297,6 +283,41 @@ export function onChange() {
       return getRemote();
     }
   });
+}
+
+// Number inputs (ports): v-model.number yields "" when a field is cleared,
+// which the server rejects (it expects an int). Remember the value on focus;
+// on change restore it instead of saving, or round to an integer and clamp to
+// the input's min/max before saving. Not reactive on purpose.
+const previousNumbers = {};
+
+export function rememberNumber(section, key) {
+  previousNumbers[`${section}.${key}`] = settingsStore.remote[section][key];
+}
+
+export function onNumberChange(event, section, key) {
+  const el = event.target;
+  let value = settingsStore.remote[section][key];
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    const previous = previousNumbers[`${section}.${key}`];
+    if (
+      previous !== "" &&
+      previous !== null &&
+      previous !== undefined &&
+      Number.isFinite(Number(previous))
+    ) {
+      settingsStore.remote[section][key] = Number(previous);
+    } else {
+      getRemote(); // reload the last saved config from the server
+    }
+    return;
+  }
+  value = Math.round(value);
+  if (el.min !== "" && value < Number(el.min)) value = Number(el.min);
+  if (el.max !== "" && value > Number(el.max)) value = Number(el.max);
+  settingsStore.remote[section][key] = value;
+  previousNumbers[`${section}.${key}`] = value;
+  onChange();
 }
 
 // Function to fetch remote configuration. Only loads, never posts.

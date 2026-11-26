@@ -83,7 +83,7 @@
     </span>
     <select
       id="wftheme_selector"
-      v-model="settings.local.wf_theme"
+      v-model.number="settings.local.wf_theme"
       class="form-select form-select-sm w-50"
       @change="saveSettings"
     >

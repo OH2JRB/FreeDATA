@@ -8,6 +8,7 @@ import {
   deleteFreedataBroadcastMessage,
   retransmitFreedataBroadcast,
   sendFreedataBroadcastMessage,
+  setFreedataBroadcastDomainAsRead,
 } from "@/js/api";
 const broadcast = useBroadcastStore(pinia);
 
@@ -63,9 +64,36 @@ export function decodeBroadcastText(b64) {
   }
 }
 
+// The domain and number of broadcasts last shown, to scroll to the newest one
+// when a domain is opened or a broadcast arrives in it
+let shownDomain = null;
+let shownCount = 0;
+
+function broadcastCount(data) {
+  return Object.values(data || {}).reduce(
+    (sum, list) =>
+      sum + (Array.isArray(list) ? list.length : Object.keys(list || {}).length),
+    0,
+  );
+}
+
 export async function processFreedataBroadcastsPerDomain(data) {
   console.log(data);
   broadcast.setBroadcastsForDomain(data);
+
+  const domain = Object.keys(data || {})[0] ?? null;
+  const count = broadcastCount(data);
+  if (domain !== shownDomain || count > shownCount) {
+    broadcast.triggerScrollToBottom();
+  }
+  shownDomain = domain;
+  shownCount = count;
+}
+
+// true while the Broadcasts screen is the one shown
+function broadcastsScreenShown() {
+  const pane = document.getElementById("list-broadcasts");
+  return !!pane && pane.classList.contains("active");
 }
 
 export async function processFreedataDomains(data) {
@@ -78,6 +106,19 @@ export async function processFreedataDomains(data) {
     (sum, domain) => sum + (domain.unread_count || 0),
     0,
   );
+
+  // A broadcast that arrives in the domain open on the screen has been seen:
+  // mark it read, as opening the domain does. The server then sends another
+  // message-db event, and the reloaded domains have no unread ones left.
+  const open = broadcast.selectedDomain;
+  if (open && broadcastsScreenShown()) {
+    const key = Object.keys(data || {}).find(
+      (name) => name.toUpperCase() === String(open).toUpperCase(),
+    );
+    if (key && data[key]?.unread_count) {
+      setFreedataBroadcastDomainAsRead(key);
+    }
+  }
 }
 
 export function newBroadcastMessage(params) {

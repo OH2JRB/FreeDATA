@@ -58,7 +58,7 @@ Fill grid (small screen).
 | 0 | Heard stations list (detailed) | [grid_active_heard_stations.vue](../src/components/grid/grid_active_heard_stations.vue) | 0,13,16,40 | 0,53,6,55 | Activity | yes | no | Table: time, frequency, callsign, grid, distance, activity icon, SNR, AFK | `state.heard_stations`; `settings.remote.STATION.mygrid`, `settings.remote.GUI.distance_unit`; ping button calls `sendModemPing` (POST `/modem/ping_ping`); chat button sets `chat.newChatCallsign` / `newChatMessage` and opens `#newChatModal`; row click dispatches `stationSelected` |
 | 1 | Stats (waterfall, etc) | [grid_active_stats.vue](../src/components/grid/grid_active_stats.vue) | 16,16,8,87 | 12,0,12,56 | Stats | yes | yes | Tabs: waterfall canvas, constellation scatter, speed/SNR chart; footer with busy-slot S1 to S5 and "data" indicators | `initWaterfall()`; `state.scatter`, `state.arq_speed_list_*`, `state.channel_busy_slot`, `state.is_codec2_traffic` |
 | 2 | Audio main | [grid_active_audio.vue](../src/components/grid/grid_active_audio.vue) | 16,0,8,20 | 0,114,6,20 | Audio | no | no | S-meter and dBFS bars side by side | `state.s_meter_strength_percent/raw`, `state.dbfs_level_percent`, `state.dbfs_level` |
-| 3 | Rig control main | [grid_active_rig_control.vue](../src/components/grid/grid_active_rig_control.vue) | 0,108,6,25 | 0,114,6,25 | Rig | yes | no | Frequency (opens frequency offcanvas), mode, RF power, tuner switch | `state.frequency`, `state.mode`, `state.rf_level`, `state.tuner`, `state.hamlib_status`; POST `/radio` |
+| 3 | Rig control main | [grid_active_rig_control.vue](../src/components/grid/grid_active_rig_control.vue) | 0,108,6,25 | 0,114,6,25 | Rig | yes | no | Frequency (opens frequency offcanvas), mode, RF power, tuner switch | `state.frequency`, `state.mode`, `state.rf_level`, `state.tuner`; the controls are disabled while `state.radio_status` is false (no radio control connected); POST `/radio` |
 | 4 | Broadcasts main (horizontal) | [grid_active_broadcasts.vue](../src/components/grid/grid_active_broadcasts.vue) | 6,70,6,25 | 6,70,6,25 | Broadcasts | no | no | DX call input, Ping, CQ, beacon toggle | `state.beacon_state`; `sendModemPing`, `sendModemCQ`, `setModemBeacon` |
 | 5 | Heard stations list (small) | [grid_active_heard_stations_mini.vue](../src/components/grid/grid_active_heard_stations_mini.vue) | 1,1,6,54 | 0,42,12,42 | Activity | no | yes | Time and callsign only | `state.heard_stations`; row click dispatches `stationSelected` |
 | 6 | S-Meter widget | [grid_s-meter.vue](../src/components/grid/grid_s-meter.vue) | 16,0,4,8 | 16,0,4,8 | Rig | yes | no | S-meter bar | `state.s_meter_strength_percent`, `state.s_meter_strength_raw` |
@@ -331,8 +331,11 @@ on the grid at the same time without duplicate DOM ids.
 [grid_stations_map.vue](../src/components/grid/grid_stations_map.vue) uses
 `d3` (`^7.9.0`), `topojson-client` and `qth-locator`:
 
-- On mount, and on every window `resize`, `drawMap()` rebuilds an SVG with a
-  `d3.geoMercator()` projection scaled to the container width.
+- The map fills the widget (the card is `h-100`, the map body grows with it,
+  at least 150 px high). On mount, and when a `ResizeObserver` sees the map
+  change size (window resize or the widget resized in the grid; at most once
+  per 150 ms), `drawMap()` rebuilds an SVG with a `d3.geoMercator()`
+  projection scaled to the container width.
 - It lazily imports `@/assets/countries-50m.json` and converts it with
   `feature(world, world.objects.countries)`.
 - It draws the countries (paths with class `country-path`, so the zoom
@@ -345,7 +348,8 @@ on the grid at the same time without duplicate DOM ids.
     `gridsquare` (not empty and not `------`);
   - blue lines from your own station to each heard station.
 
-  Hovering a pin puts its text in the header input. For heard stations the
+  Hovering a pin puts its text in the header input and in a popup next to
+  the pointer (`showInfo()` / `hideInfo()`). For heard stations the
   distance is given in `settings.remote.GUI.distance_unit` (`km`, `mi` or
   `nm`, converted from km).
 - A deep `watch` on `state.heard_stations` re-runs `updatePinsAndLines()`
@@ -354,8 +358,8 @@ on the grid at the same time without duplicate DOM ids.
   widths, country strokes and labels. The header buttons are zoom in (x1.2),
   home (`centerMap()`: redraws pins and pans to mygrid) and zoom out (x0.8).
 - `centerMap()` also runs once, 1.5 s after setup. It returns early if the
-  map is not drawn yet, and the timer is cleared on unmount together with
-  the window `resize` listener.
+  map is not drawn yet, and the timer is cleared on unmount, and the
+  `ResizeObserver` disconnected.
 
 ## 9. Control widgets and their API calls
 
@@ -390,8 +394,6 @@ Grid / layout:
 
 - Uploading a valid preset silently overwrites the user's saved
   `grid_preset` (by design of `uploadPreset`, but there is no confirmation).
-- The picker accordion's ids and labels do not match (for example,
-  `headingAudioControl` is the "statistics" section). This is cosmetic.
 
 Waterfall:
 
@@ -403,7 +405,3 @@ Heard stations / map:
 
 - In the detailed heard list, the station-info button is permanently
   `disabled`.
-- In the map:
-  - The `.popup` div is never shown (`popupStyle` is never set); hover text
-    goes to the header input instead.
-  - The map height is fixed at 400 px no matter how big the widget is.

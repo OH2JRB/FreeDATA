@@ -814,24 +814,24 @@ onBeforeUnmount(() => {
         <!-- Heard Stations -->
         <div class="accordion-item">
           <h2
-            id="headingHeardStations"
+            id="headingActivity"
             class="accordion-header"
           >
             <button
               class="accordion-button"
               type="button"
               data-bs-toggle="collapse"
-              data-bs-target="#collapseHeardStations"
+              data-bs-target="#collapseActivity"
               aria-expanded="true"
-              aria-controls="collapseHeardStations"
+              aria-controls="collapseActivity"
             >
               <strong>{{ $t('grid.activity') }}</strong>
             </button>
           </h2>
           <div
-            id="collapseHeardStations"
+            id="collapseActivity"
             class="accordion-collapse collapse show"
-            aria-labelledby="headingHeardStations"
+            aria-labelledby="headingActivity"
             data-bs-parent="#accordionExample"
           >
             <div
@@ -844,24 +844,24 @@ onBeforeUnmount(() => {
         <!-- Activities -->
         <div class="accordion-item">
           <h2
-            id="headingActivities"
+            id="headingAudio"
             class="accordion-header"
           >
             <button
               class="accordion-button collapsed"
               type="button"
               data-bs-toggle="collapse"
-              data-bs-target="#collapseActivities"
+              data-bs-target="#collapseAudio"
               aria-expanded="false"
-              aria-controls="collapseActivities"
+              aria-controls="collapseAudio"
             >
               <strong>{{ $t('grid.audio') }}</strong>
             </button>
           </h2>
           <div
-            id="collapseActivities"
+            id="collapseAudio"
             class="accordion-collapse collapse"
-            aria-labelledby="headingActivities"
+            aria-labelledby="headingAudio"
             data-bs-parent="#accordionExample"
           >
             <div
@@ -932,24 +932,24 @@ onBeforeUnmount(() => {
         <!-- Audio Control -->
         <div class="accordion-item">
           <h2
-            id="headingAudioControl"
+            id="headingStatistics"
             class="accordion-header"
           >
             <button
               class="accordion-button collapsed"
               type="button"
               data-bs-toggle="collapse"
-              data-bs-target="#collapseAudioControl"
+              data-bs-target="#collapseStatistics"
               aria-expanded="false"
-              aria-controls="collapseAudioControl"
+              aria-controls="collapseStatistics"
             >
               <strong>{{ $t('grid.statistics') }}</strong>
             </button>
           </h2>
           <div
-            id="collapseAudioControl"
+            id="collapseStatistics"
             class="accordion-collapse collapse"
-            aria-labelledby="headingAudioControl"
+            aria-labelledby="headingStatistics"
             data-bs-parent="#accordionExample"
           >
             <div
@@ -962,24 +962,24 @@ onBeforeUnmount(() => {
         <!-- Statistics -->
         <div class="accordion-item">
           <h2
-            id="headingStatistics"
+            id="headingOther"
             class="accordion-header"
           >
             <button
               class="accordion-button collapsed"
               type="button"
               data-bs-toggle="collapse"
-              data-bs-target="#collapseStatistics"
+              data-bs-target="#collapseOther"
               aria-expanded="false"
-              aria-controls="collapseStatistics"
+              aria-controls="collapseOther"
             >
               <strong>{{ $t('grid.other') }}</strong>
             </button>
           </h2>
           <div
-            id="collapseStatistics"
+            id="collapseOther"
             class="accordion-collapse collapse"
-            aria-labelledby="headingStatistics"
+            aria-labelledby="headingOther"
             data-bs-parent="#accordionExample"
           >
             <div
@@ -1075,7 +1075,7 @@ onBeforeUnmount(() => {
               type="text"
               class="form-control form-control-sm"
               :class="{
-                disabled: state.hamlib_status === 'disconnected',
+                disabled: !state.radio_status,
               }"
               placeholder="Type frequency..."
               aria-label="Frequency"
@@ -1084,7 +1084,7 @@ onBeforeUnmount(() => {
               class="btn btn-sm btn-outline-success"
               type="button"
               :class="{
-                disabled: state.hamlib_status === 'disconnected',
+                disabled: !state.radio_status,
               }"
               @click="updateFrequencyAndApply(state.new_frequency)"
             >
