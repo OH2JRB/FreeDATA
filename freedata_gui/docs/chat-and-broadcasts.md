@@ -171,7 +171,7 @@ Selection ([chat_new_message.vue](../src/components/chat_new_message.vue)): pape
 
 On send, attachments become `[{name, type, data: content}]`. The server's `validate_message_attachment` requires `name`, `type`, `data` and non-empty `name`/`data`.
 
-Display: [chat_messages_image_preview.vue](../src/components/chat_messages_image_preview.vue) treats `gif, png, jpg, jpeg, svg` (by file extension) as images and renders `<img src="data:{type};base64,{data}">`. The `data` comes straight from `GET /freedata/messages`, whose `to_dict()` embeds full attachment data, so every reload transfers all attachment bytes.
+Display: [chat_messages_image_preview.vue](../src/components/chat_messages_image_preview.vue) treats `gif, png, jpg, jpeg, svg` (by file extension) as images and renders `<img src="data:{type};base64,{data}">`. The message list is loaded without attachment data (`GET /freedata/messages?attachment_data=false`), so the preview fetches an image's data by its hash with `attachmentData(hash)` ([attachmentCache.js](../src/js/attachmentCache.js)): once per session, the request kept in a map by hash (a failed one is tried again next time). An attachment that still carries its data (a single message loaded whole) is shown from it directly. Other attachments are not fetched until downloaded.
 
 Download: `getFreedataAttachmentBySha512(hash)` -> `GET /freedata/messages/attachment/{hash_sha512}`; the base64 `data` is decoded into a `Blob` with the stored `type` and saved through a temporary `<a download>`.
 
@@ -419,7 +419,7 @@ The handlers now return the API promise, so the components' `try/await` waits fo
 
 ### Bugs and limitations
 
-2. **Every `message-db` event reloads everything**: full message list (including all attachment base64 data), domain list, selected domain's broadcasts.
+2. **Every `message-db` event reloads the lists**: the message list (without attachment data since images are fetched once by hash), the domain list and the selected domain's broadcasts. The `message_id` in the event is not used to load just that message.
 3. **Failed loads are silent.** GET errors (message list, domains, broadcasts, attachments, beacons) are only logged; only POST/PATCH/DELETE failures show a toast (4.1).
 4. **METAR**: the METAR type is still disabled in the modal. ICAO lookup now exists, but only 37 entries of `airports.json` carry an ICAO code, so most ICAO stations (e.g. `EFHK`) show no airport name.
 5. **`stationStore`** is not used by these components.

@@ -173,8 +173,10 @@ Layout format: `[[x, y, w, h, widgetId], ...]`.
 - **Upload preset**: reads a `.freedata` file and validates it with
   `parseLayout(content, true)`. An invalid file shows a toast "Invalid preset
   file. Current layout and preset were kept." and changes nothing. A valid
-  file is stored (re-serialised) in `grid_preset`, **replacing the saved
-  preset**, and then `loadPreset()` runs.
+  file is stored (re-serialised) in `grid_preset`, replacing the saved
+  preset, and then `loadPreset()` runs. If a preset is already saved, the
+  GUI first asks "Replace your saved grid preset with the uploaded one?"
+  (`window.confirm`, `grid.uploadpreset_confirm`); No keeps it unchanged.
 
 ## 5. Frequency offcanvas
 
@@ -389,11 +391,6 @@ buttons in the two Broadcasts widgets have their own ids
 `sendPing`.
 
 ## 10. Known issues
-
-Grid / layout:
-
-- Uploading a valid preset silently overwrites the user's saved
-  `grid_preset` (by design of `uploadPreset`, but there is no confirmation).
 
 Waterfall:
 

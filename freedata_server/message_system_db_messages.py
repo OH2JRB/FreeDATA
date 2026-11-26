@@ -145,7 +145,7 @@ class DatabaseManagerMessages(DatabaseManager):
         finally:
             session.remove()
 
-    def get_all_messages(self, filters=None):
+    def get_all_messages(self, filters=None, attachment_data=True):
         """Retrieves all P2P messages from the database, optionally filtered.
 
         This method retrieves all P2P messages from the database. It
@@ -161,6 +161,8 @@ class DatabaseManagerMessages(DatabaseManager):
                 'origin_callsign', 'via_callsign',
                 'destination_callsign', and 'direction'. Defaults to
                 None.
+            attachment_data (bool): include the attachments' base64 data
+                (P2PMessage.to_dict). Defaults to True.
 
         Returns:
             list: A list of dictionaries, each representing a message, or
@@ -190,7 +192,7 @@ class DatabaseManagerMessages(DatabaseManager):
                         query = query.filter(getattr(P2PMessage, key).contains(value))
 
             messages = query.all()
-            return [message.to_dict() for message in messages]
+            return [message.to_dict(attachment_data=attachment_data) for message in messages]
 
         except Exception as e:
             self.log(f"error fetching database messages with error: {e}", isWarning=True)
@@ -201,7 +203,7 @@ class DatabaseManagerMessages(DatabaseManager):
         finally:
             session.remove()
 
-    def get_all_messages_json(self, filters=None):
+    def get_all_messages_json(self, filters=None, attachment_data=True):
         """Retrieves all P2P messages as a JSON string, with a header.
 
         This method retrieves all messages, optionally filtered, and
@@ -217,7 +219,7 @@ class DatabaseManagerMessages(DatabaseManager):
             dict: A dictionary containing the total number of messages and
             the messages themselves, formatted for JSON serialization.
         """
-        messages_dict = self.get_all_messages(filters)
+        messages_dict = self.get_all_messages(filters, attachment_data=attachment_data)
         messages_with_header = {"total_messages": len(messages_dict), "messages": messages_dict}
         return messages_with_header
 

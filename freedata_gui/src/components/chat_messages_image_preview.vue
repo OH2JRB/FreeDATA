@@ -1,5 +1,5 @@
 <template>
-  <div v-if="isImage">
+  <div v-if="isImage && imageUrl">
     <img
       :src="imageUrl"
       alt="Image Preview"
@@ -9,9 +9,9 @@
 </template>
 
 <script setup>
-import { computed, toRefs } from 'vue';
+import { computed, ref, toRefs, watch } from 'vue';
+import { attachmentData } from '../js/attachmentCache';
 
- 
 const props = defineProps(['attachment'])
 const { attachment } = toRefs(props);
 
@@ -21,8 +21,26 @@ const isImage = computed(() => {
   return imageFormats.includes(extension);
 });
 
+// The message list comes without attachment data: fetch an image's data by
+// its hash (once per session, js/attachmentCache.js). An attachment that
+// still carries its data (a single message loaded whole) uses it directly.
+const data = ref(attachment.value.data || null);
+watch(
+  () => [attachment.value.hash_sha512, attachment.value.data, isImage.value],
+  async ([hash, inline, image]) => {
+    if (!image) return;
+    if (inline) {
+      data.value = inline;
+      return;
+    }
+    const loaded = await attachmentData(hash);
+    // the attachment may have changed while loading
+    if (attachment.value.hash_sha512 === hash) data.value = loaded;
+  },
+  { immediate: true },
+);
+
 const imageUrl = computed(() => {
-  return isImage.value ? `data:${attachment.value.type};base64,${attachment.value.data}` : "";
+  return isImage.value && data.value ? `data:${attachment.value.type};base64,${data.value}` : "";
 });
 </script>
-

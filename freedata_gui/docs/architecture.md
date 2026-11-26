@@ -422,7 +422,7 @@ Callers still get `undefined` for any failure and cannot tell an HTTP error from
 | `setRadioParametersRFLevel(l)` | POST `/radio` | `{radio_rf_level}` | Returns body |
 | `setRadioParametersTuner(s)` | POST `/radio` | `{radio_tuner}` | Returns body |
 | `getRadioStatus()` | GET `/radio` | | Returns body |
-| `getFreedataMessages()` | GET `/freedata/messages` | | `chatStore.loading` around the call; passes body to `processFreedataMessages` |
+| `getFreedataMessages()` | GET `/freedata/messages?attachment_data=false` | | `chatStore.loading` around the call; passes body to `processFreedataMessages`. The list comes without attachment data (images: [attachmentCache.js](../src/js/attachmentCache.js)) |
 | `getFreedataMessageById(id)` | GET `/freedata/messages/{id}` | | Returns the message object (`undefined` for an unknown id, which the server answers with 404) |
 | `getFreedataAttachmentBySha512(h)` | GET `/freedata/messages/attachment/{h}` | | Returns body (`data` is base64) |
 | `sendFreedataMessage(destination, body, attachments)` | POST `/freedata/messages` | `{destination, body, attachments}` | Returns body |
