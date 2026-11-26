@@ -149,7 +149,7 @@ class P2PMessage(Base):
         ),
     )
 
-    def to_dict(self):
+    def to_dict(self, attachment_data=True):
         """Converts the P2PMessage object to a dictionary.
 
         This method converts the P2PMessage object and its associated
@@ -158,11 +158,16 @@ class P2PMessage(Base):
         the to_dict method of each attachment object. It formats the
         timestamp as an ISO 8601 string.
 
+        With attachment_data=False the attachments come without their
+        base64 data (name, type, size, checksums and hash only), for lists
+        that are loaded often; GET /freedata/messages/attachment/{hash}
+        returns the data.
+
         Returns:
             dict: A dictionary representation of the P2PMessage object,
             including its attachments.
         """
-        attachments_list = [ma.attachment.to_dict() for ma in self.message_attachments]
+        attachments_list = [ma.attachment.to_dict(data=attachment_data) for ma in self.message_attachments]
 
         return {
             "id": self.id,
@@ -226,20 +231,29 @@ class Attachment(Base):
 
     __table_args__ = (Index("idx_attachments_id_message_id", "id", "hash_sha512"),)
 
-    def to_dict(self):
+    def to_dict(self, data=True):
         """Converts the Attachment object to a dictionary.
+
+        Args:
+            data: include the base64 data; without it the dictionary has the
+                decoded size in bytes instead.
 
         Returns:
             dict: A dictionary representation of the Attachment object.
         """
-        return {
+        result = {
             "id": self.id,
             "name": self.name,
             "type": self.data_type,
-            "data": self.data,
             "checksum_crc32": self.checksum_crc32,
             "hash_sha512": self.hash_sha512,
         }
+        if data:
+            result["data"] = self.data
+        else:
+            encoded = self.data or ""
+            result["size"] = len(encoded) * 3 // 4 - encoded[-2:].count("=")
+        return result
 
 
 class BroadcastMessage(Base):

@@ -196,7 +196,7 @@ Each request builds a new DB manager instance (`DatabaseManagerMessages`, `...At
 
 | Method | Path | Body / params | Response | Errors |
 |---|---|---|---|---|
-| GET | `/freedata/messages` | none (query params are ignored) | `get_all_messages_json(filters=config["FILTERS"])`, for example `{"total_messages": N, "messages": [...]}` | none |
+| GET | `/freedata/messages` | optional `?attachment_data=false` (other query params are ignored) | `get_all_messages_json(filters=config["FILTERS"])`, for example `{"total_messages": N, "messages": [...]}`. With `attachment_data=false` each attachment comes without its base64 `data` and with its decoded `size` instead (name, type, checksums and `hash_sha512` stay); `GET /freedata/messages/attachment/{hash}` returns the data. The GUI uses it, since it reloads this list on every `message-db` event | none |
 | POST | `/freedata/messages` | `{"destination": str, "body": str, "attachments"?: [ {name,type,data} ], "id"?: str}` | The request body, echoed back | 500 `Failed to transmit message.` if the command raises |
 | GET | `/freedata/messages/{message_id}` | path `message_id: str` | The message as a JSON object (`get_message_by_id(...)`, i.e. `P2PMessage.to_dict()`) | 404 `Message not found` |
 | PATCH | `/freedata/messages/{message_id}` | `{"action": "retransmit"}` or any dict of fields to update | Retransmit sets `status` to `queued` and `priority` back to 10 (undoing a send last), increments `attempts` and returns `{"message_id", "status": "queued"}`. Otherwise returns the `update_message` result `{"status": "success", "message": ...}` | 404 `Message not found` (checked with `get_message_by_id` before updating); 500 `Error updating message` if `update_message` does not report `success` |

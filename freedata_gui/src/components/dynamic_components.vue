@@ -10,6 +10,7 @@ const state = useStateStore(pinia);
 import { setRadioParametersFrequency } from "../js/api";
 import frequency_presets from "./frequency_presets.vue";
 import { displayToast } from "../js/popupHandler";
+import i18next from "../js/i18n";
 import { saveLocalSettingsToConfig, settingsStore } from "../store/settingsStore";
 
 import active_heard_stations from "./grid/grid_active_heard_stations.vue";
@@ -423,6 +424,16 @@ function downloadPreset() {
 }
 
 
+// true if a preset with at least one widget is saved
+function hasSavedPreset() {
+  try {
+    const saved = JSON.parse(settingsStore.local.grid_preset || "[]");
+    return Array.isArray(saved) && saved.length > 0;
+  } catch {
+    return false;
+  }
+}
+
 function uploadPreset() {
   // Create a hidden file input element
   const input = document.createElement('input');
@@ -454,6 +465,14 @@ function uploadPreset() {
             "Invalid preset file. Current layout and preset were kept.",
             5000,
           );
+          return;
+        }
+
+        // The upload replaces the saved preset: ask first if there is one
+        if (
+          hasSavedPreset() &&
+          !window.confirm(i18next.t("grid.uploadpreset_confirm"))
+        ) {
           return;
         }
 

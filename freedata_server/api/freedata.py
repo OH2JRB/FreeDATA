@@ -250,11 +250,12 @@ async def patch_freedata_message(message_id: str, payload: dict, ctx: AppContext
         },
     },
 )
-async def get_freedata_messages(ctx: AppContext = Depends(get_ctx)):
+async def get_freedata_messages(attachment_data: bool = True, ctx: AppContext = Depends(get_ctx)):
+    # ?attachment_data=false leaves out the attachments' base64 data (the GUI
+    # reloads this list on every message-db event; it fetches an attachment's
+    # data by its hash when it shows or saves it)
     filters = {k: v for k, v in ctx.config_manager.read().get("FILTERS", {}).items()}
-    # use query params if needed
-    # filters = dict(ctx.request.query_params)
-    result = _mgr_msgs(ctx).get_all_messages_json(filters=filters)
+    result = _mgr_msgs(ctx).get_all_messages_json(filters=filters, attachment_data=attachment_data)
     return api_response(result)
 
 

@@ -275,7 +275,9 @@ export async function resetRadioFrequencies() {
 export async function getFreedataMessages() {
   chatStore.loading = true;
   try {
-    const res = await apiGet("/freedata/messages");
+    // without the attachments' data: this list is reloaded on every
+    // message-db event; images are fetched by hash (js/attachmentCache.js)
+    const res = await apiGet("/freedata/messages?attachment_data=false");
     if (res) {
       processFreedataMessages(res);
     }

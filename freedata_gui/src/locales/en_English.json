@@ -131,6 +131,7 @@
         "other": "Other",
         "uploadpreset": "Upload Preset",
         "uploadpreset_help": "Upload a preset file",
+        "uploadpreset_confirm": "Replace your saved grid preset with the uploaded one?",
         "downloadpreset": "Download Preset",
         "downloadpreset_help": "Download preset file for sharing or saving",
         "components": {
