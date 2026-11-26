@@ -901,6 +901,10 @@ async def patch_freedata_broadcast_domain(id: str, payload: dict, ctx: AppContex
 async def post_freedata_broadcast(payload: dict, ctx: AppContext = Depends(get_ctx)):
     if not ctx.config_manager.config["EXP"]["enable_groupchat"]:
         api_abort("Group chat is disabled (EXP.enable_groupchat), broadcast not transmitted.", 409)
+    # the frame carries origin and domain like a call sign
+    for key in ("origin", "domain"):
+        if api_validations.broadcast_address(payload.get(key)) is None:
+            api_abort(f"Invalid {key}: up to 7 letters or digits, optionally -SSID (0-63).", 400)
     if not await enqueue_tx_command(ctx, command_norm.Norm, payload):
         api_abort("Failed to transmit broadcast.", 500)
     return api_response({"message": "broadcast transmitted", "status": "success"})

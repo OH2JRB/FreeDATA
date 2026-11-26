@@ -2,11 +2,19 @@ from freedata_server.message_system_db_manager import DatabaseManager
 from freedata_server.message_system_db_model import BroadcastMessage
 from freedata_server.message_system_db_station import DatabaseManagerStations
 from sqlalchemy.orm.attributes import flag_modified
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from freedata_server import helpers
 import base64
+
+
+def domain_is(domain: str):
+    """Filter for a broadcast domain, regardless of case: the GUI shows and
+    requests domains in upper case, and a domain created before the domain was
+    normalized on sending (api_validations.broadcast_address) may be stored
+    in lower case."""
+    return func.upper(BroadcastMessage.domain) == str(domain).upper()
 
 
 class DatabaseManagerBroadcasts(DatabaseManager):
@@ -305,7 +313,7 @@ class DatabaseManagerBroadcasts(DatabaseManager):
             query = session.query(BroadcastMessage).order_by(BroadcastMessage.timestamp.asc())
 
             if domain:
-                query = query.filter(BroadcastMessage.domain == domain)
+                query = query.filter(domain_is(domain))
 
             messages = query.all()
             result = {}
@@ -313,7 +321,7 @@ class DatabaseManagerBroadcasts(DatabaseManager):
             for msg in messages:
                 d = msg.domain or "unknown"
 
-                if domain and d != domain:
+                if domain and d.upper() != str(domain).upper():
                     continue  # just in case
 
                 if d not in result:
@@ -356,7 +364,7 @@ class DatabaseManagerBroadcasts(DatabaseManager):
                 self.ctx.event_manager.freedata_message_db_change(message_id=id)
                 return {"status": "success", "deleted": 1, "type": "message", "id": id}
 
-            messages = session.query(BroadcastMessage).filter_by(domain=id).all()
+            messages = session.query(BroadcastMessage).filter(domain_is(id)).all()
             if messages:
                 count = len(messages)
                 for m in messages:
@@ -608,7 +616,7 @@ class DatabaseManagerBroadcasts(DatabaseManager):
                 session
                 .query(BroadcastMessage)
                 .filter(
-                    BroadcastMessage.domain == domain,
+                    domain_is(domain),
                     BroadcastMessage.is_read.is_(False),
                 )
                 .all()

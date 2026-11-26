@@ -49,6 +49,27 @@ def validate_freedata_callsign(value: str):
     return raw
 
 
+def broadcast_address(value: str):
+    """
+    A broadcast origin or domain as the receiving stations will see it, or
+    None if it cannot be sent.
+
+    Broadcast frames carry both like a call sign (helpers.callsign_to_bytes):
+    up to 7 letters or digits and an SSID of 0-63, decoded in upper case with
+    "-SSID". The sending station must store the same form, or its broadcast
+    id (computed from the domain) differs from the receivers' and their repair
+    requests find nothing: "test" is "TEST-0" on the air.
+    """
+    call = validate_freedata_callsign(value)
+    if call is None:
+        return None
+    base, _, ssid = call.partition("-")
+    ssid_num = int(ssid) if ssid else 0
+    if ssid_num > 63:
+        return None
+    return f"{base}-{ssid_num}"
+
+
 def validate_remote_config(config: dict) -> bool:
     """
     Validate 'mycall' and 'mygrid' in STATION.

@@ -7,13 +7,13 @@ from freedata_server.norm.norm_transmission_iss import NormTransmissionISS
 
 class Norm(TxCommand):
     def set_params_from_api(self, apiParams):
-        self.origin = apiParams["origin"]
-        if not api_validations.validate_freedata_callsign(self.origin):
-            self.origin = f"{self.origin}-0"
-
-        self.domain = apiParams["domain"]
-        if not api_validations.validate_freedata_callsign(self.domain):
-            self.domain = f"{self.domain}-0"
+        # stored in the form the receiving stations decode from the frame, so
+        # both sides compute the same broadcast id (POST /freedata/broadcasts
+        # refuses values that cannot be sent)
+        self.origin = api_validations.broadcast_address(apiParams["origin"])
+        self.domain = api_validations.broadcast_address(apiParams["domain"])
+        if self.origin is None or self.domain is None:
+            raise ValueError(f"invalid broadcast origin or domain: {apiParams['origin']!r}, {apiParams['domain']!r}")
 
         # strip data to maximum payload
         self.data = base64.b64decode(apiParams["data"])
