@@ -9,7 +9,6 @@ const broadcast = useBroadcastStore(pinia);
 
 
 import { ref, computed } from 'vue';
-import { VuemojiPicker } from 'vuemoji-picker';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import { useIsMobile } from '../js/mobile_devices.js';
@@ -25,11 +24,6 @@ const { isMobile } = useIsMobile(992);
 
 // Refs
 const inputField = ref(null);
-
-// Emoji Handling
-const handleEmojiClick = (detail) => {
-  broadcast.inputText += detail.unicode;
-};
 
 // The payload actually sent is the sanitized HTML, UTF-8 encoded.
 function buildPayload(text) {
@@ -101,22 +95,6 @@ function applyMarkdown(formatType) {
     <div class="container-fluid p-0">
       <div class="input-group bottom-0 ms-2">
 
-        <!-- Emoji Button -->
-        <!--
-        <button
-          v-if="!isMobile"
-          type="button"
-          class="btn btn-outline-secondary border-0 rounded-pill me-1"
-          data-bs-toggle="modal"
-          data-bs-target="#broadcastEmojiPickerModal"
-          data-bs-backdrop="false"
-          @click="$refs.inputField.focus()"
-        >
-          <i class="bi bi-emoji-smile p-0" style="font-size: 1rem" />
-        </button>
-
-        <div v-if="!isMobile" class="vr mx-2" />
-        -->
         <!-- Markdown Buttons -->
         <button
           v-if="!isMobile"
@@ -174,24 +152,4 @@ function applyMarkdown(formatType) {
     </div>
   </nav>
 
-  <!-- Emoji Modal -->
-  <div id="broadcastEmojiPickerModal" class="modal fade" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title">{{ $t('chat.insertemoji') }}</h5>
-          <button
-            type="button"
-            class="btn-close"
-            data-bs-dismiss="modal"
-            data-bs-target="#broadcastEmojiPickerModal"
-            aria-label="Close"
-          />
-        </div>
-        <div class="modal-body">
-          <VuemojiPicker @emoji-click="handleEmojiClick" />
-        </div>
-      </div>
-    </div>
-  </div>
 </template>

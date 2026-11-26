@@ -396,8 +396,8 @@ const hamlibTestRunning = ref(false);
 
 // Initialize modal on mount
 onMounted(() => {
-  // getSysInfo() already provides modem_version from /version, so no separate
-  // getVersion() call is needed. loadAllData() also fetches it once the
+  // getSysInfo() provides modem_version and the rest from /version.
+  // loadAllData() also fetches it once the
   // connection is up; don't overwrite those values with "N/A" placeholders
   // if this request fails (e.g. still disconnected).
   getSysInfo().then((res) => {

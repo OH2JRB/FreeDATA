@@ -18,6 +18,22 @@ import { useIsMobile } from '../js/mobile_devices.js';
 const { isMobile } = useIsMobile(992);
 
 
+import { ref, watch, nextTick } from 'vue';
+
+// scroll to the newest broadcast when a domain is opened, one is sent or one
+// arrives (broadcast.triggerScrollToBottom())
+const messagesContainer = ref(null);
+watch(
+  () => broadcast.scrollTrigger,
+  () => {
+    nextTick(() => {
+      if (messagesContainer.value) {
+        messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
+      }
+    });
+  }
+);
+
 function resetDomain() {
   broadcast.selectedDomain = null;
 }

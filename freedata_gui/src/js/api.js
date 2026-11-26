@@ -138,11 +138,6 @@ export async function apiDelete(endpoint, payload = {}) {
 
 // functions using updated apiGet and apiPost
 // /version returns api_version, modem_version, os_info and python_info
-export async function getVersion() {
-  let data = await apiGet("/version");
-  return data?.modem_version || "N/A";
-}
-
 export async function getSysInfo() {
   let data = await apiGet("/version");
   console.log(data);
@@ -212,20 +207,6 @@ export async function sendModemPing(dxcall) {
   if (validateCallsignWithSSID(dxcall)) {
     return await apiPost("/modem/ping_ping", { dxcall });
   }
-}
-
-/**
- * Send raw data via ARQ.
- * @param {string} dxcall destination callsign (with SSID)
- * @param {string} data base64 encoded payload
- * @param {string} type one of "raw", "raw_lzma", "raw_gzip"
- */
-export async function sendModemARQRaw(dxcall, data, type = "raw") {
-  return await apiPost("/modem/send_arq_raw", {
-    dxcall,
-    type,
-    data,
-  });
 }
 
 export async function stopTransmission() {
@@ -452,28 +433,10 @@ export async function deleteCommonEncryptionKey() {
   return await apiRequestResult("DELETE", "/freedata/encryption/common-key");
 }
 
-export async function getFreedataBroadcasts() {
-  broadcastStore.loading = true;
-  try {
-    const res = await apiGet("/freedata/broadcasts");
-    if (Array.isArray(res)) {
-      // /freedata/broadcasts returns a flat list; group it by domain like
-      // /freedata/broadcasts/{domain}/ does
-      const perDomain = {};
-      for (const msg of res) {
-        const domain = msg.domain || "unknown";
-        (perDomain[domain] = perDomain[domain] || []).push(msg);
-      }
-      processFreedataBroadcastsPerDomain(perDomain);
-    }
-  } catch (error) {
-    console.error("Error fetching broadcasts:", error);
-  } finally {
-    broadcastStore.loading = false;
-  }
-}
-
 export async function getFreedataBroadcastsPerDomain(domain) {
+  // no domain selected (at start-up, or after its deletion): nothing to load,
+  // instead of GET /freedata/broadcasts/undefined/
+  if (!domain) return;
   broadcastStore.loading = true;
   try {
     const res = await apiGet(`/freedata/broadcasts/${domain}/`);

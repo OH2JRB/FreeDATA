@@ -82,7 +82,7 @@
 
 <script>
 import { marked } from 'marked';
-import DOMPurify from 'dompurify';
+import { sanitizeMessageHtml } from "../js/sanitize";
 import {
   deleteMessageFromDB,
   requestMessageInfo,
@@ -135,7 +135,7 @@ export default {
   let parsedHTML = marked.parse(this.message.body);
 
   // Sanitize the HTML
-  let sanitizedHTML = DOMPurify.sanitize(parsedHTML);
+  let sanitizedHTML = sanitizeMessageHtml(parsedHTML);
 
   // Create a temporary DOM element to manipulate the sanitized output
   let tempDiv = document.createElement("div");

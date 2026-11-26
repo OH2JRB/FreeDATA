@@ -247,26 +247,6 @@ const state = useStateStore(pinia);
         </p>
       </div>
 
-      <!-- TODO: This code block can be removed I think, DJ2LS -->
-      <div
-        hidden
-        class="progress mb-0 rounded-0 rounded-bottom"
-        style="height: 10px;"
-      >
-        <div
-          id="transmission_timeleft"
-          class="progress-bar progress-bar-striped bg-warning"
-          role="progressbar"
-          :style="{ width: state.arq_seconds_until_timeout_percent + '%' }"
-          aria-valuenow="0"
-          aria-valuemin="0"
-          aria-valuemax="100"
-        >
-          <p class="justify-content-center m-0 d-flex position-absolute w-100 text-dark">
-            timeout in {{ state.arq_seconds_until_timeout }}s
-          </p>
-        </div>
-      </div>
     </div>
   </nav>
 </template>

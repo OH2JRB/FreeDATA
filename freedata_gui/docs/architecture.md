@@ -26,9 +26,9 @@ From [package.json](../package.json). "Used in" lists the files that import the 
 | `d3`, `topojson-client` | Station map rendering | `grid_stations_map.vue` |
 | `qth-locator` | Maidenhead locator to lat/lon and distance | `grid_stations_map.vue`, `grid_active_heard_stations.vue` |
 | `marked` | Markdown rendering of chat/broadcast text | chat and broadcast message components |
-| `dompurify` | Sanitising user input / rendered HTML | chat and broadcast components |
+| `dompurify` | Sanitising user input / rendered HTML; shown messages through [sanitize.js](../src/js/sanitize.js) | chat and broadcast components |
 | `js-image-compressor` | Shrinking image attachments before sending | `chat_new_message.vue` |
-| `vuemoji-picker` | Emoji picker | `chat_new_message.vue`, `broadcast_new_message.vue` |
+| `vuemoji-picker` | Emoji picker | `chat_new_message.vue` |
 | `uuid` | Unique DOM ids for toasts (`v4()`), version `^14` | [popupHandler.js](../src/js/popupHandler.js) |
 
 ### 1.2 Dev dependencies and scripts
@@ -115,7 +115,7 @@ To add a language, drop a `<code>_<Name>.json` file into `src/locales/` and rebu
 
 ## 3. Finding the server
 
-The GUI always talks to the host it was loaded from. There is no configurable server address: `settingsStore.local.host` and `settingsStore.local.port` exist in the defaults but nothing reads them.
+The GUI always talks to the host it was loaded from. There is no configurable server address (the unused `settingsStore.local.host` and `port` defaults were removed; values saved by older versions stay in `localStorage` and are ignored).
 
 REST ([api.js](../src/js/api.js), `buildURL`):
 
@@ -294,7 +294,7 @@ All stores except settings are Pinia setup stores. "Writers" and "Readers" are f
 | `is_network_traffic` | `false` | At least one REST call is in flight (reference-counted in api.js) | api.js | `main_left_navbar.vue` |
 | `busy_state` | | `is_modem_busy` | stateDispatcher | components |
 | `is_modem_running` | | modem started | stateDispatcher, `getOverallHealth` (sets false when disconnected) | components |
-| `radio_status` | `false` | rig connected | stateDispatcher, `getOverallHealth` | components |
+| `radio_status` | `false` | rig connected | stateDispatcher, `getOverallHealth` | components; the rig-control widget and the frequency offcanvas disable their controls while it is false |
 | `channel_busy_slot` | 5 x `false` | per-slot busy | stateDispatcher | components |
 | `channel_busy` | `false` | `true` while the channel is busy (server `channel_busy`) | stateDispatcher | *unused* |
 | `is_codec2_traffic` | `""` | codec2 traffic detected | stateDispatcher | `grid_active_stats.vue` |
@@ -311,10 +311,7 @@ All stores except settings are Pinia setup stores. "Writers" and "Readers" are f
 | `arq_is_receiving` | `false` | direction of current ARQ | eventDispatcher | components |
 | `arq_transmission_percent`, `arq_total_bytes`, `arq_bytes_per_minute`, `arq_bits_per_second`, `speed_level` | | ARQ progress | eventDispatcher | footer/stats |
 | `arq_speed_list_timestamp/bpm/snr` | `[]` | ARQ histograms | eventDispatcher (replaces the arrays on `BURST_SENT` / `BURST_REPLY_SENT`) | `grid_active_stats.vue`, `grid_stats_chart.vue` (plain arrays, read inside `computed` chart data) |
-| `arq_seconds_until_timeout`, `..._percent` | | marked TODO-remove | nobody | `main_footer_navbar.vue` |
 | `api_version`, `modem_version`, `os_info`, `python_info` | | `/version` data | eventHandler.js, `main_startup_check.vue` | about/startup screens |
-| `hamlib_status` | `""` | | nobody | `dynamic_components.vue`, `grid_active_rig_control.vue` |
-| `arq_state`, `bandwidth`, `fft`, `tx_audio_level`, `rx_audio_level`, `alc`, `audio_recording`, `arq_session_state`, `arq_seconds_until_finish`, `rigctld_started`, `rigctld_process`, `rx_buffer_length`, `modemStartCount` | | legacy | nobody | *unused* |
 
 ### 6.2 `chatStore` ([chatStore.js](../src/store/chatStore.js))
 
@@ -341,7 +338,6 @@ All stores except settings are Pinia setup stores. "Writers" and "Readers" are f
 | `domainBroadcasts` | result of `GET /freedata/broadcasts/{domain}/` | broadcastsHandler.js | `broadcast_messages.vue` |
 | `loading` | broadcast request in flight | api.js | components |
 | `inputText`, `newDomain`, `newMessageType`, `selectedMessage` | form/selection state | components | components |
-| `newPriority` | | nobody | *unused* |
 | `scrollTrigger`, `triggerScrollToBottom()` | scroll trigger | broadcastsHandler.js | components |
 
 ### 6.4 `audioStore` ([audioStore.js](../src/store/audioStore.js))
@@ -362,7 +358,7 @@ All stores except settings are Pinia setup stores. "Writers" and "Readers" are f
 
 Not a Pinia store: a module-level `reactive({ local, remote })`.
 
-- **`local`** (browser-only): `host`, `port` (unused), `spectrum`, `wf_theme`, `enable_sys_notification`, `grid_layout`, `grid_preset`, `grid_enabled`, `language`, `colormode`. Loaded from `localStorage["localConfig"]` and deep-merged over the defaults, so keys added in newer versions get their default value for existing users. Unparseable stored data falls back to the defaults. A deep watcher writes it back to `localStorage` on every change (write errors are caught and logged).
+- **`local`** (browser-only): `spectrum`, `wf_theme`, `enable_sys_notification`, `grid_layout`, `grid_preset`, `grid_enabled`, `language`, `colormode`. Loaded from `localStorage["localConfig"]` and deep-merged over the defaults, so keys added in newer versions get their default value for existing users. Unparseable stored data falls back to the defaults. A deep watcher writes it back to `localStorage` on every change (write errors are caught and logged).
 - **`remote`**: mirror of the server's config (`AUDIO`, `MODEM`, `NETWORK`, `RADIO`, `RIGCTLD`, `FLRIG`, `STATION`, `MESSAGES`, `SOCKET_INTERFACE`, `QSO_LOGGING`, `GUI`, `EXP`). Starts as a deep copy of the defaults, so the defaults object itself is never modified. `STATION.callsign_blacklist` is kept as a newline-separated string for the textarea.
 
 | Function | Behaviour |
@@ -397,7 +393,6 @@ Callers still get `undefined` for any failure and cannot tell an HTTP error from
 
 | Function | Method and path | Payload | Response handling |
 |---|---|---|---|
-| `getVersion()` | GET `/version` | | Returns `data.modem_version` or `"N/A"`. No callers (the startup check uses `getSysInfo()`) |
 | `getSysInfo()` | GET `/version` | | Returns `{api_version, modem_version, os_info{...}, python_info{build, compiler, branch, implementation, revision, version}}` with `"N/A"` fallbacks |
 | `getConfig()` | GET `/config` | | Returns body |
 | `setConfig(config)` | POST `/config` | full remote config | Returns body |
@@ -408,7 +403,6 @@ Callers still get `undefined` for any failure and cannot tell an HTTP error from
 | `setPSKReporter(enabled=false)` | POST `/modem/pskreporter` | `{enabled}` | Returns body |
 | `sendModemCQ()` | POST `/modem/cqcqcq` | `{}` | Returns body |
 | `sendModemPing(dxcall)` | POST `/modem/ping_ping` | `{dxcall}` | Appends `-0` if no SSID, upper-cases; sends only if it then matches `^[A-Za-z0-9]{1,7}-[0-9]{1,3}$`, else returns `undefined` |
-| `sendModemARQRaw(dxcall, data, type = "raw")` | POST `/modem/send_arq_raw` | `{dxcall, type, data}` (`data` base64, `type` one of `raw`, `raw_lzma`, `raw_gzip`) | Returns body. No callers |
 | `stopTransmission()` | POST `/modem/stop_transmission` | `{}` | Returns body |
 | `sendModemTestFrame()` | POST `/modem/send_test_frame` | `{}` | Returns body |
 | `sendSineTone(state)` | POST `/radio/tune` | `{enable_tuning: state}` | Returns body |
@@ -434,9 +428,8 @@ Callers still get `undefined` for any failure and cannot tell an HTTP error from
 | `getBeaconDataByCallsign(c)` | GET `/freedata/beacons/{c}` | | Returns list |
 | `getStationInfo(c)` | GET `/freedata/station/{c}` | | Returns body |
 | `setStationInfo(c, info)` | POST `/freedata/station/{c}` | the whole `stationInfo` object (`{callsign, location, info}`) | Returns body |
-| `getFreedataBroadcasts()` | GET `/freedata/broadcasts` | | `broadcastStore.loading`; groups the flat list by `domain` and passes `{domain: [messages]}` to `processFreedataBroadcastsPerDomain`. No callers |
 | `getFreedataBroadcastsPerDomain(d)` | GET `/freedata/broadcasts/{d}/` | | `broadcastStore.loading`; `processFreedataBroadcastsPerDomain`. Read-only: does not mark anything read |
-| `setFreedataBroadcastDomainAsRead(d)` | PATCH `/freedata/broadcasts/{d}/read` | none | Returns `{domain, marked_read, status}`. Called by `domainSelected()` in `broadcast_domains.vue` when the user opens a domain that has unread broadcasts |
+| `setFreedataBroadcastDomainAsRead(d)` | PATCH `/freedata/broadcasts/{d}/read` | none | Returns `{domain, marked_read, status}`. Called by `domainSelected()` in `broadcast_domains.vue` when the user opens a domain that has unread broadcasts, and by `processFreedataDomains()` when unread broadcasts arrive in the domain open on the Broadcasts screen |
 | `getFreedataDomains()` | GET `/freedata/broadcasts/domains` | | `broadcastStore.loading`; `processFreedataDomains` |
 | `sendFreedataBroadcastMessage(params)` | POST `/freedata/broadcasts` | `{origin, domain, gridsquare, type, priority, data}` (built in broadcast components) | Returns body |
 | `retransmitFreedataBroadcast(id)` | PATCH `/freedata/broadcasts/{id}` | `{action: "retransmit"}` | Returns body |
@@ -445,7 +438,7 @@ Callers still get `undefined` for any failure and cannot tell an HTTP error from
 
 There is no ADIF call for broadcasts: the server only offers `POST /freedata/messages/{id}/adif` for P2P messages, so the former `postFreedataBroadcastADIF()` and its buttons were removed.
 
-Only `getFreedataMessages`, `getFreedataBroadcastsPerDomain`, `getFreedataDomains` (and the unused `getFreedataBroadcasts`) write stores; the rest leave it to the caller. The wrappers in `messagesHandler.js` and `broadcastsHandler.js` now return the API promise, but most callers still do not use the result; errors reach the user through the toast in 7.1.
+Only `getFreedataMessages`, `getFreedataBroadcastsPerDomain`, `getFreedataDomains` write stores; the rest leave it to the caller. The wrappers in `messagesHandler.js` and `broadcastsHandler.js` now return the API promise, but most callers still do not use the result; errors reach the user through the toast in 7.1.
 
 ---
 
@@ -509,8 +502,8 @@ The modem lifecycle event (`{"freedata_server": "started"|"restarted"|"stopped"|
 | POST `/modem/fec_transmit` | Always 501 |
 | GET `/freedata/messages/{id}/attachments` | GUI fetches attachments one by one by SHA-512 instead |
 | GET `/freedata/beacons` | All beacons |
-| GET `/freedata/broadcasts` | Wrapper exists (`getFreedataBroadcasts`) but is unused |
-| POST `/modem/send_arq_raw` | Wrapper exists (`sendModemARQRaw`, payload now matches the server) but is unused |
+| GET `/freedata/broadcasts` | All broadcasts as one list; the GUI loads them per domain |
+| POST `/modem/send_arq_raw` | Raw data in an ARQ session, for other programs |
 
 ---
 
@@ -520,11 +513,6 @@ The modem lifecycle event (`{"freedata_server": "started"|"restarted"|"stopped"|
 - **`loadAllData()` still runs often.** It now runs once per `/states` (re)connect instead of once per socket, but also on every left-navbar click and on every modem `started`/`restarted` event. Since the server restarts the modem on every non-GUI config change (see [screens-and-settings.md](screens-and-settings.md#6-known-issues)), each such change is followed (after the modem restart) by a full reload.
 - **`displayToast` still takes HTML.** Server fields in `eventHandler.js`, API error messages and attachment file names are escaped with `escapeHtml`, but the function itself does not escape, so every new caller has to.
 - **GET errors are silent.** `apiGet` only logs failures (no call passes `notify = true`), so failed background loads (messages, domains, devices, config) give no user feedback beyond stale data.
-- **Unused API wrappers**: `getVersion()`, `getFreedataBroadcasts()` and `sendModemARQRaw()` have no callers.
 - **`getOverallHealth()`**: its result is discarded by `loadAllData()`. (Its `process.env.FDUpdateAvail` check, which nothing defined, was removed with the move to Vite.)
-- **`settingsStore.local.host` / `port` are dead**; the server address always comes from `window.location` with the hard-coded 8080 -> 5000 mapping.
-- **`stateStore.hamlib_status`** is read by rig-control components but never written.
-- **`GET /freedata/broadcasts/undefined/`** at startup: `broadcast.selectedDomain` starts as `undefined` and `loadAllData()` requests that domain anyway.
-- **Build tooling**: `npm run build` runs `npm i` every time.
-- **`freedata.js` `btoa_FD` / `atob_FD` / `atob`** use Node's `Buffer`, which the browser build does not provide; they are not called anywhere.
+- **Build tooling**: `npm run build` runs `npm i` every time. The AppImage workflow and the Linux and macOS install scripts rely on it to install the GUI's packages, so it stays.
 - Server-side mismatches that the GUI cannot fix are listed in section 8 (`hello-client` never sent, `buffer-overflow` not handled).

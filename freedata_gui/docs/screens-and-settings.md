@@ -187,7 +187,7 @@ settingsStore = { local: {...}, remote: {...} }
 | `settings.local` | Browser `localStorage["localConfig"]` (JSON) | Module load: stored JSON deep-merged over `defaultConfig.local` (missing keys get their default; unreadable data falls back to the defaults) | Automatically by a deep `watch` on `settingsStore.local` -> `saveLocalSettingsToConfig()` on every change (errors caught and logged) |
 | `settings.remote` | Server `config.ini` | Starts as a deep copy of `defaultConfig.remote`; `getRemote()` -> `getConfig()` (`GET /config`) | `onChange()` -> `setConfig(copy of remote)` (`POST /config`) |
 
-GUI-only (`local`) keys: `host`, `port`, `spectrum`, `wf_theme`, `enable_sys_notification`, `grid_layout`, `grid_preset`, `grid_enabled`, `language`, `colormode`. Only `language`, `colormode` and `wf_theme` are edited in the settings screen; the grid keys are used by the dashboard.
+GUI-only (`local`) keys: `spectrum`, `wf_theme`, `enable_sys_notification`, `grid_layout`, `grid_preset`, `grid_enabled`, `language`, `colormode`. Only `language`, `colormode` and `wf_theme` are edited in the settings screen; the grid keys are used by the dashboard.
 
 Server-side keys exposed in the GUI but stored in `config.ini`: `GUI.auto_run_browser` and `GUI.distance_unit` (despite the GUI name, they live in `remote`).
 
@@ -199,7 +199,7 @@ Server-side keys exposed in the GUI but stored in `config.ini`: `GUI.auto_run_br
   - Otherwise it deep-copies `remote`, converts `callsign_blacklist` in the copy back to an array (split on `\n`, trim, drop empties; non-arrays become `[]`) and POSTs the copy. On success it replaces `settingsStore.remote` with the server response and re-joins the blacklist.
   - On failure, api.js shows an error toast with the server's message (for example 400 "Invalid configuration") and `onChange()` reloads the config with `getRemote()`, so the form shows what the server actually stored.
 - **When the POST happens**: every settings input uses `@change` (fires on blur/select, not on each keystroke). There is **no debounce**; each change posts the complete `remote` config.
-- **Number fields** (`NETWORK.modemport`, `RIGCTLD.port`, `FLRIG.port`, `QSO_LOGGING.adif_udp_port`) use `@focus="rememberNumber(...)"` and `@change="onNumberChange(...)"` instead of plain `onChange`. A cleared or non-numeric field (`v-model.number` gives `""`) is restored to the value remembered on focus (or reloaded with `getRemote()` if there is none) and nothing is posted. Valid values are rounded to an integer and clamped to the input's `min`/`max` before `onChange()`. The helper is copied into each of `settings_modem.vue`, `settings_hamlib.vue`, `settings_flrig.vue` and `settings_chat.vue`.
+- **Number fields** (`NETWORK.modemport`, `RIGCTLD.port`, `FLRIG.port`, `QSO_LOGGING.adif_udp_port`) use `@focus="rememberNumber(...)"` and `@change="onNumberChange(...)"` instead of plain `onChange`. A cleared or non-numeric field (`v-model.number` gives `""`) is restored to the value remembered on focus (or reloaded with `getRemote()` if there is none) and nothing is posted. Valid values are rounded to an integer and clamped to the input's `min`/`max` before `onChange()`. The helper lives in `settingsStore.js` and is shared by `settings_modem.vue`, `settings_hamlib.vue`, `settings_flrig.vue` and `settings_chat.vue`.
 - **Callers of `getRemote()`**: `main.js` at startup, `loadAllData()` (`/states` socket open, `hello-client` event, modem `started`/`restarted` events, every left-navbar click), `onChange()` (config not loaded yet, or save failed), `settings_station.vue` to revert an invalid callsign, and the number-field handler when there is no previous value.
 - **Server side** ([../freedata_server/api/config.py](../../freedata_server/api/config.py) `post_config`): validates `STATION.mycall` and `STATION.mygrid` (400 "Invalid configuration" if either is invalid); returns early without writing if the payload equals the current config; otherwise writes `config.ini` (type-checked against `config_types`, raising `ValueError` on a type mismatch) and **queues a modem restart** (`modem_service.put("restart")`) when any section other than `GUI` differs from the stored config. Changes that only touch `GUI.*` (`distance_unit`, `auto_run_browser`) are written without a restart.
 - The Modem tab shows a red notice that changes restart the server/modem, and offers a "Reload" button (`stopModem()` then `startModem()` after 5 s).
@@ -226,7 +226,7 @@ Path = `settingsStore` path. "Server" column cross-checks against [config.ini.ex
 |---|---|---|
 | Language | `local.language` | select from `availableLanguages` ([i18n.js](../src/js/i18n.js)); `i18next.changeLanguage()` |
 | Colour mode | `local.colormode` | select `light` / `dark` / `auto`; `applyColorMode()` sets `data-bs-theme` |
-| Waterfall theme | `local.wf_theme` | select 0-9 (string values), `setColormap()` |
+| Waterfall theme | `local.wf_theme` | select 0-9 (`v-model.number`, stored as a number like its default), `setColormap()` |
 | Auto-launch browser | `remote.GUI.auto_run_browser` | switch, `onChange` |
 | Distance unit | `remote.GUI.distance_unit` | select `km` / `mi` / `nm`, `onChange`. When the component is created, a value that is not one of these three is set to `km` locally (not posted) |
 
@@ -377,7 +377,6 @@ Chat / Broadcast badges: `chat.totalUnreadMessages`, `broadcast.totalUnreadMessa
 | Direction | `state.arq_is_receiving` | "from" / "to" |
 | DX callsign | `state.dxcallsign` | or `-----` |
 | Progress bar | `state.arq_transmission_percent`, `arq_bytes_per_minute`, `arq_bits_per_second` | "% [ bpm / bps ]" (mobile: % only) |
-| Timeout bar | `state.arq_seconds_until_timeout(_percent)` | `hidden` (marked TODO for removal) |
 
 ---
 
@@ -390,5 +389,4 @@ Observed in code; not runtime-verified unless stated.
 3. **Unreachable or dead UI**: the station info button in the left navbar is hard-coded `disabled`, so `#stationInfoModal` cannot be opened from the UI. The Hamlib "Rigctld command" field is disabled and never filled, and its copy button has no handler.
 4. **Shared keys across tabs**: `RADIO.ptt_port`, `serial_dtr` and `serial_rts` are edited both in Hamlib and in Serial PTT, with different labels (`OFF`/`ON` vs `LOW`/`HIGH`). `RADIO.serial_port` / `ptt_port` each have both a select and a free-text input bound to the same key.
 5. **Invalid callsign revert depends on the server.** `validateCall()` reverts an invalid callsign by calling `getRemote()`. If that GET fails, the invalid value stays in the store; the next save is then rejected by the server (400, shown as a toast) and the config is reloaded.
-6. **Number-field handling is duplicated.** `rememberNumber` / `onNumberChange` are copied into four components (`settings_modem.vue`, `settings_hamlib.vue`, `settings_flrig.vue`, `settings_chat.vue`) instead of living in a shared helper. Other numeric values are selects or ranges and are not covered.
-7. **`wf_theme` type**: stored as a string from the select but defaults to the number `2`.
+6. **Number fields**: only the four port fields use the shared `rememberNumber` / `onNumberChange` helper; other numeric values are selects or ranges and are not covered.

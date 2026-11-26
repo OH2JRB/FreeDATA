@@ -1,5 +1,5 @@
 <template>
-  <div class="card">
+  <div class="card h-100 d-flex flex-column">
     <div class="card-header d-flex justify-content-between align-items-center">
       <div
         class="btn-group btn-group-sm rounded"
@@ -37,7 +37,8 @@
         >
       </div>
     </div>
-    <div class="card-body p-0">
+    <!-- the map fills the widget; the popup shows the station under the pointer -->
+    <div class="card-body p-0 flex-grow-1 position-relative overflow-hidden map-body">
       <div
         ref="mapContainer"
         class="map-container"
@@ -68,7 +69,25 @@ const state = useStateStore(pinia);
 
 const mapContainer = ref(null);
 const infoText = ref('');
-const popupStyle = ref({});
+const popupStyle = ref({ display: 'none' });
+
+// The station under the pointer: in the header field and in a popup next to
+// the pin
+function showInfo(event, text) {
+  infoText.value = text;
+  const box = mapContainer.value?.getBoundingClientRect();
+  if (!box) return;
+  popupStyle.value = {
+    display: 'block',
+    left: `${event.clientX - box.left + 12}px`,
+    top: `${event.clientY - box.top + 12}px`,
+  };
+}
+
+function hideInfo() {
+  infoText.value = '';
+  popupStyle.value = { display: 'none' };
+}
 let svg, path, projection, zoom;
 const basePinRadius = 5; // Base radius for pins
 let actualPinRadius = basePinRadius;
@@ -176,12 +195,10 @@ const drawMap = () => {
         .attr('fill', 'blue')
         .attr('cx', myX)
         .attr('cy', myY)
-        .on('mouseover', () => {
-          infoText.value = `Your Station - ${mygrid}`;
+        .on('mouseover', (event) => {
+          showInfo(event, `Your Station - ${mygrid}`);
         })
-        .on('mouseout', () => {
-          infoText.value = '';
-        });
+        .on('mouseout', hideInfo);
   }
 
 
@@ -279,12 +296,10 @@ const updatePinsAndLines = (g) => {
         .attr('fill', 'blue')
         .attr('cx', myX)
         .attr('cy', myY)
-        .on('mouseover', () => {
-          infoText.value = `Your Station - ${mygrid}`;
+        .on('mouseover', (event) => {
+          showInfo(event, `Your Station - ${mygrid}`);
         })
-        .on('mouseout', () => {
-          infoText.value = '';
-        });
+        .on('mouseout', hideInfo);
 
     // Draw lines from your station to each heard station
     g.selectAll('.connection-line')
@@ -312,11 +327,9 @@ const updatePinsAndLines = (g) => {
       .attr('cx', d => projection([d.lon, d.lat])[0])
       .attr('cy', d => projection([d.lon, d.lat])[1])
       .on('mouseover', (event, d) => {
-        infoText.value = `${d.origin} - ${d.gridsquare} (${getMaidenheadDistance(d.gridsquare)} ${settings.remote.GUI.distance_unit || 'km'})`;
+        showInfo(event, `${d.origin} - ${d.gridsquare} (${getMaidenheadDistance(d.gridsquare)} ${settings.remote.GUI.distance_unit || 'km'})`);
       })
-      .on('mouseout', () => {
-        infoText.value = '';
-      });
+      .on('mouseout', hideInfo);
 };
 
 // Center the map
@@ -354,10 +367,26 @@ const zoomOut = () => {
 };
 
 // Lifecycle hooks
+// Redraw when the widget changes size (window resize or resized in the
+// grid), at most once per 150 ms
+let resizeObserver = null;
+let redrawTimer = null;
+let lastSize = '';
+function redrawOnResize() {
+  if (!mapContainer.value) return;
+  const size = `${mapContainer.value.clientWidth}x${mapContainer.value.clientHeight}`;
+  if (size === lastSize) return;
+  lastSize = size;
+  clearTimeout(redrawTimer);
+  redrawTimer = setTimeout(drawMap, 150);
+}
+
 onMounted(async () => {
   await nextTick();
+  lastSize = `${mapContainer.value.clientWidth}x${mapContainer.value.clientHeight}`;
   drawMap();
-  window.addEventListener('resize', drawMap);
+  resizeObserver = new ResizeObserver(redrawOnResize);
+  resizeObserver.observe(mapContainer.value);
 });
 
 // Refresh pins and lines when the heard stations list changes
@@ -374,7 +403,8 @@ watch(
 );
 
 onBeforeUnmount(() => {
-  window.removeEventListener('resize', drawMap);
+  if (resizeObserver) resizeObserver.disconnect();
+  clearTimeout(redrawTimer);
   if (centerMapTimer !== null) {
     clearTimeout(centerMapTimer);
     centerMapTimer = null;
@@ -383,10 +413,14 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.map-body {
+  min-height: 150px;
+}
+
 .map-container {
   position: relative;
   width: 100%;
-  height: 400px;
+  height: 100%;
 }
 
 .my-pin {
@@ -407,8 +441,12 @@ onBeforeUnmount(() => {
 }
 
 .popup {
-  background-color: white;
-  border: 1px solid black;
+  background-color: var(--bs-body-bg);
+  color: var(--bs-body-color);
+  border: 1px solid var(--bs-border-color);
+  border-radius: 4px;
+  font-size: 0.8rem;
+  white-space: nowrap;
   padding: 5px;
   position: absolute;
   display: none;

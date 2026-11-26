@@ -53,7 +53,7 @@
 
 <script>
 import { marked } from "marked";
-import DOMPurify from "dompurify";
+import { sanitizeMessageHtml } from "../js/sanitize";
 import { setActivePinia } from 'pinia';
 import pinia from '../store/index';
 import { useBroadcastStore } from '../store/broadcastStore.js';
@@ -83,7 +83,7 @@ export default {
         }
       }
 
-      const html = DOMPurify.sanitize(marked.parse(body));
+      const html = sanitizeMessageHtml(marked.parse(body));
 
       const temp = document.createElement("div");
       temp.innerHTML = html;
