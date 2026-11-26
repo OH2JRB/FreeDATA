@@ -216,21 +216,22 @@ Per-socket handlers:
 
 Runs when the `/states` socket opens, on `hello-client` (never sent, see 8.4), on modem `started`/`restarted` events, and on clicks in the left navbar.
 
-1. `await getModemState()` (`GET /modem/state`). The return value is only logged. Its useful side effect is that the server pushes a full `state` frame to every `/states` client.
+1. `await getModemState()` (`GET /modem/state`). The full state comes back to this client only (the server no longer pushes it to every `/states` client), so `loadAllData()` passes it to `stateDispatcher` like a pushed `state` frame.
 2. `getSysInfo()` -> `stateStore.api_version`, `modem_version`, `os_info`, `python_info`.
 3. `audioStore.loadAudioDevices()`, `serialStore.loadSerialDevices()`.
-4. `await getRadioStatus()` (result discarded).
-5. `getRemote()` (config reload, `GET /config` only, see 6.7).
-6. `getOverallHealth()` (result discarded).
-7. `getFreedataMessages()` -> chat store.
-8. `getFreedataDomains()`, `getFreedataBroadcastsPerDomain(broadcast.selectedDomain)` -> broadcast store.
-9. `processRadioStatus()` -> another `GET /radio` and writes `mode`, `frequency`, `rf_level`, `tuner`.
+4. `getFreedataQueue()` for the queue tab's badge.
+5. `await getRadioStatus()` (result discarded).
+6. `getRemote()` (config reload, `GET /config` only, see 6.7).
+7. `getOverallHealth()` (result discarded).
+8. `getFreedataMessages()` -> chat store.
+9. `getFreedataDomains()`, `getFreedataBroadcastsPerDomain(broadcast.selectedDomain)` -> broadcast store.
+10. `processRadioStatus()` -> another `GET /radio` and writes `mode`, `frequency`, `rf_level`, `tuner`.
 
 ### 5.2 `/states` handling (`stateDispatcher`)
 
 | `type` | stateStore fields written |
 |---|---|
-| `state` or `state-change` | `modem_connection = "connected"`, `busy_state <- is_modem_busy`, `channel_busy <- channel_busy` (`true` while the channel is busy), `is_codec2_traffic`, `is_modem_running`, `dbfs_level = round(audio_dbfs)`, `dbfs_level_percent = round(10^(audio_dbfs/20) * 100)`, `radio_status`, `channel_busy_slot`, `beacon_state <- is_beacon_running`, `away_from_key <- is_away_from_key`, `activities = Object.entries(activities).reverse()`, then `build_HSL()` merges received activities into `heard_stations` (one entry per `origin`, newest timestamp wins, sorted newest first) |
+| `state` or `state-change` | `modem_connection = "connected"`, `busy_state <- is_modem_busy`, `channel_busy <- channel_busy` (`true` while the channel is busy), `is_codec2_traffic`, `is_modem_running`, `dbfs_level = round(audio_dbfs)`, `dbfs_level_percent = round(10^(audio_dbfs/20) * 100)`, `radio_status`, `channel_busy_slot`, `beacon_state <- is_beacon_running`, `away_from_key <- is_away_from_key`, `rx_audio_loss` (only when sent), `temp_log_file` (`""` when the temp-folder log is off), the PSK Reporter switch in `encryptionStore.pskreporter.enabled <- is_pskreporter_enabled` (when a boolean), `activities = Object.entries(activities).reverse()`, then `build_HSL()` merges received activities into `heard_stations` (one entry per `origin`, newest timestamp wins, sorted newest first) |
 | `radio-change` or `radio` | `s_meter_strength_raw = round(s_meter_strength)`, `s_meter_strength_percent = round(10^(s/20) * 100)`, `radio_status`, `frequency <- radio_frequency`, `mode <- radio_mode`, `swr_raw = radio_swr.toFixed(2)`, `swr_percent = swr/6*100` if `0 <= swr <= 6` else `0`, `tuner <- radio_tuner`, `rf_level = round(radio_rf_level/5)*5` |
 
 Other `type` values are ignored.
@@ -245,6 +246,7 @@ Checked in this order; the first match returns.
 | `data["message-db"] === "changed"` | `getFreedataDomains()`, `getFreedataBroadcastsPerDomain(selectedDomain)`, `getFreedataMessages()` (which also updates the chat store). `message_id` is ignored |
 | `data.ptt` is `true`/`false` | `stateStore.ptt_state = data.ptt` |
 | `data.freedata_server ?? data.modem` is `started` / `stopped` / `restarted` / `failed` | Toasts; `started` and `restarted` also call `loadAllData()`. The server sends `{"freedata_server": ...}`; the `modem` key is kept for older servers |
+| `type: "config"`, `config: "changed"` | Another tab or client saved the config: `refreshRemote()` takes over its values for the settings this tab has not changed itself (6.7). No toast |
 | `type: "hello-client"` | Toast "connected to server", `modem_connection = "connected"`, `loadAllData()`. **The server never emits `hello-client`** |
 | `type: "message-logging"` with `endpoint` `wavelog` or `udp` | Success or warning toast with `data.message` (escaped) |
 | `type: "frame-handler"`, `received` = `CQ`, `QRV`, `PING`, `PING_ACK` | Toast with `dxcallsign`, `snr` and (except PING) `gridsquare`, all escaped. Other frame types are logged as `unknown event data received: <received>`. No store writes |
@@ -280,6 +282,8 @@ ARQ inbound states (`d = data["arq-transfer-inbound"]`):
 
 `displayToast(type, icon, content, duration)` appends Bootstrap toast markup to `#mainToastContainer` with `insertAdjacentHTML`, shows it and removes it from the DOM when hidden. If the container does not exist yet, the toast is dropped with a console warning. `content` is still inserted as HTML, so callers must escape untrusted text. `popupHandler.js` exports `escapeHtml(value)` for that (escapes `& < > " '`; `null`/`undefined` become `""`). The event handlers in `eventHandler.js` escape every server field they interpolate (`dxcallsign`, `gridsquare`, `snr`, `session_id`, byte counts, `state`, `data.message`, `data.endpoint`), and so do the API error toasts (7.1) and the attachment toasts in `chat_new_message.vue`.
 
+A toast identical to one still on screen (same type, icon and text, whitespace collapsed) is not stacked again: the one shown gets the longer of the two durations and its timer restarts. A station receiving an ARQ transfer used to report each burst's bytes twice (when it stores the last frame and when it sends the burst ACK), and a burst sent again brings no new bytes; the server now drops a progress event identical to the session's last one (`send_arq_session_progress` in [the server's architecture.md](../../freedata_server/docs/architecture.md)), and this check covers older servers and any other repeated event. The toasts on screen are kept in a map by that key and removed from it when hidden.
+
 ---
 
 ## 6. Stores
@@ -293,6 +297,7 @@ All stores except settings are Pinia setup stores. "Writers" and "Readers" are f
 | `modem_connection` | `"disconnected"` | Server reachability as seen by the `/states` and `/events` sockets. Used by the UI (badges, disabled nav items); REST calls are not gated on it | event_sock.js (`/states` open), eventHandler.js (state frames, `states`/`events` socket errors, hello) | navbar/footer, startup check, `getOverallHealth()` |
 | `is_network_traffic` | `false` | At least one REST call is in flight (reference-counted in api.js) | api.js | `main_left_navbar.vue` |
 | `busy_state` | | `is_modem_busy` | stateDispatcher | components |
+| `temp_log_file` | `""` | Path of the server's temp-folder log while it is on, `""` when off | stateDispatcher | `main_footer_navbar.vue` (log icon), `settings_station.vue` (path under the switch) |
 | `is_modem_running` | | modem started | stateDispatcher, `getOverallHealth` (sets false when disconnected) | components |
 | `radio_status` | `false` | rig connected | stateDispatcher, `getOverallHealth` | components; the rig-control widget and the frequency offcanvas disable their controls while it is false |
 | `channel_busy_slot` | 5 x `false` | per-slot busy | stateDispatcher | components |
@@ -363,11 +368,14 @@ Not a Pinia store: a module-level `reactive({ local, remote })`.
 
 | Function | Behaviour |
 |---|---|
-| `getRemote()` | `GET /config` only, never POSTs. On success stores the config, joins `callsign_blacklist` into a string and marks the config as loaded. On failure keeps the current values (the defaults until the first successful load) |
-| `onChange()` | If no config has been loaded from the server yet, shows a warning toast, does not POST and calls `getRemote()` instead, so the GUI defaults can never overwrite the server config. Otherwise works on a deep copy of `remote`: splits the blacklist string back into an array, `POST /config` with the copy, and on success replaces `remote` with the response. On failure (error toast from api.js) it reloads the config with `getRemote()` so the UI shows what the server actually stored. Returns the promise |
+| `getRemote()` | `GET /config` only, never POSTs. On success stores the config, keeps a copy of it as the server last sent it (`serverConfig`), joins `callsign_blacklist` into a string and marks the config as loaded. On failure keeps the current values (the defaults until the first successful load) |
+| `onChange()` | If no config has been loaded from the server yet, shows a warning toast, does not POST and calls `getRemote()` instead, so the GUI defaults can never overwrite the server config. Otherwise works on a deep copy of `remote`: splits the blacklist string back into an array, drops `FREQUENCIES` (saved on their own with `POST /radio/frequencies`), and `POST /config` with only the settings that differ from `serverConfig` (`changedSettings()`); nothing changed -> no request. The server merges them into the stored config and answers with the whole of it, other tabs' changes included, which replaces `remote` and `serverConfig`. On failure (error toast from api.js) it reloads the config with `getRemote()` so the UI shows what the server actually stored. Returns the promise |
+| `changedSettings(current, base)` | The settings in `current` that differ from `base`, by section (values compared as JSON) |
+| `refreshRemote()` | Called on the server's `config changed` event (5.3). Before the first load it is `getRemote()`; after it, `GET /config` and `mergeRemoteConfig()` |
+| `mergeRemoteConfig(conf)` | Takes over `conf`'s value for every setting this tab has not changed since it last received the config (its value equals `serverConfig`'s), so an edit in progress is kept and saved later as before; then `serverConfig = conf`. Saves nothing |
 | `saveLocalSettingsToConfig()` | Writes `local` to `localStorage` |
 
-The server still compares the posted config with the stored one; it skips the write and restart when nothing changed.
+Sending only the changed settings is what keeps two open tabs from undoing each other: a tab that posted its whole copy wrote back everything it had read earlier, including what another tab had changed meanwhile (on 2026-11-20 an older tab put an old call sign back when the SSID was changed in it). The server also compares the merged config with the stored one; it skips the write, the event and the restart when nothing changed.
 
 ---
 
@@ -458,7 +466,7 @@ Compared with `../freedata_server/api/*.py` in the current working tree.
 |---|---|---|---|
 | `postFreedataMessageADIF` | `{action: "retransmit"}` | no body | Body ignored; harmless but misleading |
 | `setStationInfo` | `{callsign, location, info}` | `{info: dict}` | Works; `callsign`/`location` ignored. Unknown stations are created; a database error gives 500 (error toast) |
-| `setConfig` | full config | full config, `STATION.mycall` and `STATION.mygrid` must validate | Default `remote` has `mygrid: ""`, which would fail validation (400). `onChange()` refuses to POST before a config has been loaded from the server, so the defaults are not posted |
+| `setConfig` | only the changed settings, by section | a partial or full config; `STATION.mycall` and `STATION.mygrid` of the merged result must validate | Match. `onChange()` refuses to POST before a config has been loaded from the server, so the defaults (`mygrid: ""` would fail validation) are not posted |
 
 ### 8.3 Response handling per route
 
@@ -510,7 +518,7 @@ The modem lifecycle event (`{"freedata_server": "started"|"restarted"|"stopped"|
 ## 9. Known issues
 
 - **Fixed 1 s reconnect** for each socket with no backoff.
-- **`loadAllData()` still runs often.** It now runs once per `/states` (re)connect instead of once per socket, but also on every left-navbar click and on every modem `started`/`restarted` event. Since the server restarts the modem on every non-GUI config change (see [screens-and-settings.md](screens-and-settings.md#6-known-issues)), each such change is followed (after the modem restart) by a full reload.
+- **`loadAllData()` still runs often.** It now runs once per `/states` (re)connect instead of once per socket, but also on every left-navbar click and on every modem `started`/`restarted` event. Since the server restarts the modem on every non-GUI config change except the temp-folder log switch (see [screens-and-settings.md](screens-and-settings.md#6-known-issues)), each such change is followed (after the modem restart) by a full reload.
 - **`displayToast` still takes HTML.** Server fields in `eventHandler.js`, API error messages and attachment file names are escaped with `escapeHtml`, but the function itself does not escape, so every new caller has to.
 - **GET errors are silent.** `apiGet` only logs failures (no call passes `notify = true`), so failed background loads (messages, domains, devices, config) give no user feedback beyond stale data.
 - **`getOverallHealth()`**: its result is discarded by `loadAllData()`. (Its `process.env.FDUpdateAvail` check, which nothing defined, was removed with the move to Vite.)

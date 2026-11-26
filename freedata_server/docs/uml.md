@@ -21,16 +21,21 @@ flowchart LR
     W["Winlink / VARA-style apps"]
   end
   subgraph SRV["freedata_server (FastAPI)"]
-    API["api routers"] --> CTX["AppContext"]
-    WS["WebSocket streams"] --> CTX
+    GUARD["RequestGuard: Host / Origin check"] --> API["api routers"]
+    GUARD --> WS["WebSocket streams"]
+    API --> CTX["AppContext"]
+    WS --> CTX
     SOCK["socket interface :9000 / :9001"] --> CTX
-    CTX --> PROTO["ARQ, P2P, NORM sessions"]
-    CTX --> MODEM["RF modem: modulator, demodulator"]
+    CTX --> PROTO["commands; ARQ, P2P, NORM sessions"]
+    PROTO --> GATE["channel_gate: listen before talk"]
+    GATE --> MODEM["RF modem: modulator, demodulator"]
+    CTX --> MODEM
     CTX --> RADIO["RadioManager"]
     PROTO --> DB[("SQLite message DB")]
+    CTX --> PSK(["PSK Reporter, Explorer"])
   end
-  J -- "REST" --> API
-  J -- "WebSocket" --> WS
+  J -- "REST" --> GUARD
+  J -- "WebSocket" --> GUARD
   W -- "TCP" --> SOCK
   MODEM <--> AUDIO(["sound card"])
   RADIO <--> RIG(["rigctld, flrig, serial PTT"])
@@ -39,7 +44,11 @@ flowchart LR
 ```
 
 The GUI's Vue components, Pinia stores and JS handlers are modules, not classes, so they appear here only
-as components.
+as components. `RequestGuard` ([request_guard.py](../request_guard.py)) is ASGI middleware that turns away
+requests whose Host or Origin is not this server's (or listed in `NETWORK.allowed_hosts`), before the
+routers and WebSocket streams see them. Before keying up, the commands, the ARQ session open and its
+retries, P2P connections and CQ replies wait for a clear channel in `channel_gate`
+([channel_gate.py](../channel_gate.py), functions, not a class; set in the `[CHANNEL]` config section).
 
 ## Server core
 
@@ -60,6 +69,9 @@ classDiagram
     rf_modem
     radio_manager
     socket_interface_manager
+    station_keys
+    pskreporter
+    message_system_db_manager
     startup()
     shutdown()
   }
@@ -95,6 +107,8 @@ classDiagram
   AppContext *-- WebsocketManager
   AppContext *-- PSKReporter
   AppContext *-- StationKeyStore
+  AppContext *-- DatabaseManager
+  AppContext *-- DatabaseManagerAttachments
   AppContext o-- SocketInterfaceHandler
   SM ..> RF : creates
   SM ..> DISPATCHER : creates
@@ -126,8 +140,15 @@ classDiagram
     <<abstract>>
     set_params_from_api(params)
     build_frame()
+    wait_for_clear_channel()
     run()
   }
+  class channel_gate {
+    <<module>>
+    wait_for_clear_channel(ctx, what)
+    gate_result(ctx, what)
+  }
+  TxCommand ..> channel_gate : listen before talk
   TxCommand <|-- CQCommand
   TxCommand <|-- PingCommand
   TxCommand <|-- BeaconCommand
@@ -171,6 +192,8 @@ classDiagram
   P2PConnectionFrameHandler ..> P2PConnection : creates
   NORMFrameHandler ..> NormTransmissionIRS : creates
   P2PConnection ..> ARQSessionISS : large data
+  ARQSessionISS ..> channel_gate : open retries
+  P2PConnection ..> channel_gate : before sending
   ARQSession --> ARQDataTypeHandler : prepare, dispatch
   ARQSession --> DataFrameFactory : builds frames
 ```
@@ -197,6 +220,7 @@ erDiagram
     string callsign PK
     json location
     json info
+    bool encryption_enabled
   }
   P2P_MESSAGE {
     string id PK
@@ -205,6 +229,7 @@ erDiagram
     string via_callsign FK
     int status_id FK
     string direction
+    bool encrypted
   }
   ATTACHMENT {
     int id PK

@@ -297,7 +297,7 @@ These are produced by `EventManager.broadcast()` ([event_manager.py](../event_ma
 | Config changed | `{"type": "config", "config": "changed"}` after `POST /config/` wrote a change (not for a save that changed nothing). Open GUI tabs reload the config and take over the settings they have not changed themselves (`refreshRemote` / `mergeRemoteConfig` in `settingsStore.js`) |
 | Message DB change | `{"message-db": "changed", "message_id": <id or null>}` |
 | Logging | `{"type": "message-logging", "endpoint", "status", "message"}` |
-| ARQ new / progress / finished | `{"type": "arq", "arq-transfer-outbound"\|"arq-transfer-inbound": {session_id, dxcall, ...}}`. *new* carries `total_bytes, state`. *progress* carries `received_bytes, total_bytes, state, speed_level, mode, statistics` (`mode` is the data mode of `speed_level` as a FREEDV_MODE name, such as `datac4` or `data_fsk4_50`). *finished* carries `statistics, success, state, data` (no top-level `received_bytes`/`total_bytes`; the byte count is `statistics.total_bytes`) |
+| ARQ new / progress / finished | `{"type": "arq", "arq-transfer-outbound"\|"arq-transfer-inbound": {session_id, dxcall, ...}}`. *new* carries `total_bytes, state`. *progress* carries `received_bytes, total_bytes, state, speed_level, mode, statistics` (`mode` is the data mode of `speed_level` as a FREEDV_MODE name, such as `datac4` or `data_fsk4_50`); a *progress* event identical to the session's last one (all fields but `statistics`) is not sent, so a client sees each change once. *finished* carries `statistics, success, state, data` (no top-level `received_bytes`/`total_bytes`; the byte count is `statistics.total_bytes`) |
 | Custom | arbitrary kwargs passed to `send_custom_event(**data)` |
 
 ### 3.2 `/states` messages
