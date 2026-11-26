@@ -40,6 +40,7 @@ flowchart LR
     OS --- UC11
     OP --- UC12[UC-12 Report to PSK Reporter and Explorer]
     DEV --- UC13[UC-13 Test a change]
+    OP --- UC14[UC-14 Collect a log for a problem report]
 ```
 
 ## UC-1 Set up a station
@@ -57,7 +58,10 @@ connected for audio and CAT.
    `MICDATA`) are changed to `RIG`.
 5. Optional modem settings (`MODEM`): the maximum bandwidth, higher code rates (on by default) and the HF
    FSK modes for poor channels (off by default; both stations need them on).
-6. Save. The server restarts the modem when a setting that needs it changes.
+6. A setting is saved as soon as it changes (no Save button). The GUI sends only the setting that changed,
+   so a second GUI tab, or another client, does not undo it, and the other open tabs show the change within
+   seconds (the `config changed` event). The server restarts the modem when a setting that needs it changes;
+   GUI settings and the temp-folder log switch (UC-14) apply without a restart.
 
 **Result:** the footer shows the modem running and the radio connected; the waterfall shows the band.
 
@@ -79,7 +83,14 @@ connected for audio and CAT.
 5. Send a **test frame** (`POST /modem/send_test_frame`, in the tune dialog); the other station shows it
    with its SNR, which helps set the audio levels.
 
-**See also:** [protocol-overview.md](protocol-overview.md) (discovery), [protocol-frames.md](protocol-frames.md).
+**Listen before talk:** before keying up, CQ, ping, beacon, test frame and a CQ's `QRV` answer wait for a
+clear channel: a short listen, a random 2-5 s delay, and longer while another FreeDATA station's traffic
+is heard (settings in the `[CHANNEL]` section). So the call answers after that wait: 200 when the frame
+went out, 503 "Not sent: the channel stayed busy" or 409 "Not sent: stopped while waiting" when it did
+not. The GUI shows these as a "Not sent" warning, not as a server error.
+
+**See also:** [protocol-overview.md](protocol-overview.md) (discovery, listen before talk),
+[protocol-frames.md](protocol-frames.md), [api.md](api.md) (section 4).
 
 ## UC-3 Send a message
 
@@ -87,14 +98,20 @@ connected for audio and CAT.
 **Before:** UC-1; the other station is on the same frequency.
 
 1. In **Chat**, start a conversation with the station's callsign (or open an existing one), write the text
-   and attach files if needed, then send (`POST /freedata/messages`).
+   and attach files if needed, then send (`POST /freedata/messages`). The call answers as soon as the
+   message is stored; it is sent in the background.
 2. The message is stored as `queued`. The **Message queue** screen lists waiting messages; a queued message
    can be moved to the end (**Send last**) or deleted.
-3. The scheduler sends the first queued message when no ARQ session is running: it opens an ARQ session,
-   tells the receiver the size and CRC, and sends the compressed message in bursts.
-4. The receiving station chooses the speed level from the SNR after each burst. On a good path both
-   stations use the higher code rates (speed levels 5-7) if both have them on; on a poor one they drop to
-   lower levels and, if both have the FSK modes on, to `data_fsk4_50`.
+3. The scheduler sends the first queued message when no ARQ session is running: it waits for a clear
+   channel (listen before talk, as in UC-2; if the channel stays busy the message stays queued for the
+   next try), opens an ARQ session (each retried open also waits for a clear channel), tells the receiver
+   the size and CRC, and sends the compressed message in bursts.
+4. The receiving station chooses the speed level from the SNR after each burst, using thresholds measured
+   for each mode; when bursts are lost it steps down one level at a time. On a good path both stations use
+   the higher code rates (speed levels 5-7) if both have them on; on a poor one they drop to lower levels
+   and, if both have the FSK modes on, to `data_fsk4_50`. The **ARQ role** widget shows whether this
+   station sends (ISS) or receives (IRS), the other station and the current data mode; the footer shows
+   the progress.
 5. When the receiver has all data and the CRC matches, it acknowledges with the checksum flag; the message
    becomes `transmitted`.
 
@@ -189,9 +206,13 @@ two stations sending broadcasts right after the same ARQ session without overlap
 
 1. Set the frequency and mode (Frequency widget or the frequency list; `POST /radio/`), the RF power level
    and the antenna tuner.
-2. **Tune:** the tune dialog sends a steady tone for an external tuner or for setting levels
+2. **Frequency presets:** the frequency list holds up to 10 presets, stored in the server's config
+   (`FREQUENCIES.presets`). **Edit** changes them: frequency, notes, an optional weekly schedule in UTC
+   (shown as now / in N h / ended); the band is filled in from the IARU band plan. Save sends
+   `POST /radio/frequencies`; **Defaults** restores the shipped list.
+3. **Tune:** the tune dialog sends a steady tone for an external tuner or for setting levels
    (`POST /radio/tune`).
-3. **Clock:** `POST /radio/clock` sets the radio's clock from the computer's (rigctld, radios with a clock).
+4. **Clock:** `POST /radio/clock` sets the radio's clock from the computer's (rigctld, radios with a clock).
    A Clock widget shows local time and UTC.
 
 **See also:** [modem-audio-radio.md](modem-audio-radio.md) (radio control), [api.md](api.md).
@@ -204,7 +225,11 @@ two stations sending broadcasts right after the same ARQ session without overlap
 2. The server listens on `127.0.0.1` only (`NETWORK.modemaddress`) and has no login. Reach it through an
    SSH tunnel (`ssh -L 5000:127.0.0.1:5000 station`, then open `http://127.0.0.1:5000/gui`) or a VPN rather
    than opening it to the network ([SECURITY.md](../../SECURITY.md)).
-3. Use the GUI as on the station itself, including UC-8 to hear the band.
+3. If the server is reached under a name other than an IP address, `localhost`, a `.local` name or the
+   computer's own name (a DNS or VPN name, say), add that name to `NETWORK.allowed_hosts`: the server
+   refuses requests whose Host or Origin it does not know (403), which keeps other web sites open in the
+   same browser from using it.
+4. Use the GUI as on the station itself, including UC-8 to hear the band.
 
 ## UC-11 Connect another program
 
@@ -241,6 +266,23 @@ two stations sending broadcasts right after the same ARQ session without overlap
 3. Then test on the air between two stations at low power.
 
 **See also:** [testing.md](testing.md), [fading-channels.md](fading-channels.md).
+
+## UC-14 Collect a log for a problem report
+
+**Goal:** a log file of the session to attach to a problem report.
+
+1. The server always logs to `freedata_server.log` in the config directory (`%APPDATA%\FreeDATA` on Windows,
+   `~/.config/FreeDATA` on Linux), which rotates at 10 MB.
+2. For a separate plain-text file of one run, turn on **Settings, Station, Also log into a file in the temp
+   directory** (`STATION.enable_log_to_temp`). The server starts writing
+   `freedata_server_YYYYMMDD_HHMMSS.log` in the system temp folder at once, without a modem restart, with
+   colour codes and other control characters stripped. The switch shows the file's path, and the footer
+   shows a green log icon with the path in its tooltip.
+3. The setting is kept for later runs; each start writes a new file. Starting the server with
+   `--log-to-temp` or `FREEDATA_LOG_TO_TEMP=1` turns it on too.
+4. Reproduce the problem, then attach the file. Turn the switch off to stop writing it.
+
+**See also:** [architecture.md](architecture.md) (logging).
 
 ## Known issues
 

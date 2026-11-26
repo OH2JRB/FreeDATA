@@ -8,7 +8,8 @@ WebSocket streams.
 These documents describe the code as it currently is, based on reading the source, including the
 bug fixes made after the first version of these docs (REST no longer gated on the WebSocket state,
 API error toasts, config load/save fixes, preset validation, scheduled RX audio playback, UTF-8
-broadcasts with a size limit, and more). Each one ends with the known issues that are still open. For the server side, see
+broadcasts with a size limit, saves that send only the changed settings and a config event that keeps
+open tabs in step, no stacked duplicate toasts, the temp-folder log switch, and more). Each one ends with the known issues that are still open. For the server side, see
 [freedata_server/docs](../../freedata_server/docs/README.md); what an operator does with the GUI, step by step, is in
 [use-cases.md](../../freedata_server/docs/use-cases.md).
 

@@ -185,7 +185,7 @@ settingsStore = { local: {...}, remote: {...} }
 | Part | Persisted where | Loaded | Saved |
 |---|---|---|---|
 | `settings.local` | Browser `localStorage["localConfig"]` (JSON) | Module load: stored JSON deep-merged over `defaultConfig.local` (missing keys get their default; unreadable data falls back to the defaults) | Automatically by a deep `watch` on `settingsStore.local` -> `saveLocalSettingsToConfig()` on every change (errors caught and logged) |
-| `settings.remote` | Server `config.ini` | Starts as a deep copy of `defaultConfig.remote`; `getRemote()` -> `getConfig()` (`GET /config`) | `onChange()` -> `setConfig(copy of remote)` (`POST /config`) |
+| `settings.remote` | Server `config.ini` | Starts as a deep copy of `defaultConfig.remote`; `getRemote()` -> `getConfig()` (`GET /config`); another tab's save -> `refreshRemote()` | `onChange()` -> `setConfig(changed settings only)` (`POST /config`) |
 
 GUI-only (`local`) keys: `host`, `port`, `spectrum`, `wf_theme`, `enable_sys_notification`, `grid_layout`, `grid_preset`, `grid_enabled`, `language`, `colormode`. Only `language`, `colormode` and `wf_theme` are edited in the settings screen; the grid keys are used by the dashboard.
 
@@ -193,15 +193,16 @@ Server-side keys exposed in the GUI but stored in `config.ini`: `GUI.auto_run_br
 
 ### 4.2 Load / save flow
 
-- **`getRemote()`**: `GET /config` only; it never POSTs. On success replaces `settingsStore.remote`, converts `STATION.callsign_blacklist` from array to a newline-joined string (for the textarea) and marks the config as loaded. On failure (`undefined`) it keeps the current values, which are the defaults until the first successful load.
+- **`getRemote()`**: `GET /config` only; it never POSTs. On success replaces `settingsStore.remote`, keeps a copy of the config as the server sent it (`serverConfig`, the base for the next save), converts `STATION.callsign_blacklist` from array to a newline-joined string (for the textarea) and marks the config as loaded. On failure (`undefined`) it keeps the current values, which are the defaults until the first successful load.
 - **`onChange()`**:
   - If no config has been loaded from the server yet, it does **not** POST. It shows a "Settings not saved: configuration not loaded from server yet" warning toast and calls `getRemote()`. This prevents the GUI defaults (for example `mygrid: ""`) from overwriting the server config.
-  - Otherwise it deep-copies `remote`, converts `callsign_blacklist` in the copy back to an array (split on `\n`, trim, drop empties; non-arrays become `[]`) and POSTs the copy. On success it replaces `settingsStore.remote` with the server response and re-joins the blacklist.
+  - Otherwise it deep-copies `remote`, converts `callsign_blacklist` in the copy back to an array (split on `\n`, trim, drop empties; non-arrays become `[]`), drops `FREQUENCIES` (the presets are saved on their own) and POSTs only the settings that differ from `serverConfig` (`changedSettings()`); if none differ, nothing is posted. The server merges them into the stored config and answers with the whole config, other tabs' changes included; `settingsStore.remote` and `serverConfig` are replaced with it and the blacklist re-joined.
   - On failure, api.js shows an error toast with the server's message (for example 400 "Invalid configuration") and `onChange()` reloads the config with `getRemote()`, so the form shows what the server actually stored.
-- **When the POST happens**: every settings input uses `@change` (fires on blur/select, not on each keystroke). There is **no debounce**; each change posts the complete `remote` config.
+- **When the POST happens**: every settings input uses `@change` (fires on blur/select, not on each keystroke). There is **no debounce**; each change posts the settings changed since the last config received (normally just the one edited).
+- **Several tabs or clients**: after a save that changed something, the server sends `{"type":"config","config":"changed"}` on `/events`. Every open tab then calls `refreshRemote()`: `GET /config` and `mergeRemoteConfig()`, which takes over the new value of every setting the tab has not changed itself since it last received the config, so an edit in progress there is kept. Together with the partial saves, two tabs no longer undo each other's changes (on 2026-11-20 an older tab put an old call sign back when the SSID was changed in it). Checked by hand with two tabs on 2026-11-26.
 - **Number fields** (`NETWORK.modemport`, `RIGCTLD.port`, `FLRIG.port`, `QSO_LOGGING.adif_udp_port`) use `@focus="rememberNumber(...)"` and `@change="onNumberChange(...)"` instead of plain `onChange`. A cleared or non-numeric field (`v-model.number` gives `""`) is restored to the value remembered on focus (or reloaded with `getRemote()` if there is none) and nothing is posted. Valid values are rounded to an integer and clamped to the input's `min`/`max` before `onChange()`. The helper is copied into each of `settings_modem.vue`, `settings_hamlib.vue`, `settings_flrig.vue` and `settings_chat.vue`.
 - **Callers of `getRemote()`**: `main.js` at startup, `loadAllData()` (`/states` socket open, `hello-client` event, modem `started`/`restarted` events, every left-navbar click), `onChange()` (config not loaded yet, or save failed), `settings_station.vue` to revert an invalid callsign, and the number-field handler when there is no previous value.
-- **Server side** ([../freedata_server/api/config.py](../../freedata_server/api/config.py) `post_config`): validates `STATION.mycall` and `STATION.mygrid` (400 "Invalid configuration" if either is invalid); returns early without writing if the payload equals the current config; otherwise writes `config.ini` (type-checked against `config_types`, raising `ValueError` on a type mismatch) and **queues a modem restart** (`modem_service.put("restart")`) when any section other than `GUI` differs from the stored config. Changes that only touch `GUI.*` (`distance_unit`, `auto_run_browser`) are written without a restart.
+- **Server side** ([../freedata_server/api/config.py](../../freedata_server/api/config.py) `post_config`): merges a partial config into the stored one, then validates `STATION.mycall` and `STATION.mygrid` of the merged result (400 "Invalid configuration" if either is invalid) and keeps Explorer and PSK Reporter reporting off while encryption is in use; returns early without writing (and without the `config changed` event) if the result equals the current config; otherwise writes `config.ini` (type-checked against `config_types`, raising `ValueError` on a type mismatch), sends the `config changed` event and **queues a modem restart** (`modem_service.put("restart")`) when any section other than `GUI` differs from the stored config. Changes that only touch `GUI.*` (`distance_unit`, `auto_run_browser`) or `STATION.enable_log_to_temp` are written without a restart; the temp-folder log is started or stopped at once and the new path goes out in the state event (`temp_log_file`).
 - The Modem tab shows a red notice that changes restart the server/modem, and offers a "Reload" button (`stopModem()` then `startModem()` after 5 s).
 
 ### 4.3 Per-component field tables
@@ -218,6 +219,7 @@ Path = `settingsStore` path. "Server" column cross-checks against [config.ini.ex
 | IARU region | `remote.STATION.iaru_region` | select 0-3, `v-model.number`; 0 = not set (all regions). Encrypted messages are not sent on the amateur bands of this region |
 | Respond to CQ | `remote.STATION.respond_to_cq` | switch |
 | Enable callsign blacklist | `remote.STATION.enable_callsign_blacklist` | switch |
+| Also log into a file in the temp directory | `remote.STATION.enable_log_to_temp` | switch, `onChange`; applied at once without a modem restart. While the log is on, its path (`state.temp_log_file`) is shown next to the switch. Starting the server with `--log-to-temp` or `FREEDATA_LOG_TO_TEMP` turns this setting on |
 | Callsign blacklist | `remote.STATION.callsign_blacklist` | textarea, one call per line (string in GUI, list on server) |
 
 #### [settings_gui.vue](../src/components/settings_gui.vue) - GUI
@@ -371,6 +373,7 @@ Chat / Broadcast badges: `chat.totalUnreadMessages`, `broadcast.totalUnreadMessa
 |---|---|---|
 | PTT (`bi-broadcast-pin`) | `state.ptt_state` | red when true |
 | Modem busy (`bi-cpu`) | `state.busy_state` | red when true |
+| Temp-folder log (`bi-journal-text`) | `state.temp_log_file` | green with "Logging also to <path>" in its tooltip while the server's temp-folder log is on, grey otherwise (Settings, Station) |
 | Frequency (lg+ only) | `state.frequency / 1000` | "N kHz" |
 | Speed level (lg+ only) | `state.speed_level` 0-7 | `bi-reception-0..4` icon; the high-rate levels 5, 6, 7 show the bars of their fallback levels 1, 2, 3 |
 | Total bytes (lg+ only) | `state.arq_total_bytes` | number |
@@ -385,7 +388,7 @@ Chat / Broadcast badges: `chat.totalUnreadMessages`, `broadcast.totalUnreadMessa
 
 Observed in code; not runtime-verified unless stated.
 
-1. **Every non-GUI setting change restarts the modem.** `POST /config` queues a restart whenever a section other than `GUI` changed (server side, [config.py](../../freedata_server/api/config.py)); GUI-only keys no longer restart. There is no debounce or batching; each `@change` posts the full config, and the resulting `restarted` event runs `loadAllData()` again.
+1. **Every non-GUI setting change restarts the modem.** `POST /config` queues a restart whenever a section other than `GUI` changed (server side, [config.py](../../freedata_server/api/config.py)); GUI-only keys and the temp-folder log switch do not restart. There is no debounce or batching; each `@change` posts the changed settings at once, and the resulting `restarted` event runs `loadAllData()` again.
 2. **Config reloads are frequent.** `getRemote()` no longer POSTs, but it still runs through `loadAllData()` on every `/states` (re)connect, on modem `started`/`restarted` and on every left-navbar click, so the full config (and messages, devices, radio status) is re-fetched each time.
 3. **Unreachable or dead UI**: the station info button in the left navbar is hard-coded `disabled`, so `#stationInfoModal` cannot be opened from the UI. The Hamlib "Rigctld command" field is disabled and never filled, and its copy button has no handler.
 4. **Shared keys across tabs**: `RADIO.ptt_port`, `serial_dtr` and `serial_rts` are edited both in Hamlib and in Serial PTT, with different labels (`OFF`/`ON` vs `LOW`/`HIGH`). `RADIO.serial_port` / `ptt_port` each have both a select and a free-text input bound to the same key.
