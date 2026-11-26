@@ -172,7 +172,8 @@ encryption on the bands you use ([encryption.md](encryption.md) has the legal no
 **Before:** group chat on (`EXP.enable_groupchat`) on the sending and receiving stations.
 
 1. Open **Broadcasts**, choose or name a domain, write up to 390 bytes (15 bursts of 26 bytes) and send
-   (`POST /freedata/broadcasts`). The GUI also has a form that builds a METAR weather report.
+   (`POST /freedata/broadcasts`). A domain is written like a call sign: up to 7 letters or digits and an
+   optional SSID; `test` is stored and sent as `TEST-0`, the form every station sees. The GUI also has a form that builds a METAR weather report.
 2. The broadcast waits for a clear channel: for a running ARQ session or P2P connection to end, a random
    delay, and for another station's broadcast to finish. Then it goes out as `NORM_DATA` bursts.
 3. Each receiving station stores the bursts. When all have arrived and the CRC matches, the broadcast shows
