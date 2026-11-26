@@ -76,7 +76,8 @@ connected for audio and CAT.
 1. Watch the waterfall and the **Heard stations** list (a home-grid widget, and a screen of its own that
    sorts by callsign or time, in local time, with the frequency each station was heard on). Stations
    running a version before 0.30 have a red background: they cannot exchange data with this one.
-2. Call **CQ** (`POST /modem/cqcqcq`); stations that hear it answer with `QRV`.
+2. Call **CQ** (`POST /modem/cqcqcq`); stations that hear it answer with `QRV`, unless their setting **Respond to CQ
+   callings with a QRV reply** (`STATION.respond_to_cq`) is off.
 3. **Ping** a station (`POST /modem/ping_ping`); its `PING_ACK` reports the SNR it heard the ping with.
 4. Turn the **beacon** on (`POST /modem/beacon`) so others hear this station regularly, optionally with
    "away from key".
