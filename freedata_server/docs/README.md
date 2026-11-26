@@ -14,6 +14,7 @@ of known issues and oddities that remain in the source.
 |---|---|
 | [use-cases.md](use-cases.md) | What operators and programs do with FreeDATA, step by step: setting up, messages, encryption, stopping, broadcasts, listening, radio control, remote operation, external programs, reporting, testing |
 | [architecture.md](architecture.md) | Startup, `AppContext`, threads and queues, managers (event, state, service, radio, schedule, websocket), configuration keys, events, scheduled jobs, utility modules |
+| [configuration.md](configuration.md) | Every `config.ini` setting: meaning, type, default, GUI label, when a change takes effect; where the file is and how the server rewrites it |
 | [api.md](api.md) | REST endpoint reference, WebSocket streams, validation, how API calls become transmit commands |
 | [modem-audio-radio.md](modem-audio-radio.md) | RX/TX audio paths, codec2 ctypes binding and modes, demodulators, audio devices, CW ID, radio control backends (rigctld, flrig, serial PTT, dummy) |
 | [protocol-overview.md](protocol-overview.md) | Overview diagrams of the protocols between two stations: discovery, ARQ sessions, speed levels and FSK fallback, P2P connections, NORM broadcasts, listen before talk (`[CHANNEL]` settings), and which mode each frame uses |
@@ -58,5 +59,5 @@ queues. Start with [architecture.md](architecture.md).
    over the air.
 4. [arq-sessions.md](arq-sessions.md): reliable transfer on top of those frames.
 5. [message-system.md](message-system.md): the main user feature built on ARQ.
-6. [api.md](api.md) and [modem-audio-radio.md](modem-audio-radio.md) as reference.
+6. [api.md](api.md), [configuration.md](configuration.md) and [modem-audio-radio.md](modem-audio-radio.md) as reference.
 7. [testing.md](testing.md) before changing behaviour: run the suite, then add a test.
