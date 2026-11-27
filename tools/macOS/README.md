@@ -42,8 +42,8 @@ Open the Terminal and execute the following commands:
 ```
 % mkdir ~/freedata
 % cd ~/freedata
-% curl -o install-freedata-macos.sh https://raw.githubusercontent.com/DJ2LS/FreeDATA/main/install-freedata-macos.sh
-% curl -o run-freedata-macos.sh https://raw.githubusercontent.com/DJ2LS/FreeDATA/main/run-freedata-macos.sh
+% curl -o install-freedata-macos.sh https://raw.githubusercontent.com/OH2JRB/FreeDATA/main/tools/macOS/install-freedata-macos.sh
+% curl -o run-freedata-macos.sh https://raw.githubusercontent.com/OH2JRB/FreeDATA/main/tools/macOS/run-freedata-macos.sh
 
 % bash install-freedata-macos.sh
 ```
