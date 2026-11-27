@@ -27,9 +27,9 @@
 - **P2P connections** and a VARA-style TCP interface for other programs
 - A REST and WebSocket **API** for everything the GUI does
 
-[Use cases](freedata_server/docs/use-cases.md) walks through what an operator does with
-FreeDATA, step by step. Developer documentation: [freedata_server/docs](freedata_server/docs/README.md)
-(server, protocols, API) and [freedata_gui/docs](freedata_gui/docs/README.md) (web GUI).
+[Use cases](https://github.com/OH2JRB/FreeDATA/blob/main/freedata_server/docs/use-cases.md) walks through what an operator does with
+FreeDATA, step by step. Developer documentation: [freedata_server/docs](https://github.com/OH2JRB/FreeDATA/tree/main/freedata_server/docs)
+(server, protocols, API) and [freedata_gui/docs](https://github.com/OH2JRB/FreeDATA/tree/main/freedata_gui/docs) (web GUI).
 
 ## Installation
 
@@ -40,16 +40,16 @@ Download a release from this fork's [Releases](https://github.com/OH2JRB/FreeDAT
 
 Other ways to install:
 
-- **Linux, including Raspberry Pi:** [tools/Linux/install-freedata-linux.sh](tools/Linux/install-freedata-linux.sh) builds codec2 and Hamlib for the machine and installs from this fork; run it again to update, which also refreshes `run-freedata-linux.sh` and the installer itself
-- **macOS:** [tools/macOS](tools/macOS)
-- **Docker:** `ghcr.io/oh2jrb/freedata`, see [README.docker.md](README.docker.md)
+- **Linux, including Raspberry Pi:** [tools/Linux/install-freedata-linux.sh](https://github.com/OH2JRB/FreeDATA/blob/main/tools/Linux/install-freedata-linux.sh) builds codec2 and Hamlib for the machine and installs from this fork; run it again to update, which also refreshes `run-freedata-linux.sh` and the installer itself
+- **macOS:** [tools/macOS](https://github.com/OH2JRB/FreeDATA/tree/main/tools/macOS)
+- **Docker:** `ghcr.io/oh2jrb/freedata`, see [README.docker.md](https://github.com/OH2JRB/FreeDATA/blob/main/README.docker.md)
 
 The server serves the GUI at `http://127.0.0.1:5000/gui`. For setting up and using FreeDATA, see the upstream [wiki](https://wiki.freedata.app).
 
 ## Security
 
 The server has no login and listens on this computer only by default; stored
-messages and settings are not encrypted. See [SECURITY.md](SECURITY.md) for
+messages and settings are not encrypted. See [SECURITY.md](https://github.com/OH2JRB/FreeDATA/blob/main/SECURITY.md) for
 the security model, how to check a download, and how to report a
 vulnerability.
 
