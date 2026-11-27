@@ -9,7 +9,8 @@
 # 
 # Run this script by typing in the terminal (without the quotes):
 # "bash install-freedata-macos.sh" to install from the main branch 
-# "bash install-freedata-macos.sh develop" to install from the develop branch
+# "bash install-freedata-macos.sh v0.30.5" to install a release version
+# This fork has no develop branch; "develop" installs main.
 #
 # This script creates three subdirectories in the directory it is run
 # FreeDATA: Contains the FreeDATA software
@@ -22,6 +23,10 @@
 #
 #
 # Changelog:
+# 2.6:	27 Nov 2026
+#	"develop" installs main: this fork has no develop branch, and cloning
+#	it failed
+#
 # 2.5:	3 Nov 2026
 #	Download FreeDATA from the OH2JRB/FreeDATA fork
 #	Check the SHA-256 of the Hamlib tarball before using it
@@ -84,7 +89,8 @@ case $1 in
 	args="main"
    ;;
    "develop")
-	args="develop"
+	echo "This fork has no develop branch; installing main instead."
+	args="main"
    ;;
   v*)
   args=$1
@@ -412,12 +418,7 @@ pip3 install --upgrade pip wheel
 echo "*************************************************************************"
 echo "Downloading the FreeDATA software from the git repo"
 echo "*************************************************************************"
-if [ "$args" == "develop" ];
-then
-  echo "Downloading development version"
-  git clone https://github.com/OH2JRB/FreeDATA.git -b develop
-	git checkout develop
-elif [[ $args == v* ]];
+if [[ $args == v* ]];
 then
     echo "Downloading specific version: $args"
     git clone https://github.com/OH2JRB/FreeDATA.git -b $args

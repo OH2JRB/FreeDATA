@@ -19,8 +19,8 @@ wget https://raw.githubusercontent.com/OH2JRB/FreeDATA/main/tools/Linux/run-free
 To install from the main FreeDATA branch, run:
 bash install-freedata-linux.sh
 
-or to install from the develop FreeDATA branch, run:
-bash install-freedata-linux.sh develop
+or to install a specific release version, run for example:
+bash install-freedata-linux.sh v0.30.5
 
 To update, run the install script again in the same directory. At the end
 it replaces run-freedata-linux.sh and itself with the versions it just
