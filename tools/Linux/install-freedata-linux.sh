@@ -11,7 +11,8 @@
 # Untested additions for Linux Mint [22.x]
 # FreeDATA needs Python 3.12 or newer, which these releases ship
 # 
-# First option passed is the branch of FreeDATA to run.  Defaults to main.
+# First option passed is the branch or version tag of FreeDATA to run.
+# Defaults to main. This fork has no develop branch; "develop" installs main.
 # Second option passed is the version of Hamlib to use.  Defaults to 4.7.2.
 #
 # Run this script by typing in the terminal (without the quotes):
@@ -22,11 +23,11 @@
 # Install FreeDATA main branch and default Hamlib version:
 # "bash install-freedata-linux.sh"
 #
-# Install FreeDATA develop branch and default Hamlib version:
-# "bash install-freedata-linux.sh develop"
+# Install FreeDATA version 0.30.5 and default Hamlib version:
+# "bash install-freedata-linux.sh v0.30.5"
 #
-# Install FreeDATA develop branch and Hamlib version 4.6.2:
-# "bash install-freedata-linux.sh develop 4.6.2"
+# Install FreeDATA version 0.30.5 and Hamlib version 4.6.2:
+# "bash install-freedata-linux.sh v0.30.5 4.6.2"
 #
 # Install FreeDATA main branch and Hamlib version 4.6.2:
 # "bash install-freedata-linux.sh main 4.6.2"
@@ -45,6 +46,10 @@
 #
 #
 # Changelog:
+# 2.17:	27 Nov 2026
+#	"develop" installs main: this fork has no develop branch, and cloning
+#	it failed
+#
 # 2.16:	12 Nov 2026
 #	Copy run-freedata-linux.sh and this script from the downloaded version
 #	into the install directory at the end, keeping a differing copy as
@@ -168,6 +173,10 @@ fi
 
 case $1 in
    "" | "main")
+	branch="main"
+   ;;
+   "develop")
+	echo "This fork has no develop branch; installing main instead."
 	branch="main"
    ;;
    *)
@@ -442,14 +451,8 @@ pip install --upgrade pip wheel || pip_failed
 echo "*************************************************************************"
 echo "Downloading the FreeDATA software from the git repo"
 echo "*************************************************************************"
-if [ "$branch" == "develop" ];
-then
-  echo "Downloading development version"
-  git clone https://github.com/OH2JRB/FreeDATA.git -b develop
-else 
-    echo "Downloading specific version: $branch"
-    git clone https://github.com/OH2JRB/FreeDATA.git -b $branch
-fi
+echo "Downloading version: $branch"
+git clone https://github.com/OH2JRB/FreeDATA.git -b $branch
 
 echo "*************************************************************************"
 echo "Changing Directory into FreeDATA"
