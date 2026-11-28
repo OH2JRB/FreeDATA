@@ -235,7 +235,7 @@
             "enablecallsignblacklist_help": "Ignoruje požadavky od volacích značek na černé listině",
             "callsignblacklist": "Černá listina volacích značek",
             "callsignblacklist_placeholder": "Seznam volacích značek",
-            "callsignblacklist_help": "Jedna volací značka na řádek"
+            "callsignblacklist_help": "Jedna volací značka nebo regulární výraz na řádek"
         },
         "chat": {
             "introduction": "Nastavení zpráv, automatické opakování a konfigurace ADIF připojení.",

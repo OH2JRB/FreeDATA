@@ -58,7 +58,7 @@ The environment variable `FREEDATA_CONFIG` names another file instead. The messa
 | `respond_to_cq` | bool | `True` | Answer a received CQ with QRV. Off: no answer, the caller is still listed as heard. Read at every CQ, no modem restart. *Respond to CQ callings with a QRV reply* |
 | `iaru_region` | int | `0` | IARU region 1-3, or 0 (not set). Encrypted messages are not sent on the amateur bands of this region (0: of any region). *IARU region* |
 | `enable_callsign_blacklist` | bool | `False` | Ignore requests from the call signs in `callsign_blacklist`. *Enable callsign blacklist* |
-| `callsign_blacklist` | list | `[]` | Call signs to ignore (the GUI edits them one per line). *Callsign blacklist* |
+| `callsign_blacklist` | list | `[]` | Call signs to ignore (the GUI edits them one per line). Each entry is a regular expression that must match the whole call sign; case does not matter. An entry without SSID covers every SSID (`OH2JRB` blocks OH2JRB-12), one with an SSID only that call (`OH2JRB-1` does not block OH2JRB-12); `OH2JRB-1[0-5]` or `DL.*` block several. `POST /config/` refuses an entry that is not a valid regular expression; one put in the file by hand is compared as plain text. See [callsign_blacklist.py](../callsign_blacklist.py). *Callsign blacklist* |
 | `enable_log_to_temp` | bool | `False` | Also write the log to `freedata_server_<date>_<time>.log` in the system temp folder, without colour codes. Starts and stops at once, no modem restart; `--log-to-temp` or `FREEDATA_LOG_TO_TEMP=1` at start turn it on and store it here. *Also log into a file in the temp directory* |
 
 ## [AUDIO]

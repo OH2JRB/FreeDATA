@@ -429,7 +429,7 @@
             "enablecallsignblacklist_help": "Ignore requests from blacklisted callsigns",
             "callsignblacklist": "Callsign blacklist",
             "callsignblacklist_placeholder": "List of callsigns",
-            "callsignblacklist_help": "One callsign per line",
+            "callsignblacklist_help": "One callsign or regular expression per line",
             "logtotemp": "Also log into a file in the temp directory",
             "logtotemp_help": "Writes the server log, without colour codes, into a new file freedata_server_<date>_<time>.log in the temp directory, besides freedata_server.log next to config.ini. Starts and stops at once and is kept for later runs. The server's --log-to-temp switch or FREEDATA_LOG_TO_TEMP turns it on."
         },

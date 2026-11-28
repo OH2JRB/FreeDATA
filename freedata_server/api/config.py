@@ -4,6 +4,7 @@ import structlog
 from fastapi import APIRouter, Depends
 from freedata_server.api.common import api_abort
 from freedata_server import api_validations as validations
+from freedata_server import callsign_blacklist
 from freedata_server import frequency_list
 from freedata_server.context import AppContext, get_ctx
 from freedata_server.log_handler import set_temp_logging
@@ -188,6 +189,14 @@ async def post_config(
     # Validate (and normalize) the call sign and locator of the result
     if not validations.validate_remote_config(merged):
         api_abort("Invalid configuration", 400)
+
+    # Blacklist entries are regular expressions: refuse one that is not
+    # (checked only when the list is sent, so an entry already in a
+    # hand-edited config.ini does not block saving other settings)
+    if isinstance(new_cfg.get("STATION"), dict) and "callsign_blacklist" in new_cfg["STATION"]:
+        bad = callsign_blacklist.invalid_entries(merged["STATION"].get("callsign_blacklist"))
+        if bad:
+            api_abort(f"Invalid callsign blacklist entry (not a regular expression): {', '.join(bad)}", 400)
 
     # No Explorer or PSK Reporter reporting while encryption is in use: the
     # common key setting in this config, or encryption on for any station

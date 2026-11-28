@@ -1,4 +1,4 @@
-from freedata_server import helpers
+from freedata_server import callsign_blacklist, helpers
 import structlog
 import time
 
@@ -169,23 +169,22 @@ class FrameHandler:
     def is_origin_on_blacklist(self):
         """Checks if the origin callsign is on the blacklist.
 
-        This method checks if the origin callsign of the received frame is
-        present in the callsign blacklist defined in the configuration.
-        It handles callsigns with SSIDs by removing the suffix and performs
-        a case-insensitive comparison.
+        Each entry of STATION.callsign_blacklist is a regular expression
+        matched against the whole call sign, case-insensitively; an entry
+        without SSID covers every SSID (see callsign_blacklist.py).
 
         Returns:
             bool: True if the origin callsign is blacklisted, False otherwise.
         """
-        origin_callsign = self.details["frame"]["origin"]
-
-        for blacklist_callsign in self.ctx.config_manager.config["STATION"]["callsign_blacklist"]:
-            if helpers.get_crc_24(origin_callsign).hex() == helpers.get_crc_24(blacklist_callsign).hex():
-                return True
-
-            if origin_callsign == blacklist_callsign or origin_callsign.startswith(blacklist_callsign):
-                return True
-        return False
+        frame = self.details["frame"]
+        return (
+            callsign_blacklist.matching_entry(
+                frame.get("origin"),
+                self.ctx.config_manager.config["STATION"]["callsign_blacklist"],
+                frame.get("origin_crc"),
+            )
+            is not None
+        )
 
     def add_to_activity_list(self):
         """Adds the received frame to the activity list.
@@ -466,7 +465,8 @@ class FrameHandler:
         # check if callsign is blacklisted
         if self.ctx.config_manager.config["STATION"]["enable_callsign_blacklist"]:
             if self.is_origin_on_blacklist():
-                self.logger.info(f"[Frame Handler] Callsign blocked: {self.details['frame']['origin']}")
+                frame = self.details["frame"]
+                self.logger.info(f"[Frame Handler] Callsign blocked: {frame.get('origin') or frame.get('origin_crc')}")
                 return False
 
         self.log()

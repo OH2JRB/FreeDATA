@@ -353,7 +353,7 @@
             "enablecallsignblacklist_help": "Anfragen von Rufzeichen auf der schwarzen Liste ignorieren",
             "callsignblacklist": "Rufzeichen-Blacklist",
             "callsignblacklist_placeholder": "Rufzeichenliste",
-            "callsignblacklist_help": "Ein Rufzeichen pro Zeile"
+            "callsignblacklist_help": "Ein Rufzeichen oder regulärer Ausdruck pro Zeile"
         },
         "chat": {
             "introduction": "Nachrichtenbezogene Einstellungen, wie die Aktivierung der automatischen Nachrichtenwiederholung und die Konfiguration des ADIF-Loggings.",
