@@ -252,7 +252,7 @@
             "enablecallsignblacklist_help": "Ignorer forespørsler fra svartelistede kallesignaler",
             "callsignblacklist": "Kallesignal svarteliste",
             "callsignblacklist_placeholder": "Liste over kallesignaler",
-            "callsignblacklist_help": "Ett kallesignal per linje"
+            "callsignblacklist_help": "Ett kallesignal eller regulært uttrykk per linje"
         },
         "chat": {
             "introduction": "Meldingsrelaterte innstillinger, som å aktivere automatisk repetisjon av meldinger og konfigurere ADIF-loggtilkobling.",

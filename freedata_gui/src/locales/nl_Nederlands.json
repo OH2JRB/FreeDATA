@@ -256,7 +256,7 @@
       "enablecallsignblacklist_help": "Negeer verzoeken van roepnamen op de zwarte lijst",
       "callsignblacklist": "Roepnaam zwarte lijst",
       "callsignblacklist_placeholder": "Lijst van roepnamen",
-      "callsignblacklist_help": "Eén roepnaam per regel"
+      "callsignblacklist_help": "Eén roepnaam of reguliere expressie per regel"
     },
     "chat": {
       "introduction": "Berichtgerelateerde instellingen, zoals het inschakelen van automatische berichtherhaling en het configureren van ADIF logboek verbinding.",

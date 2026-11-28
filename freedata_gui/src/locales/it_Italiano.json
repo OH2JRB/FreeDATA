@@ -255,7 +255,7 @@
             "enablecallsignblacklist_help": "Ignora richieste dai nominativi in blacklist",
             "callsignblacklist": "Blacklist dei nominativi",
             "callsignblacklist_placeholder": "Lista di nominativi",
-            "callsignblacklist_help": "Un nominativo per riga"
+            "callsignblacklist_help": "Un nominativo o espressione regolare per riga"
         },
         "chat": {
             "introduction": "Configurazione per i messaggi, come attivare la ripetizione automatica dei messaggi o la connessione al log ADIF.",

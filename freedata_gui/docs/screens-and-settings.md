@@ -220,7 +220,7 @@ Path = `settingsStore` path. "Server" column cross-checks against [config.ini.ex
 | Respond to CQ | `remote.STATION.respond_to_cq` | switch, `onChange`. Off: received CQs are not answered with QRV (the caller is still listed as heard). Read by the server at every CQ, so it applies at once without a modem restart |
 | Enable callsign blacklist | `remote.STATION.enable_callsign_blacklist` | switch |
 | Also log into a file in the temp directory | `remote.STATION.enable_log_to_temp` | switch, `onChange`; applied at once without a modem restart. While the log is on, its path (`state.temp_log_file`) is shown next to the switch. Starting the server with `--log-to-temp` or `FREEDATA_LOG_TO_TEMP` turns this setting on |
-| Callsign blacklist | `remote.STATION.callsign_blacklist` | textarea, one call per line (string in GUI, list on server) |
+| Callsign blacklist | `remote.STATION.callsign_blacklist` | textarea, one call or regular expression per line, case-insensitive (string in GUI, list on server; the server refuses an invalid expression) |
 
 #### [settings_gui.vue](../src/components/settings_gui.vue) - GUI
 
